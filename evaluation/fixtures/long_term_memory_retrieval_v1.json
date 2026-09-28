@@ -1,0 +1,37 @@
+{
+  "fixture_id": "long-term-memory-retrieval-v1",
+  "frozen_at": "2026-09-24",
+  "purpose": "长期事实读取侧：给定画像事实集合 + 查询，测『当前有效事实』的召回（只算非全局键、最多 3 条）与误召；并据此扫描 FACT_MAX_DISTANCE（默认 0.58）。",
+  "notes": [
+    "facts = 预先写入该用户的当前有效事实（直接走写路径，不经 LLM 抽取；写入侧由其他评测覆盖）。",
+    "expect = 期望被召回的 (key, value) 完整集合；[] 表示不应召回任何事实。",
+    "style.* 是全局键（始终随画像整体注入），不参与 top-3 语义召回，因此 style 问题预期为空。",
+    "decoy_facts = 写入另一个用户的干扰事实，验证用户隔离（不允许召回他人事实）。"
+  ],
+  "cases": [
+    {"id": "billing-01", "facts": {"preference.billing_cycle": "年付", "environment.ide": "PyCharm", "environment.os": "Windows"}, "query": "我的账单是按什么周期扣费的？", "expect": [{"key": "preference.billing_cycle", "value": "年付"}]},
+    {"id": "billing-02", "facts": {"preference.billing_cycle": "月付", "environment.os": "Linux"}, "query": "我选择的付费周期是哪个？", "expect": [{"key": "preference.billing_cycle", "value": "月付"}]},
+    {"id": "billing-03", "facts": {"preference.billing_cycle": "年付"}, "query": "月付还是年付更适合我？", "expect": [{"key": "preference.billing_cycle", "value": "年付"}]},
+    {"id": "os-01", "facts": {"environment.os": "macOS", "environment.ide": "VS Code"}, "query": "我平时在什么操作系统上办公？", "expect": [{"key": "environment.os", "value": "macOS"}]},
+    {"id": "os-02", "facts": {"environment.os": "Ubuntu"}, "query": "我用的系统是哪个来着？", "expect": [{"key": "environment.os", "value": "Ubuntu"}]},
+    {"id": "os-03", "facts": {"environment.os": "Windows", "preference.billing_cycle": "年付"}, "query": "帮我按我的系统给个命令行建议。", "expect": [{"key": "environment.os", "value": "Windows"}]},
+    {"id": "ide-01", "facts": {"environment.ide": "PyCharm", "environment.os": "Windows"}, "query": "我平时用什么开发工具写代码？", "expect": [{"key": "environment.ide", "value": "PyCharm"}]},
+    {"id": "ide-02", "facts": {"environment.ide": "Vim"}, "query": "帮我想个编辑器的快捷键方案。", "expect": [{"key": "environment.ide", "value": "Vim"}]},
+    {"id": "ide-03", "facts": {"environment.ide": "Neovim", "preference.billing_cycle": "月付"}, "query": "我用的那个命令行编辑器叫什么名字来着？", "expect": [{"key": "environment.ide", "value": "Neovim"}]},
+    {"id": "ide-04", "facts": {"environment.ide": "VS Code", "environment.os": "Windows"}, "query": "我的开发环境需要重新配置，用哪个工具？", "expect": [{"key": "environment.ide", "value": "VS Code"}]},
+    {"id": "multi-01", "facts": {"environment.os": "Windows", "environment.ide": "PyCharm"}, "query": "我的电脑系统和开发工具，你都记着吗？", "expect": [{"key": "environment.os", "value": "Windows"}, {"key": "environment.ide", "value": "PyCharm"}]},
+    {"id": "multi-02", "facts": {"preference.billing_cycle": "月付", "environment.os": "Linux"}, "query": "我的账单周期和操作系统偏好分别是什么？", "expect": [{"key": "preference.billing_cycle", "value": "月付"}, {"key": "environment.os", "value": "Linux"}]},
+    {"id": "multi-03", "facts": {"preference.billing_cycle": "年付", "environment.ide": "Cursor", "environment.os": "macOS"}, "query": "把我记住的偏好都说一遍。", "expect": [{"key": "preference.billing_cycle", "value": "年付"}, {"key": "environment.ide", "value": "Cursor"}, {"key": "environment.os", "value": "macOS"}]},
+    {"id": "multi-04", "facts": {"preference.billing_cycle": "月付", "environment.ide": "IntelliJ IDEA"}, "query": "我要续费，另外我的 IDE 是哪个？", "expect": [{"key": "preference.billing_cycle", "value": "月付"}, {"key": "environment.ide", "value": "IntelliJ IDEA"}]},
+    {"id": "style-01", "facts": {"style.response_length": "简短", "preference.billing_cycle": "年付"}, "query": "我对回答长度有什么要求？", "expect": []},
+    {"id": "style-02", "facts": {"style.answer_order": "先给结论", "style.response_length": "详细"}, "query": "你记得我喜欢先给结论还是先解释吗？", "expect": []},
+    {"id": "none-01", "facts": {"preference.billing_cycle": "年付", "environment.ide": "PyCharm"}, "query": "退款一般多久到账？", "expect": []},
+    {"id": "none-02", "facts": {"preference.billing_cycle": "年付"}, "query": "你们的发票可以开公司抬头吗？", "expect": []},
+    {"id": "none-03", "facts": {"environment.ide": "PyCharm", "environment.os": "Windows"}, "query": "我想咨询一下退款流程。", "expect": []},
+    {"id": "none-04", "facts": {"preference.billing_cycle": "月付"}, "query": "如何注销我的账号？", "expect": []},
+    {"id": "none-05", "facts": {"environment.os": "Windows"}, "query": "你们的客服工作时间是几点？", "expect": []},
+    {"id": "none-06", "facts": {"environment.os": "macOS", "environment.ide": "Xcode"}, "query": "你们支持企业采购吗？", "expect": []},
+    {"id": "decoy-01", "facts": {"preference.billing_cycle": "年付"}, "decoy_facts": {"preference.billing_cycle": "月付", "environment.ide": "PyCharm"}, "query": "我的账单周期偏好是什么？", "expect": [{"key": "preference.billing_cycle", "value": "年付"}]},
+    {"id": "decoy-02", "facts": {"environment.ide": "VS Code"}, "decoy_facts": {"environment.ide": "PyCharm"}, "query": "我用哪个编辑器写代码？", "expect": [{"key": "environment.ide", "value": "VS Code"}]}
+  ]
+}

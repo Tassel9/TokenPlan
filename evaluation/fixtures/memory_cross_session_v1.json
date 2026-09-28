@@ -1,0 +1,109 @@
+{
+  "fixture_id": "memory-cross-session-v1",
+  "frozen_at": "2026-09-24",
+  "purpose": "端到端『记忆被用对了吗』：会话 1 通过真实抽取链路写入记忆，会话 2 提问；三臂对照 no_memory（不写入）/ stale（只写入更新前）/ current（写入全部）。",
+  "notes": [
+    "ingest = 会话 1 的用户消息（逐条走真实 process_profile_update：抽取 + 准入 + 落库）。",
+    "stale_ingest = 仅写入更新前的消息（可选；用于验证『更新前状态确实与更新后不同』）。",
+    "评分：final_contains 必须出现；final_not_contains 不得出现；stale_* 用于观察 stale 臂；no_memory_not_contains 用于观察无记忆臂（应不知道）。",
+    "max_chars 可选：如回答长度偏好类场景，断言回答不超长。"
+  ],
+  "scenarios": [
+    {
+      "id": "billing-preference",
+      "title": "偏好陈述 → 跨会话回答体现偏好",
+      "ingest": ["我以后都按年付吧。"],
+      "query": "帮我推荐一下最适合我的套餐方案。",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "no_memory_not_contains": ["年付"],
+      "stale_ingest": null
+    },
+    {
+      "id": "billing-update",
+      "title": "知识更新：月付 → 年付，问『现在』",
+      "ingest": ["我的账单先按月付吧。", "算了，账单还是改成按年付吧。"],
+      "stale_ingest": ["我的账单先按月付吧。"],
+      "query": "我现在是按什么周期付费？",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "stale_contains": ["月付"],
+      "stale_not_contains": ["年付"],
+      "no_memory_not_contains": ["年付"]
+    },
+    {
+      "id": "ide-update",
+      "title": "指代更新：换成 VS Code",
+      "ingest": ["我一直用 PyCharm 写代码。", "我现在换成 VS Code 了，以后都用它。"],
+      "stale_ingest": ["我一直用 PyCharm 写代码。"],
+      "query": "我现在用什么开发工具？",
+      "final_contains": ["VS Code"],
+      "final_not_contains": ["PyCharm"],
+      "stale_contains": ["PyCharm"],
+      "stale_not_contains": ["VS Code"],
+      "no_memory_not_contains": ["VS Code"]
+    },
+    {
+      "id": "os-recall",
+      "title": "环境事实召回：macOS",
+      "ingest": ["我平时用 macOS 办公。"],
+      "query": "给我一条适合我机器的环境配置建议。",
+      "final_contains": ["macOS"],
+      "final_not_contains": ["Windows"],
+      "no_memory_not_contains": ["macOS"]
+    },
+    {
+      "id": "mixed-recall",
+      "title": "多事实召回：系统 + 工具",
+      "ingest": ["我用 Windows，开发主要用 VS Code。"],
+      "query": "帮我准备一份针对我环境的开发配置清单。",
+      "final_contains": ["Windows", "VS Code"],
+      "final_not_contains": [],
+      "no_memory_not_contains": ["Windows"]
+    },
+    {
+      "id": "style-length",
+      "title": "回答长度偏好：跨会话遵循『简短』",
+      "ingest": ["以后回答请简短一点，不要太长。"],
+      "query": "介绍一下你们的企业版。",
+      "final_contains": [],
+      "final_not_contains": [],
+      "max_chars": 120,
+      "no_memory_not_contains": []
+    },
+    {
+      "id": "retract-ide",
+      "title": "撤回：用户要求忘记开发工具偏好",
+      "ingest": ["我在用 PyCharm 开发。", "不用记我的开发工具了。"],
+      "query": "我之前是不是说过用什么开发工具？",
+      "final_contains": [],
+      "final_not_contains": ["PyCharm"],
+      "no_memory_not_contains": ["PyCharm"]
+    },
+    {
+      "id": "retract-billing",
+      "title": "撤回：用户要求忘记账单周期偏好",
+      "ingest": ["账单按年付。", "忘记我的账单周期偏好吧。"],
+      "query": "我现在是月付还是年付？",
+      "final_contains": [],
+      "final_not_contains": [],
+      "judge": {
+        "question": "待判定回答是否明确声称知道用户当前的账单周期（例如『你是年付』『你按月付』）？只输出 AFFIRM 或 DENY。",
+        "pass_code": "DENY"
+      },
+      "no_memory_not_contains": []
+    },
+    {
+      "id": "billing-update-phrase",
+      "title": "知识更新（不同措辞）：下个季度改成年付",
+      "ingest": ["账单周期是月付。", "下个季度开始改成年付。"],
+      "stale_ingest": ["账单周期是月付。"],
+      "query": "我下个周期会按什么方式付费？",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "stale_contains": ["月付"],
+      "stale_not_contains": [],
+      "no_memory_not_contains": ["年付"]
+    }
+  ]
+}

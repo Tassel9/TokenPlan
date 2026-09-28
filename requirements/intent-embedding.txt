@@ -1,0 +1,4 @@
+# Default local whole-query intent-recognition Embedding backend.
+torch>=2.1,<3
+transformers==4.46.3
+sentence-transformers==5.1.2

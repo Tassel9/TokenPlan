@@ -1,0 +1,184 @@
+{
+  "fixture_id": "long-term-memory-update-matrix-v1",
+  "frozen_at": "2026-09-24",
+  "purpose": "事件追加 + 读时归并的确定性不变量矩阵：对真实写路径（_apply_profile_candidates）与真实投影（resolve_profile）逐检查点断言，无 LLM、无人工判分。",
+  "notes": [
+    "checkpoint.after = 步骤序号（1 起）；after=0 表示仅对手工行做投影（用于同时间冲突/排序场景）。",
+    "checkpoint.facts = 期望的『当前有效事实』完整字典（精确相等比较）；{} 表示没有任何有效事实。",
+    "checkpoint.now 可选：投影时使用的『当前时间』（ISO8601，带时区）；缺省用真实当前时间。",
+    "checkpoint.rows 可选：断言该用户的 Chroma 行数（验证幂等/去重）。",
+    "resolve_rows 场景可带 observed_at：参与 (effective_at, observed_at, id) 的排序决胜。"
+  ],
+  "scenarios": [
+    {
+      "id": "billing-set-supersede-retract-revive",
+      "title": "基础序列：新增 → 变更 → 撤回 → 再新增",
+      "user": "matrix-billing",
+      "conv": "conv-billing",
+      "steps": [
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我的账单按年付"},
+        {"key": "preference.billing_cycle", "value": "月付", "operation": "supersede", "at": "2026-09-02T02:00:00+00:00", "source": "以后改成月付"},
+        {"key": "preference.billing_cycle", "value": "", "operation": "retract", "at": "2026-09-03T02:00:00+00:00", "source": "请忘记我的账单周期偏好"},
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-04T02:00:00+00:00", "source": "还是按年付吧"}
+      ],
+      "checkpoints": [
+        {"after": 1, "facts": {"preference.billing_cycle": "年付"}},
+        {"after": 2, "facts": {"preference.billing_cycle": "月付"}},
+        {"after": 3, "facts": {}},
+        {"after": 4, "facts": {"preference.billing_cycle": "年付"}}
+      ]
+    },
+    {
+      "id": "retract-blocks-delayed-value",
+      "title": "撤回后，延迟到达的旧值事件不得复活旧值",
+      "user": "matrix-erase",
+      "conv": "conv-erase",
+      "steps": [
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我的账单按年付"},
+        {"key": "preference.billing_cycle", "value": "", "operation": "retract", "at": "2026-09-03T02:00:00+00:00", "source": "忘记我的账单周期偏好吧"},
+        {"key": "preference.billing_cycle", "value": "月付", "operation": "supersede", "at": "2026-09-02T02:00:00+00:00", "source": "其实我一直按季度……", "note": "延迟到达的旧任务（时间戳早于撤回）"}
+      ],
+      "checkpoints": [
+        {"after": 2, "facts": {}},
+        {"after": 3, "facts": {}}
+      ]
+    },
+    {
+      "id": "delayed-older-value-cannot-win",
+      "title": "乱序到达：迟到的更早事件不得覆盖更新的当前值",
+      "user": "matrix-out-of-order",
+      "conv": "conv-order",
+      "steps": [
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-02T02:00:00+00:00", "source": "按年付"},
+        {"key": "preference.billing_cycle", "value": "月付", "operation": "supersede", "at": "2026-09-01T02:00:00+00:00", "source": "按月付", "note": "迟到事件：effective_at 更早"}
+      ],
+      "checkpoints": [
+        {"after": 1, "facts": {"preference.billing_cycle": "年付"}},
+        {"after": 2, "facts": {"preference.billing_cycle": "年付"}}
+      ]
+    },
+    {
+      "id": "idempotency-retry-and-same-value",
+      "title": "幂等：同事件重投、同值 supersede 均不新增行",
+      "user": "matrix-idempotent",
+      "conv": "conv-idem",
+      "steps": [
+        {"key": "environment.ide", "value": "PyCharm", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我在用 PyCharm"},
+        {"key": "environment.ide", "value": "PyCharm", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我在用 PyCharm", "note": "队列至少一次投递：完全相同的重放"},
+        {"key": "environment.ide", "value": "PyCharm", "operation": "supersede", "at": "2026-09-02T02:00:00+00:00", "source": "以后还是用 PyCharm"}
+      ],
+      "checkpoints": [
+        {"after": 1, "facts": {"environment.ide": "PyCharm"}, "rows": 1},
+        {"after": 2, "facts": {"environment.ide": "PyCharm"}, "rows": 1},
+        {"after": 3, "facts": {"environment.ide": "PyCharm"}, "rows": 1}
+      ]
+    },
+    {
+      "id": "cross-key-isolation",
+      "title": "键间隔离：改账单周期不影响开发工具",
+      "user": "matrix-isolation",
+      "conv": "conv-iso",
+      "steps": [
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "按年付"},
+        {"key": "environment.ide", "value": "PyCharm", "operation": "set", "at": "2026-09-02T02:00:00+00:00", "source": "我用 PyCharm"},
+        {"key": "preference.billing_cycle", "value": "月付", "operation": "supersede", "at": "2026-09-03T02:00:00+00:00", "source": "改成月付"}
+      ],
+      "checkpoints": [
+        {"after": 2, "facts": {"preference.billing_cycle": "年付", "environment.ide": "PyCharm"}},
+        {"after": 3, "facts": {"preference.billing_cycle": "月付", "environment.ide": "PyCharm"}}
+      ]
+    },
+    {
+      "id": "expiry-drops-value-without-fallback",
+      "title": "过期：TTL 到期后当前值为空，不回退旧值",
+      "user": "matrix-expiry",
+      "conv": "conv-expiry",
+      "steps": [
+        {"key": "environment.os", "value": "Windows", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我平时用 Windows", "note": "environment.* TTL = 180 天"}
+      ],
+      "checkpoints": [
+        {"after": 1, "now": "2026-11-01T00:00:00+00:00", "facts": {"environment.os": "Windows"}},
+        {"after": 1, "now": "2027-05-01T00:00:00+00:00", "facts": {}}
+      ]
+    },
+    {
+      "id": "retract-scoped-to-target-key",
+      "title": "撤回只作用于目标键",
+      "user": "matrix-scope",
+      "conv": "conv-scope",
+      "steps": [
+        {"key": "environment.os", "value": "Windows", "operation": "set", "at": "2026-09-01T02:00:00+00:00", "source": "我用 Windows"},
+        {"key": "preference.billing_cycle", "value": "年付", "operation": "set", "at": "2026-09-01T03:00:00+00:00", "source": "按年付"},
+        {"key": "environment.os", "value": "", "operation": "retract", "at": "2026-09-02T02:00:00+00:00", "source": "不要记我的操作系统了"}
+      ],
+      "checkpoints": [
+        {"after": 2, "facts": {"environment.os": "Windows", "preference.billing_cycle": "年付"}},
+        {"after": 3, "facts": {"preference.billing_cycle": "年付"}}
+      ]
+    },
+    {
+      "id": "supersede-without-current-degrades-to-set",
+      "title": "无旧值时 supersede 退化为 set（首次生效）",
+      "user": "matrix-degrade",
+      "conv": "conv-degrade",
+      "steps": [
+        {"key": "style.answer_order", "value": "先给结论", "operation": "supersede", "at": "2026-09-01T02:00:00+00:00", "source": "以后先说结论"}
+      ],
+      "checkpoints": [
+        {"after": 1, "facts": {"style.answer_order": "先给结论"}}
+      ]
+    },
+    {
+      "id": "same-timestamp-conflict-clears-key",
+      "title": "同时间戳冲突的 set 行：投影判定为冲突，键清空（不猜胜负）",
+      "user": "matrix-conflict",
+      "conv": "conv-conflict",
+      "resolve_rows": [
+        {
+          "id": "conflict-a",
+          "memory_key": "style.response_length",
+          "value": "简短",
+          "operation": "set",
+          "effective_at": "2026-09-05T00:00:00+00:00"
+        },
+        {
+          "id": "conflict-b",
+          "memory_key": "style.response_length",
+          "value": "详细",
+          "operation": "set",
+          "effective_at": "2026-09-05T00:00:00+00:00"
+        }
+      ],
+      "checkpoints": [
+        {"after": 0, "now": "2026-09-06T00:00:00+00:00", "facts": {}}
+      ]
+    },
+    {
+      "id": "same-timestamp-supersede-last-wins",
+      "title": "同时间戳的 supersede 行：按 (effective_at, observed_at, id) 排序，后者确定胜出",
+      "user": "matrix-supersede-tie",
+      "conv": "conv-tie",
+      "resolve_rows": [
+        {
+          "id": "tie-a",
+          "memory_key": "style.answer_order",
+          "value": "先给结论",
+          "operation": "supersede",
+          "effective_at": "2026-09-05T00:00:00+00:00",
+          "observed_at": "2026-09-05T01:00:00+00:00"
+        },
+        {
+          "id": "tie-b",
+          "memory_key": "style.answer_order",
+          "value": "分步骤",
+          "operation": "supersede",
+          "effective_at": "2026-09-05T00:00:00+00:00",
+          "observed_at": "2026-09-05T02:00:00+00:00"
+        }
+      ],
+      "checkpoints": [
+        {"after": 0, "now": "2026-09-06T00:00:00+00:00", "facts": {"style.answer_order": "分步骤"}}
+      ]
+    }
+  ]
+}

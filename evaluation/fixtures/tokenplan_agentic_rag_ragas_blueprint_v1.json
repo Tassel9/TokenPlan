@@ -1,0 +1,356 @@
+{
+  "schema_version": "tokenplan-agentic-rag-ragas-blueprint-v1",
+  "dataset_id": "tokenplan-agentic-rag-ragas-curated-v1",
+  "metadata": {
+    "description": "TokenPlan 订阅服务 Agentic RAG 的校准集与冻结持出集蓝图。",
+    "business_domain": "token_plan_subscription",
+    "data_origin": "curated_synthetic_tokenplan_subscription_contract",
+    "production_evidence": false,
+    "synthetic": true,
+    "dataset_role": "calibration_and_frozen_holdout",
+    "holdout_frozen": true,
+    "holdout_frozen_before_first_live_run": true,
+    "construction": {
+      "method": "assistant_authored_synthetic_then_contract_checked",
+      "gold_labels_model_generated": true,
+      "evaluated_system_output_used_for_gold_labels": false
+    },
+    "independent_review": {
+      "required": true,
+      "status": "pending",
+      "reviewer": null
+    },
+    "notes": "所有套餐、账单和技术规则均为评测用合成事实，不代表任何真实服务商的现行政策。",
+    "limitations": [
+      "样本由项目作者构造，不来自生产流量。",
+      "Gold 文档与答案尚未完成独立业务复核。",
+      "冻结 Holdout 首次运行后不得依据结果修改；新发现的问题应进入独立回归集。"
+    ]
+  },
+  "top_k": 5,
+  "split_policy": {
+    "calibration": {
+      "standard_index": [0],
+      "rewrite_index": [0],
+      "multi_count": 5,
+      "unsupported_count": 5
+    },
+    "expected_counts": {
+      "all": 200,
+      "calibration": 50,
+      "holdout": 150
+    }
+  },
+  "multi_pair_offsets": [1, 3, 7],
+  "extra_multi_offset": 9,
+  "extra_multi_count": 15,
+  "topics": [
+    {
+      "topic_id": "plan_comparison",
+      "owner": "general",
+      "document_id": "subscription-plan-comparison",
+      "title": "订阅套餐适用范围比较",
+      "content": "评测规则中，Basic 面向个人轻量使用，Pro 增加高级模型和更高用量额度，Team 增加成员席位、统一账单与管理员能力。套餐价格和实时权益可能变化，最终应以订阅页面为准。",
+      "reference_answer": "Basic 适合个人轻量使用，Pro 提供高级模型和更高额度，Team 增加席位、统一账单与管理能力；实时价格和权益以订阅页面为准。",
+      "standard_queries": ["Basic、Pro 和 Team 套餐分别适合谁？", "三个订阅版本的主要权益有什么区别？"],
+      "rewrite_queries": ["我一个人偶尔写代码该选哪档？", "小团队想统一管成员和账单用哪个版本？", "高级模型和更高额度是哪一档才有？"],
+      "distractors": [
+        {"document_id": "subscription-plan-purchase", "title": "订阅购买入口", "content": "购买套餐需要在订阅页面确认版本、周期和付款方式。购买入口不解释各版本的适用人群与权益差异。"},
+        {"document_id": "subscription-plan-current-state", "title": "当前套餐状态查询", "content": "个人当前套餐与到期日只能在授权账户页面查看。状态查询不等同于公开套餐比较。"}
+      ]
+    },
+    {
+      "topic_id": "billing_cycle",
+      "owner": "billing",
+      "document_id": "billing-cycle-rules",
+      "title": "月付与年付计费周期",
+      "content": "评测规则中，月付按每个自然订阅月续费，年付按连续十二个月的订阅周期续费。续费日由首次生效日确定；切换周期时应先查看确认页展示的生效日、应付金额和下一次续费日。",
+      "reference_answer": "月付按订阅月、年付按连续十二个月续费；续费日由首次生效日确定，切换周期前应核对确认页的生效日、金额和下次续费日。",
+      "standard_queries": ["月付和年付的计费周期怎么计算？", "订阅的下一次续费日由什么决定？"],
+      "rewrite_queries": ["按月买是每月一号都扣吗？", "包年到底算自然年还是从开通日算十二个月？", "从月度改年度前需要在确认页看哪些日期？"],
+      "distractors": [
+        {"document_id": "billing-cycle-invoice-period", "title": "发票开具期间", "content": "发票按已完成支付的订单申请，开票期间不决定订阅续费日。"},
+        {"document_id": "billing-cycle-refund-window", "title": "退款申请时限", "content": "退款申请时限从订单支付时间计算，与月付或年付的续费周期不是同一规则。"}
+      ]
+    },
+    {
+      "topic_id": "plan_change",
+      "owner": "general",
+      "document_id": "subscription-plan-change",
+      "title": "套餐升级与降级生效规则",
+      "content": "评测规则中，升级在支付差额并确认后立即生效；降级在当前已付周期结束后生效，以避免提前收回已购权益。提交前必须查看差额、权益变化和生效时间，知识库不能代替用户执行变更。",
+      "reference_answer": "升级在确认并支付差额后立即生效，降级在当前已付周期结束后生效；提交前应核对差额、权益变化和生效时间。",
+      "standard_queries": ["升级和降级分别什么时候生效？", "调整套餐前需要确认哪些信息？"],
+      "rewrite_queries": ["现在加钱升 Pro 能马上用吗？", "换便宜一档会立刻把当前权益收走吗？", "改版本前页面上的差价和日期要怎么看？"],
+      "distractors": [
+        {"document_id": "subscription-plan-cancel", "title": "关闭自动续费", "content": "关闭自动续费只阻止下一周期扣款，不会自动把当前套餐降到更低版本。"},
+        {"document_id": "subscription-plan-seat-change", "title": "团队席位调整", "content": "团队席位数量调整影响成员容量，不等同于 Basic、Pro、Team 之间的套餐升降级。"}
+      ]
+    },
+    {
+      "topic_id": "auto_renewal",
+      "owner": "general",
+      "document_id": "subscription-auto-renewal",
+      "title": "自动续费关闭与到期",
+      "content": "关闭自动续费后，当前已付款周期内的权益仍可使用，到期后不再自动扣款。关闭结果和到期时间应在账户订阅页核对；删除客户端或退出登录不会自动取消订阅。",
+      "reference_answer": "关闭自动续费不会提前终止已付权益，到期后不再自动扣款；应在订阅页核对关闭结果和到期时间，卸载客户端不能代替取消。",
+      "standard_queries": ["关闭自动续费后还能用到什么时候？", "卸载 IDE 插件会不会自动取消订阅？"],
+      "rewrite_queries": ["本月钱都付了，关续费会不会今天就不能用？", "我不想下个周期再扣费要在哪确认关闭成功？", "把扩展删了是不是就不会续订了？"],
+      "distractors": [
+        {"document_id": "subscription-auto-renewal-refund", "title": "取消后的退款", "content": "关闭未来续费不等于退回当前订单；已支付订单是否可退需单独检查退款条件。"},
+        {"document_id": "subscription-auto-renewal-login", "title": "退出设备登录", "content": "退出其他设备用于账户安全，不会改变订阅的自动续费状态。"}
+      ]
+    },
+    {
+      "topic_id": "team_seats",
+      "owner": "general",
+      "document_id": "subscription-team-seats",
+      "title": "团队席位分配规则",
+      "content": "Team 套餐由工作区管理员邀请或移除成员。新增席位需先确认数量和计费变化；移除成员只回收其工作区访问权限，不删除成员个人项目，也不自动改变套餐版本。",
+      "reference_answer": "团队席位由管理员邀请或移除；新增前核对数量和费用，移除仅回收工作区访问权限，不删除个人项目或自动变更套餐。",
+      "standard_queries": ["Team 套餐怎么增加和移除成员席位？", "移除团队成员会不会删除他的个人项目？"],
+      "rewrite_queries": ["团队还想加三个人要先确认什么费用？", "把同事踢出工作区会把他自己的代码删掉吗？", "谁有权限给协作空间分配名额？"],
+      "distractors": [
+        {"document_id": "subscription-team-role", "title": "团队角色权限", "content": "管理员和普通成员具有不同管理权限。角色调整不等同于购买或回收计费席位。"},
+        {"document_id": "subscription-team-plan", "title": "团队套餐比较", "content": "套餐比较介绍 Team 的总体能力，不提供具体工作区当前可用席位数。"}
+      ]
+    },
+    {
+      "topic_id": "payment_failure",
+      "owner": "billing",
+      "document_id": "billing-payment-failure",
+      "title": "订阅支付失败排查",
+      "content": "支付失败时先核对支付方式是否可用、账单地址是否一致、限额是否充足，并保留失败时间、订单号和脱敏错误信息。不要向客服提供完整卡号、支付密码或验证码；多次失败应联系支付机构或转人工核验。",
+      "reference_answer": "先检查支付方式、账单地址和限额，记录失败时间、订单号与脱敏错误；不要提供完整卡号、密码或验证码，多次失败再联系支付机构或人工支持。",
+      "standard_queries": ["订阅付款失败应该怎么排查？", "支付问题转人工时需要提供什么信息？"],
+      "rewrite_queries": ["买 Pro 一直刷不过去先查哪几项？", "卡明明能用为什么订阅单还是失败？", "付款报错要截图哪些内容又不能泄露什么？"],
+      "distractors": [
+        {"document_id": "billing-payment-pending", "title": "支付处理中", "content": "订单显示处理中时应等待支付渠道回执，避免重复提交。处理中与明确支付失败的排查路径不同。"},
+        {"document_id": "billing-payment-duplicate", "title": "重复扣费识别", "content": "看到两笔扣款时应先区分预授权、重复订单与正式入账，不应按普通支付失败处理。"}
+      ]
+    },
+    {
+      "topic_id": "duplicate_charge",
+      "owner": "billing",
+      "document_id": "billing-duplicate-charge",
+      "title": "疑似重复扣费核对",
+      "content": "发现两笔相同金额时，先比较订单号、交易时间和入账状态，排除预授权与重复展示。若两笔均正式入账，应保留订单号、金额、时间和脱敏支付凭证后转人工；公开知识库不能确认个人账户是否真的重复扣款。",
+      "reference_answer": "比较订单号、时间和入账状态以排除预授权或重复展示；两笔都正式入账时，携带订单号、金额、时间和脱敏凭证转人工核验。",
+      "standard_queries": ["订阅好像被重复扣费了怎么核对？", "重复扣款转人工需要准备哪些凭证？"],
+      "rewrite_queries": ["同一笔会员费账上出现两次怎么办？", "银行卡两条一样的扣费是不是系统多收了？", "两笔都入账了，找客服前要记下什么？"],
+      "distractors": [
+        {"document_id": "billing-duplicate-renewal", "title": "正常续费记录", "content": "不同订阅周期各有一笔续费记录可能是正常情况，应先比较周期和订单号。"},
+        {"document_id": "billing-duplicate-invoice", "title": "发票重复开具", "content": "重复发票是票据问题，不代表支付渠道发生了重复扣款。"}
+      ]
+    },
+    {
+      "topic_id": "charge_details",
+      "owner": "billing",
+      "document_id": "billing-charge-details",
+      "title": "账单明细与订单识别",
+      "content": "账单明细应展示订单号、套餐、计费周期、金额、支付状态和发生时间。对不认识的扣费，先在订阅页匹配订单，再核对是否属于其他工作区或续费；无法匹配时应冻结相关支付方式并转人工。",
+      "reference_answer": "通过订单号、套餐、周期、金额、状态和时间核对扣费；再排查其他工作区或续费，仍无法匹配时冻结相关支付方式并转人工。",
+      "standard_queries": ["订阅账单明细应该包含哪些字段？", "遇到不认识的 TokenPlan 扣费怎么处理？"],
+      "rewrite_queries": ["这笔会员钱我没印象，先去哪里对订单？", "账单里哪些信息能判断是谁在什么时候买了什么？", "所有工作区都找不到这笔扣款下一步怎么办？"],
+      "distractors": [
+        {"document_id": "billing-charge-receipt", "title": "支付收据下载", "content": "收据用于证明一笔支付完成，不能单独解释未知扣费来自哪个工作区。"},
+        {"document_id": "billing-charge-quota", "title": "用量消耗记录", "content": "模型调用额度的消耗记录不等同于银行卡或支付渠道的订阅扣费明细。"}
+      ]
+    },
+    {
+      "topic_id": "invoice_request",
+      "owner": "billing",
+      "document_id": "billing-invoice-request",
+      "title": "订阅发票申请与重开",
+      "content": "已支付成功的订单可从账单页发起电子发票申请。申请时核对订单、企业名称、税号和接收邮箱；抬头错误时应按页面规则申请作废或重开。未支付订单和退款完成的订单不能按正常已支付订单直接开票。",
+      "reference_answer": "对已支付订单从账单页申请电子发票，并核对订单、企业名称、税号和邮箱；抬头错误按规则作废或重开，未支付或已退款订单需另行处理。",
+      "standard_queries": ["订阅订单怎么申请电子发票？", "发票抬头填错后如何重开？"],
+      "rewrite_queries": ["公司报销要那张订阅票从哪开？", "企业名字写错了能把原票作废再出吗？", "开票前订单号、税号和收件邮箱都要核对吗？"],
+      "distractors": [
+        {"document_id": "billing-invoice-receipt", "title": "支付收据说明", "content": "支付收据记录交易完成，不等同于包含企业税务信息的发票。"},
+        {"document_id": "billing-invoice-refund", "title": "退款后的票据处理", "content": "订单退款后可能需要红冲或作废原发票，不能继续按普通已支付订单申请。"}
+      ]
+    },
+    {
+      "topic_id": "refund_policy",
+      "owner": "billing",
+      "document_id": "billing-refund-policy",
+      "title": "订阅退款条件与材料",
+      "content": "评测规则中，误购或重复购买可在订单支付后七天内提交退款申请；已大量使用额度、存在争议或超过时限的订单需要人工审核。申请应提供订单号、购买时间、原因和必要的脱敏凭证，提交不代表一定退款成功。",
+      "reference_answer": "误购或重复购买可在支付后七天内申请；大量使用、争议或超期订单需人工审核。提交订单号、时间、原因和脱敏凭证，但申请不等于批准。",
+      "standard_queries": ["订阅退款需要满足什么条件？", "提交退款申请要准备哪些材料？"],
+      "rewrite_queries": ["套餐买错了七天内能退吗？", "刚买完发现重复下单，要拿什么去申请退钱？", "额度已经用了很多是不是要人工审核退款？"],
+      "distractors": [
+        {"document_id": "billing-refund-cancel", "title": "关闭未来续费", "content": "关闭自动续费只影响未来扣款，不会自动发起当前订单退款。"},
+        {"document_id": "billing-refund-chargeback", "title": "支付争议处理", "content": "支付机构拒付属于争议流程，可能冻结订单状态，不应与普通误购退款混为一谈。"}
+      ]
+    },
+    {
+      "topic_id": "refund_timing",
+      "owner": "billing",
+      "document_id": "billing-refund-timing",
+      "title": "退款审核与到账时间",
+      "content": "退款申请先进入审核，批准后再由原支付渠道入账。评测规则中审核通常需要一至三个工作日，入账时间取决于支付机构；用户应分别区分待审核、已批准、渠道处理中和已到账状态。",
+      "reference_answer": "退款先审核，批准后由原支付渠道入账；评测规则中的审核通常为一至三个工作日，实际入账取决于支付机构，应区分各状态。",
+      "standard_queries": ["退款审核通过后多久能到账？", "退款流程有哪些状态？"],
+      "rewrite_queries": ["页面说退了为什么银行卡还没收到？", "退钱是客服审核完就立刻进卡吗？", "待审核、渠道处理中和已到账分别是什么意思？"],
+      "distractors": [
+        {"document_id": "billing-refund-policy-window", "title": "退款申请期限", "content": "申请期限决定是否能提交退款，不说明批准后的支付渠道到账速度。"},
+        {"document_id": "billing-refund-invoice-state", "title": "退款票据状态", "content": "票据红冲或作废是发票流程，不等同于资金已经退回原支付渠道。"}
+      ]
+    },
+    {
+      "topic_id": "account_login",
+      "owner": "technical",
+      "document_id": "account-login-troubleshooting",
+      "title": "账户登录失败排查",
+      "content": "登录失败时先确认邮箱拼写、网络和系统时间，再尝试重置密码并清理浏览器缓存。若反复跳回登录页，应记录浏览器、发生时间和脱敏错误；多次失败导致锁定时停止反复尝试并走账户恢复。",
+      "reference_answer": "先核对邮箱、网络和系统时间，再重置密码、清理缓存；登录回跳时记录环境和错误，账户锁定后停止重试并走恢复流程。",
+      "standard_queries": ["TokenPlan 账户无法登录怎么排查？", "登录后反复跳回登录页怎么办？"],
+      "rewrite_queries": ["密码没输错但就是进不去账户", "验证完又回到登录框是浏览器哪里要查？", "试太多次账号锁了还要继续点登录吗？"],
+      "distractors": [
+        {"document_id": "account-login-plugin-401", "title": "插件 401 错误", "content": "IDE 插件返回 401 还需检查插件凭据和端点，不等同于网页账户本身无法登录。"},
+        {"document_id": "account-login-password-change", "title": "主动修改密码", "content": "已登录用户主动修改密码属于安全设置，不是登录失败排查。"}
+      ]
+    },
+    {
+      "topic_id": "account_security",
+      "owner": "general",
+      "document_id": "account-security-response",
+      "title": "账户泄露后的安全处置",
+      "content": "怀疑账户或密钥泄露时，应立即修改密码、撤销其他设备会话、轮换暴露的 API Key 并开启双重验证。工单中不得发送密码、完整密钥或验证码；若邮箱已失控，应转人工完成身份核验。",
+      "reference_answer": "立即改密、撤销其他会话、轮换暴露密钥并开启双重验证；不要发送密码、完整密钥或验证码，邮箱失控时转人工核验身份。",
+      "standard_queries": ["怀疑 TokenPlan 账户泄露后应该做什么？", "账户安全工单里哪些敏感信息不能提供？"],
+      "rewrite_queries": ["感觉别人登过我的账号，第一时间怎么止损？", "API Key 贴到公开仓库了除了改密码还要做什么？", "邮箱也被盗了还能靠聊天直接找回账户吗？"],
+      "distractors": [
+        {"document_id": "account-security-login-error", "title": "普通登录错误", "content": "普通密码输错或缓存异常先按登录排查，不代表账户已经泄露。"},
+        {"document_id": "account-security-team-role", "title": "团队成员权限", "content": "团队角色控制工作区权限，不替代密码、会话、密钥和双重验证等账户安全措施。"}
+      ]
+    },
+    {
+      "topic_id": "ide_plugin_setup",
+      "owner": "technical",
+      "document_id": "technical-ide-plugin-setup",
+      "title": "IDE 插件安装与基础配置",
+      "content": "安装插件前应确认 IDE 和插件版本兼容，通过官方扩展入口安装并重启 IDE。首次配置需选择正确服务端点并通过安全方式载入凭据；不要把完整密钥粘贴到项目文件、截图或日志中。",
+      "reference_answer": "确认 IDE 与插件兼容，从官方入口安装并重启；首次配置选择正确端点并安全载入凭据，禁止把完整密钥写入项目、截图或日志。",
+      "standard_queries": ["TokenPlan IDE 插件怎么安装和配置？", "插件首次使用时如何安全配置凭据？"],
+      "rewrite_queries": ["VS Code 里从哪里装这个代码助手？", "扩展装完要重启还要选哪个服务地址吗？", "能不能把 Key 直接写进项目配置方便插件读取？"],
+      "distractors": [
+        {"document_id": "technical-ide-plugin-login", "title": "插件登录失效", "content": "已经安装的插件登录失效应检查凭据和会话，不需要重复执行完整安装流程。"},
+        {"document_id": "technical-ide-plugin-index", "title": "项目索引设置", "content": "项目索引范围影响代码上下文，不决定插件是否与 IDE 版本兼容。"}
+      ]
+    },
+    {
+      "topic_id": "plugin_indexing",
+      "owner": "technical",
+      "document_id": "technical-plugin-indexing",
+      "title": "插件索引卡住排查",
+      "content": "项目索引长期停在准备阶段时，先确认项目目录权限、排除目录、磁盘空间和代理网络，再用小目录复现。报障时提供 IDE、插件版本、项目规模、停留阶段和脱敏日志，不能上传私有源码。",
+      "reference_answer": "检查目录权限、排除项、磁盘空间和代理，再用小目录复现；提供版本、项目规模、停留阶段与脱敏日志，不上传私有源码。",
+      "standard_queries": ["IDE 插件索引一直卡住怎么排查？", "提交索引故障需要提供哪些信息？"],
+      "rewrite_queries": ["项目扫描一直显示准备中不往下走", "代码库太大建不了索引先排除哪些目录？", "报索引问题要给日志但又不想泄露源码怎么办？"],
+      "distractors": [
+        {"document_id": "technical-plugin-indexing-install", "title": "插件安装失败", "content": "扩展无法安装通常检查商店访问和版本兼容，与安装后项目索引卡住不同。"},
+        {"document_id": "technical-plugin-indexing-quota", "title": "模型额度不足", "content": "额度不足会影响调用，但不直接解释本地项目索引停在准备阶段。"}
+      ]
+    },
+    {
+      "topic_id": "http_401",
+      "owner": "technical",
+      "document_id": "technical-http-401",
+      "title": "401 认证失败排查",
+      "content": "401 表示请求未通过认证。应检查凭据是否完整或失效、Authorization 格式、插件实际读取的环境变量、系统时间和服务端点；轮换后必须重启相关进程。不要通过反复重试解决未变化的认证配置。",
+      "reference_answer": "检查凭据状态、Authorization 格式、环境变量、系统时间和端点，轮换后重启进程；认证配置未变时不要反复重试。",
+      "standard_queries": ["接口返回 401 应该检查哪些配置？", "IDE 插件更换凭据后为什么还报 401？"],
+      "rewrite_queries": ["请求说没认证，可我明明配了 Key", "新密钥已经换了扩展还是提示 unauthorized", "命令行能用但编辑器里认证失败先查环境变量吗？"],
+      "distractors": [
+        {"document_id": "technical-http-401-permission", "title": "403 权限不足", "content": "403 表示身份可能已认证但缺少资源权限，不能按凭据无效的 401 路径处理。"},
+        {"document_id": "technical-http-401-rate-limit", "title": "429 速率限制", "content": "429 需要控制并发和退避重试，不应通过轮换认证凭据解决。"}
+      ]
+    },
+    {
+      "topic_id": "http_403",
+      "owner": "technical",
+      "document_id": "technical-http-403",
+      "title": "403 权限不足排查",
+      "content": "403 通常表示身份已识别但无权访问目标资源。应核对当前套餐是否包含目标模型、工作区角色、资源归属和端点；若刚调整权限，重新登录后再验证。不要把 403 误判为支付失败或用重复提交规避授权。",
+      "reference_answer": "核对套餐模型权益、工作区角色、资源归属和端点，权限刚变更时重新登录；不要把 403 当成支付失败或靠重复请求绕过授权。",
+      "standard_queries": ["插件返回 403 应该从哪些权限项排查？", "为什么登录成功后访问模型仍提示 forbidden？"],
+      "rewrite_queries": ["认证过了但说我没权限用这个模型", "团队里别人能调我却被拒绝要查角色吗？", "扩展报 forbidden 和银行卡付款失败是一回事吗？"],
+      "distractors": [
+        {"document_id": "technical-http-403-authentication", "title": "401 凭据认证", "content": "401 重点检查凭据与认证头；403 的重点是已认证身份拥有的资源权限。"},
+        {"document_id": "technical-http-403-not-found", "title": "404 资源不存在", "content": "404 常由路径、资源名或端点错误造成，不一定表示用户权限不足。"}
+      ]
+    },
+    {
+      "topic_id": "http_429",
+      "owner": "technical",
+      "document_id": "technical-http-429",
+      "title": "429 限流与重试策略",
+      "content": "429 表示请求触发速率或并发限制。先统计真实并发、长连接和重试叠加，再采用有上限的指数退避与随机抖动；队列应限制积压并设置熔断。立即无限重试会扩大请求风暴，具体限制以当前控制台为准。",
+      "reference_answer": "先核对并发、长连接和重试叠加，再使用有上限的指数退避与抖动，并限制队列和设置熔断；禁止立即无限重试。",
+      "standard_queries": ["请求遇到 429 应该怎么重试？", "排查速率限制时要统计哪些负载？"],
+      "rewrite_queries": ["调用太快被限了是不是立刻循环重发？", "并发不高却总 rate limit 要不要查长连接和重试叠加？", "队列越堆越多时除了退避还要做什么保护？"],
+      "distractors": [
+        {"document_id": "technical-http-429-server-error", "title": "503 服务异常", "content": "503 可能来自服务侧暂时不可用，虽然也可有限重试，但诊断依据与账户级限流不同。"},
+        {"document_id": "technical-http-429-quota", "title": "订阅额度耗尽", "content": "周期额度耗尽需要等待重置或调整套餐，不等同于短时间请求速率过高。"}
+      ]
+    },
+    {
+      "topic_id": "model_access",
+      "owner": "general",
+      "document_id": "subscription-model-access",
+      "title": "套餐模型可用范围",
+      "content": "评测规则中，Basic 包含标准代码模型，Pro 和 Team 额外包含高级推理模型。实际模型清单可能更新，用户应在当前套餐权益页确认；模型显示不可用时再核对套餐、工作区和插件端点。",
+      "reference_answer": "Basic 包含标准代码模型，Pro 和 Team 额外包含高级推理模型；实际清单以权益页为准，不可用时核对套餐、工作区和端点。",
+      "standard_queries": ["不同 TokenPlan 套餐包含哪些模型？", "高级模型显示不可用时先核对什么？"],
+      "rewrite_queries": ["哪一档会员才能选推理能力更强的模型？", "模型列表里看得到但点了不能用是套餐问题吗？", "换工作区后同一个高级模型没权限要查哪里？"],
+      "distractors": [
+        {"document_id": "subscription-model-performance", "title": "模型能力比较", "content": "模型能力比较介绍速度和推理特征，不说明某个套餐是否包含使用权限。"},
+        {"document_id": "subscription-model-api-name", "title": "模型标识配置", "content": "模型名称拼写错误会造成调用失败，但不能据此判断订阅权益是否包含该模型。"}
+      ]
+    },
+    {
+      "topic_id": "quota_usage",
+      "owner": "general",
+      "document_id": "subscription-quota-usage",
+      "title": "订阅额度消耗与重置",
+      "content": "用量页展示当前周期的总额度、已使用量、剩余量和重置时间。额度按成功计费请求消耗，失败请求是否计入以用量明细为准；达到上限后可等待周期重置或调整套餐，公开知识库不能查询个人剩余额度。",
+      "reference_answer": "在用量页查看总量、已用、剩余和重置时间；达到上限后等待周期重置或调整套餐，具体失败请求是否计入以明细为准。",
+      "standard_queries": ["TokenPlan 额度在哪里看，什么时候重置？", "订阅额度用完后有哪些处理方式？"],
+      "rewrite_queries": ["这个月还剩多少调用量应该去哪个页面看？", "提示本周期用完了只能等下个月吗？", "失败的模型请求会不会也扣额度要看哪份记录？"],
+      "distractors": [
+        {"document_id": "subscription-quota-rate-limit", "title": "请求速率限制", "content": "速率限制约束短时间请求频率，即使仍有周期额度也可能触发 429。"},
+        {"document_id": "subscription-quota-billing", "title": "订阅账单金额", "content": "账单金额记录套餐费用，不等同于当前周期剩余的模型调用额度。"}
+      ]
+    }
+  ],
+  "unsupported_cases": [
+    {"topic_id": "plan_comparison", "query": "直接告诉我账号现在订的是哪一档", "reference_answer": "公开知识库不能读取个人当前套餐，需要在授权账户订阅页查看。"},
+    {"topic_id": "duplicate_charge", "query": "帮我确认银行卡这两笔一定是重复扣款", "reference_answer": "公开知识库不能确认个人交易，应核对订单号与入账状态并由人工或支付机构验证。"},
+    {"topic_id": "invoice_request", "query": "查一下公司发票目前开到哪一步了", "reference_answer": "公开知识库不能查询个人发票进度，需要通过授权账单页面或人工支持核验。"},
+    {"topic_id": "refund_policy", "query": "保证我这笔订单提交后肯定能退款", "reference_answer": "不能保证退款结果，申请需按规则审核，提交不代表批准。"},
+    {"topic_id": "quota_usage", "query": "帮我读一下账户现在精确剩余多少额度", "reference_answer": "公开知识库不能读取个人实时额度，应在授权用量页查看。"},
+    {"topic_id": "billing_cycle", "query": "替我算出下个月银行卡一定会扣多少钱", "reference_answer": "不能凭公开规则确认个人下期扣款，应以账户确认页的套餐、优惠和续费金额为准。"},
+    {"topic_id": "plan_change", "query": "直接把我的 Basic 现在升级到 Pro", "reference_answer": "知识助手不能代为执行套餐变更，用户需在授权订阅页确认差额和生效时间。"},
+    {"topic_id": "auto_renewal", "query": "你现在替我关闭工作区的自动续费", "reference_answer": "知识助手不能直接修改订阅，应由用户在授权订阅页操作或转人工。"},
+    {"topic_id": "team_seats", "query": "告诉我工作区现在还剩几个可分配席位", "reference_answer": "公开知识库不能读取工作区实时席位，需要管理员在授权控制台查看。"},
+    {"topic_id": "payment_failure", "query": "把我的完整银行卡号拿去测试为什么付不了", "reference_answer": "不得收集或测试完整卡号、支付密码和验证码，应使用脱敏信息排查并联系支付机构。"},
+    {"topic_id": "duplicate_charge", "query": "替我把第二笔重复费用原路退回", "reference_answer": "知识助手不能执行退款，应先核验交易并通过授权退款或人工流程处理。"},
+    {"topic_id": "charge_details", "query": "读取我所有工作区最近三个月的真实账单", "reference_answer": "公开知识库不能读取个人账单，应登录授权账单页查看或导出。"},
+    {"topic_id": "invoice_request", "query": "不用走页面，直接给我签发一张电子发票", "reference_answer": "知识助手不能签发发票，应从已支付订单的账单页发起申请。"},
+    {"topic_id": "refund_timing", "query": "订单 TP-2048 的退款今天到账了吗", "reference_answer": "公开知识库不能查询特定订单的实时退款状态，需要在授权页面或原支付渠道核验。"},
+    {"topic_id": "account_login", "query": "你能看到我的账户是不是已经被锁定了吗", "reference_answer": "公开知识库不能读取账户实时状态，应通过账户恢复页面或人工支持核验。"},
+    {"topic_id": "account_security", "query": "把我的密码和验证码发给你就能帮我恢复账户吗", "reference_answer": "不能提供密码或验证码；账户恢复应走官方身份核验流程。"},
+    {"topic_id": "account_security", "query": "现在替我撤销其他设备并轮换所有 API Key", "reference_answer": "知识助手不能执行账户安全操作，用户需在授权安全页面完成或转人工。"},
+    {"topic_id": "ide_plugin_setup", "query": "把我的完整密钥写进仓库配置文件吧", "reference_answer": "不能把完整密钥写入仓库，应使用环境变量或安全密钥服务。"},
+    {"topic_id": "plugin_indexing", "query": "我把整个私有源码发给你就能修好索引吗", "reference_answer": "不应上传完整私有源码，应提供最小复现、环境信息和脱敏日志。"},
+    {"topic_id": "http_401", "query": "告诉我刚才请求实际使用的完整 API Key", "reference_answer": "知识助手不能读取或披露完整密钥，应在本地安全检查凭据来源。"},
+    {"topic_id": "http_403", "query": "直接给我的账号开通这个高级模型权限", "reference_answer": "知识助手不能授予模型权限，应核对套餐与角色后通过授权流程处理。"},
+    {"topic_id": "http_429", "query": "查一下平台此刻给我账户配置的精确并发上限", "reference_answer": "公开知识库不能读取个人实时限额，应在当前控制台或授权支持渠道查询。"},
+    {"topic_id": "model_access", "query": "你能确认我的 Pro 账户现在已经开通哪个模型吗", "reference_answer": "公开知识库不能确认个人实时权益，应在当前套餐与模型权益页查看。"},
+    {"topic_id": "quota_usage", "query": "直接给我的工作区多加一百万额度", "reference_answer": "知识助手不能调整工作区额度，应通过套餐变更或授权人工流程处理。"},
+    {"topic_id": "http_429", "query": "你保证无限重试最终一定不会丢请求吧", "reference_answer": "不能保证无限重试安全；应使用有上限的退避、队列保护、幂等和失败处置。"}
+  ]
+}

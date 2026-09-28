@@ -1,0 +1,9 @@
+# RAGAS is isolated from the Python 3.9 application runtime.
+# RAGAS 0.4.3 currently imports a VertexAI module removed by modern LangChain;
+# 0.3.9 plus the pre-1.0 LangChain family is the reproducible compatible set.
+ragas==0.3.9
+langchain==0.3.30
+langchain-core==0.3.86
+langchain-community==0.3.31
+langchain-openai==0.3.35
+python-dotenv==1.0.1

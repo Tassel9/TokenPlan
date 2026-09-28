@@ -1,0 +1,56 @@
+{
+  "schema_version": "long-term-memory-recall-v1",
+  "embedding_model": "BAAI/bge-base-zh-v1.5",
+  "embedding_revision": "f03589ceff5aac7111bd60cfc7d497ca17ecac65",
+  "distance_threshold": 0.58,
+  "max_recalled_facts": 3,
+  "facts": [
+    {"memory_key": "environment.os", "value": "Windows"},
+    {"memory_key": "environment.ide", "value": "VS Code"},
+    {"memory_key": "preference.billing_cycle", "value": "年付"},
+    {"memory_key": "style.answer_order", "value": "先给结论"},
+    {"memory_key": "style.response_length", "value": "简短"}
+  ],
+  "cases": [
+    {
+      "case_id": "os_direct",
+      "query": "我的电脑是什么系统？",
+      "relevant_keys": ["environment.os"]
+    },
+    {
+      "case_id": "os_history",
+      "query": "之前说过我用的操作系统吗？",
+      "relevant_keys": ["environment.os"]
+    },
+    {
+      "case_id": "os_steps",
+      "query": "按我的电脑环境给操作步骤",
+      "relevant_keys": ["environment.os"]
+    },
+    {
+      "case_id": "ide_tool",
+      "query": "我常用的开发工具是哪个？",
+      "relevant_keys": ["environment.ide"]
+    },
+    {
+      "case_id": "ide_editor",
+      "query": "我用什么编辑器写代码？",
+      "relevant_keys": ["environment.ide"]
+    },
+    {
+      "case_id": "billing_direct",
+      "query": "我的账单周期偏好是什么？",
+      "relevant_keys": ["preference.billing_cycle"]
+    },
+    {
+      "case_id": "billing_renewal",
+      "query": "续费时按我的付费习惯推荐",
+      "relevant_keys": ["preference.billing_cycle"]
+    },
+    {
+      "case_id": "billing_history",
+      "query": "我之前说月付还是年付？",
+      "relevant_keys": ["preference.billing_cycle"]
+    }
+  ]
+}

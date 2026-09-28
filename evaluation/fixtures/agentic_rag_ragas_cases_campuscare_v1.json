@@ -1,0 +1,3463 @@
+{
+  "schema_version": "campuscare-agentic-rag-ragas-dataset-v1",
+  "dataset_id": "campuscare-agentic-rag-ragas-curated-v1",
+  "metadata": {
+    "description": "CampusCare Agentic RAG 的校准集与冻结持出集蓝图。",
+    "data_origin": "curated_synthetic_campus_service_contract",
+    "production_evidence": false,
+    "notes": "所有制度内容均为评测用合成事实，不代表任何真实学校政策。"
+  },
+  "source_blueprint": "evaluation/fixtures/agentic_rag_ragas_blueprint.json",
+  "sha256": "6179a17ce0437383e0a2d8b9056091aa406e6f22f47f48ecd498635c6f2194b9",
+  "top_k": 5,
+  "counts": {
+    "documents": 60,
+    "reference_documents": 20,
+    "hard_negative_documents": 40,
+    "cases": 200,
+    "splits": {
+      "calibration": 50,
+      "holdout": 150
+    },
+    "holdout_categories": {
+      "multi_information": 70,
+      "rewrite_required": 40,
+      "standard": 20,
+      "unsupported_personal_state": 20
+    }
+  },
+  "documents": [
+    {
+      "document_id": "technical-campus-wifi",
+      "title": "校园无线网络连接排查",
+      "scope": "technical",
+      "content": "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。",
+      "document_role": "reference",
+      "topic_id": "wifi"
+    },
+    {
+      "document_id": "technical-wifi-account-activation",
+      "title": "无线网络账号开通说明",
+      "scope": "technical",
+      "content": "新生完成统一身份认证后可开通校园无线网络账号。账号开通状态和设备数量上限需在网络服务页面查询，本说明不处理连接错误。",
+      "document_role": "hard_negative",
+      "topic_id": "wifi"
+    },
+    {
+      "document_id": "technical-wifi-maintenance",
+      "title": "无线网络维护公告说明",
+      "scope": "technical",
+      "content": "无线网络维护期间部分楼宇可能短时中断。用户应查看信息中心公告确认维护范围和结束时间，历史公告不能证明当前故障原因。",
+      "document_role": "hard_negative",
+      "topic_id": "wifi"
+    },
+    {
+      "document_id": "technical-vpn-access",
+      "title": "校外 VPN 访问排查",
+      "scope": "technical",
+      "content": "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。",
+      "document_role": "reference",
+      "topic_id": "vpn"
+    },
+    {
+      "document_id": "technical-vpn-installation",
+      "title": "VPN 客户端安装说明",
+      "scope": "technical",
+      "content": "VPN 客户端应从学校软件中心下载并按操作系统选择安装包。安装完成不代表账号已经获得特定校内资源权限。",
+      "document_role": "hard_negative",
+      "topic_id": "vpn"
+    },
+    {
+      "document_id": "technical-vpn-permission",
+      "title": "VPN 资源权限范围",
+      "scope": "technical",
+      "content": "不同校内系统可能配置独立访问范围。VPN 连接成功但无业务权限时，应联系资源所属部门，网络服务台不能代为授权。",
+      "document_role": "hard_negative",
+      "topic_id": "vpn"
+    },
+    {
+      "document_id": "technical-campus-mail",
+      "title": "校园邮箱客户端配置",
+      "scope": "technical",
+      "content": "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。",
+      "document_role": "reference",
+      "topic_id": "mail"
+    },
+    {
+      "document_id": "technical-mail-quota",
+      "title": "校园邮箱容量说明",
+      "scope": "technical",
+      "content": "邮箱容量接近上限时应清理大附件和垃圾邮件。容量告警与客户端服务器地址配置属于不同问题。",
+      "document_role": "hard_negative",
+      "topic_id": "mail"
+    },
+    {
+      "document_id": "technical-mail-alias",
+      "title": "校园邮箱别名规则",
+      "scope": "technical",
+      "content": "符合条件的用户可按学校规则申请邮箱别名。别名只影响显示地址，不替代账号认证或客户端专用凭据。",
+      "document_role": "hard_negative",
+      "topic_id": "mail"
+    },
+    {
+      "document_id": "technical-dorm-network",
+      "title": "宿舍有线网络故障排查",
+      "scope": "technical",
+      "content": "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。",
+      "document_role": "reference",
+      "topic_id": "dorm_network"
+    },
+    {
+      "document_id": "technical-dorm-router-policy",
+      "title": "宿舍路由设备使用说明",
+      "scope": "technical",
+      "content": "宿舍网络设备应符合学校安全管理要求，未经许可不得接入会干扰网络的设备。本说明不判断具体网口故障。",
+      "document_role": "hard_negative",
+      "topic_id": "dorm_network"
+    },
+    {
+      "document_id": "technical-dorm-registration",
+      "title": "宿舍终端注册说明",
+      "scope": "technical",
+      "content": "新终端首次接入宿舍网络时需要完成设备注册。注册记录变更应通过网络服务页面提交，不等同于物理网口报修。",
+      "document_role": "hard_negative",
+      "topic_id": "dorm_network"
+    },
+    {
+      "document_id": "technical-portal-access",
+      "title": "统一门户访问异常",
+      "scope": "technical",
+      "content": "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。",
+      "document_role": "reference",
+      "topic_id": "portal"
+    },
+    {
+      "document_id": "technical-portal-account",
+      "title": "统一门户账号说明",
+      "scope": "technical",
+      "content": "统一门户使用学校统一身份账号。账号冻结或身份信息变更需通过身份服务处理，不能用清理缓存替代账号恢复。",
+      "document_role": "hard_negative",
+      "topic_id": "portal"
+    },
+    {
+      "document_id": "technical-portal-browser",
+      "title": "统一门户浏览器支持范围",
+      "scope": "technical",
+      "content": "门户优先支持学校公布的现代浏览器版本。浏览器支持列表用于兼容性参考，不代表所有登录循环都由版本造成。",
+      "document_role": "hard_negative",
+      "topic_id": "portal"
+    },
+    {
+      "document_id": "academic-course-selection",
+      "title": "选课与补退选公开流程",
+      "scope": "academic",
+      "content": "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。",
+      "document_role": "reference",
+      "topic_id": "course"
+    },
+    {
+      "document_id": "academic-course-catalog",
+      "title": "课程目录查询说明",
+      "scope": "academic",
+      "content": "课程目录展示课程简介、学分和开课单位。目录信息不代表当前轮次仍有容量，也不能替代正式选课。",
+      "document_role": "hard_negative",
+      "topic_id": "course"
+    },
+    {
+      "document_id": "academic-course-withdrawal",
+      "title": "退课结果说明",
+      "scope": "academic",
+      "content": "退课申请应在规定阶段提交，结果以教务系统为准。退课流程与容量已满时的选课处理不是同一事项。",
+      "document_role": "hard_negative",
+      "topic_id": "course"
+    },
+    {
+      "document_id": "academic-grade-review",
+      "title": "课程成绩复核流程",
+      "scope": "academic",
+      "content": "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。",
+      "document_role": "reference",
+      "topic_id": "grade_review"
+    },
+    {
+      "document_id": "academic-grade-release",
+      "title": "成绩发布时间说明",
+      "scope": "academic",
+      "content": "课程成绩由开课单位按安排发布。尚未发布与已经发布后申请复核属于不同阶段。",
+      "document_role": "hard_negative",
+      "topic_id": "grade_review"
+    },
+    {
+      "document_id": "academic-grade-conversion",
+      "title": "成绩等级换算说明",
+      "scope": "academic",
+      "content": "百分制与等级制的换算以培养单位规则为准。等级换算说明不能替代针对具体课程的成绩复核。",
+      "document_role": "hard_negative",
+      "topic_id": "grade_review"
+    },
+    {
+      "document_id": "academic-exam-deferral",
+      "title": "缓考申请公开要求",
+      "scope": "academic",
+      "content": "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。",
+      "document_role": "reference",
+      "topic_id": "deferral"
+    },
+    {
+      "document_id": "academic-exam-room",
+      "title": "考试地点查询说明",
+      "scope": "academic",
+      "content": "考试地点和座位以教务系统通知为准。考场查询不处理因疾病无法参加考试的缓考申请。",
+      "document_role": "hard_negative",
+      "topic_id": "deferral"
+    },
+    {
+      "document_id": "academic-exam-discipline",
+      "title": "考试纪律提醒",
+      "scope": "academic",
+      "content": "参加考试应遵守考场纪律并携带规定证件。纪律提醒不等同于缓考资格审核。",
+      "document_role": "hard_negative",
+      "topic_id": "deferral"
+    },
+    {
+      "document_id": "academic-transcript",
+      "title": "成绩单申请与领取",
+      "scope": "academic",
+      "content": "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。",
+      "document_role": "reference",
+      "topic_id": "transcript"
+    },
+    {
+      "document_id": "academic-transcript-verification",
+      "title": "成绩单真伪核验说明",
+      "scope": "academic",
+      "content": "用人单位或机构核验成绩单时应使用学校提供的验证方式。真伪核验与学生本人申请成绩单是不同流程。",
+      "document_role": "hard_negative",
+      "topic_id": "transcript"
+    },
+    {
+      "document_id": "academic-transcript-translation",
+      "title": "成绩单翻译说明",
+      "scope": "academic",
+      "content": "自行翻译材料是否被接收取决于接收机构要求。学校英文成绩单应从正式服务入口申请。",
+      "document_role": "hard_negative",
+      "topic_id": "transcript"
+    },
+    {
+      "document_id": "academic-graduation-review",
+      "title": "毕业资格审核说明",
+      "scope": "academic",
+      "content": "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。",
+      "document_role": "reference",
+      "topic_id": "graduation"
+    },
+    {
+      "document_id": "academic-graduation-photo",
+      "title": "毕业图像采集说明",
+      "scope": "academic",
+      "content": "毕业生图像采集按学校通知完成。完成图像采集不代表培养方案和学分已经通过毕业审核。",
+      "document_role": "hard_negative",
+      "topic_id": "graduation"
+    },
+    {
+      "document_id": "academic-degree-certificate",
+      "title": "学位证书领取说明",
+      "scope": "academic",
+      "content": "证书领取时间和方式以学校通知为准。领取环节发生在资格审核之后，不能用于判断当前是否满足毕业条件。",
+      "document_role": "hard_negative",
+      "topic_id": "graduation"
+    },
+    {
+      "document_id": "general-card-loss",
+      "title": "校园卡挂失处理",
+      "scope": "general",
+      "content": "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。",
+      "document_role": "reference",
+      "topic_id": "card_loss"
+    },
+    {
+      "document_id": "general-card-recharge",
+      "title": "校园卡充值说明",
+      "scope": "general",
+      "content": "校园卡可通过学校公布的渠道充值。充值失败和卡片遗失挂失属于不同业务。",
+      "document_role": "hard_negative",
+      "topic_id": "card_loss"
+    },
+    {
+      "document_id": "general-card-access",
+      "title": "校园卡门禁权限说明",
+      "scope": "general",
+      "content": "门禁权限由所属部门按身份配置。门禁失效不一定表示卡片丢失或需要挂失。",
+      "document_role": "hard_negative",
+      "topic_id": "card_loss"
+    },
+    {
+      "document_id": "general-card-reissue",
+      "title": "校园卡补办流程",
+      "scope": "general",
+      "content": "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。",
+      "document_role": "reference",
+      "topic_id": "card_reissue"
+    },
+    {
+      "document_id": "general-card-photo",
+      "title": "校园卡照片更新说明",
+      "scope": "general",
+      "content": "校园卡照片更新需按身份管理要求提交合规照片。照片更新并不等同于遗失后的补卡。",
+      "document_role": "hard_negative",
+      "topic_id": "card_reissue"
+    },
+    {
+      "document_id": "general-card-replacement-status",
+      "title": "校园卡制卡进度说明",
+      "scope": "general",
+      "content": "制卡进度和领取时间需通过卡中心授权渠道查询，公开知识库不能确认个人卡片是否已经制作完成。",
+      "document_role": "hard_negative",
+      "topic_id": "card_reissue"
+    },
+    {
+      "document_id": "general-dorm-repair",
+      "title": "宿舍设施报修流程",
+      "scope": "general",
+      "content": "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。",
+      "document_role": "reference",
+      "topic_id": "dorm_repair"
+    },
+    {
+      "document_id": "general-dorm-inspection",
+      "title": "宿舍安全检查说明",
+      "scope": "general",
+      "content": "宿舍安全检查关注用电、消防和公共秩序。检查通知不替代具体设施故障报修。",
+      "document_role": "hard_negative",
+      "topic_id": "dorm_repair"
+    },
+    {
+      "document_id": "general-dorm-cleaning",
+      "title": "宿舍公共区域保洁说明",
+      "scope": "general",
+      "content": "公共区域保洁问题可向物业反馈。个人房间门锁、水电和家具故障应走设施报修流程。",
+      "document_role": "hard_negative",
+      "topic_id": "dorm_repair"
+    },
+    {
+      "document_id": "general-enrollment-certificate",
+      "title": "在读证明办理",
+      "scope": "general",
+      "content": "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。",
+      "document_role": "reference",
+      "topic_id": "certificate"
+    },
+    {
+      "document_id": "general-certificate-verification",
+      "title": "证明材料验证说明",
+      "scope": "general",
+      "content": "接收机构可按学校提供的方式验证证明真伪。验证流程不替代学生本人发起在读证明申请。",
+      "document_role": "hard_negative",
+      "topic_id": "certificate"
+    },
+    {
+      "document_id": "general-certificate-copy",
+      "title": "证明材料复印说明",
+      "scope": "general",
+      "content": "服务大厅可能提供自助打印和复印设备。复印件是否有效取决于业务要求，不等同于正式证明申请。",
+      "document_role": "hard_negative",
+      "topic_id": "certificate"
+    },
+    {
+      "document_id": "general-library-service",
+      "title": "图书馆借阅与续借",
+      "scope": "general",
+      "content": "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。",
+      "document_role": "reference",
+      "topic_id": "library"
+    },
+    {
+      "document_id": "general-library-seat",
+      "title": "图书馆座位预约说明",
+      "scope": "general",
+      "content": "读者可按图书馆规则预约学习座位。座位预约与图书借阅续借属于不同服务。",
+      "document_role": "hard_negative",
+      "topic_id": "library"
+    },
+    {
+      "document_id": "general-library-hours",
+      "title": "图书馆开放时间说明",
+      "scope": "general",
+      "content": "图书馆开放时间以当日公告为准。开放时间变化不直接决定某本图书能否续借。",
+      "document_role": "hard_negative",
+      "topic_id": "library"
+    },
+    {
+      "document_id": "general-service-hall",
+      "title": "综合服务大厅办事说明",
+      "scope": "general",
+      "content": "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。",
+      "document_role": "reference",
+      "topic_id": "service_hall"
+    },
+    {
+      "document_id": "general-service-hall-map",
+      "title": "服务大厅楼层分布",
+      "scope": "general",
+      "content": "大厅楼层图展示公共窗口位置。窗口位置不能替代具体业务的材料和预约要求。",
+      "document_role": "hard_negative",
+      "topic_id": "service_hall"
+    },
+    {
+      "document_id": "general-service-hall-feedback",
+      "title": "服务大厅意见反馈",
+      "scope": "general",
+      "content": "用户可通过意见渠道反馈大厅服务体验。意见反馈不能查询个人业务办理进度。",
+      "document_role": "hard_negative",
+      "topic_id": "service_hall"
+    },
+    {
+      "document_id": "technical-campus-printing",
+      "title": "校园自助打印故障排查",
+      "scope": "technical",
+      "content": "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。",
+      "document_role": "reference",
+      "topic_id": "printing"
+    },
+    {
+      "document_id": "technical-printing-format",
+      "title": "打印文件格式说明",
+      "scope": "technical",
+      "content": "自助打印支持的文件格式以终端页面为准。格式兼容说明不处理网络连接和扣费核验。",
+      "document_role": "hard_negative",
+      "topic_id": "printing"
+    },
+    {
+      "document_id": "technical-printing-balance",
+      "title": "打印账户余额说明",
+      "scope": "technical",
+      "content": "打印账户余额和交易明细需在授权页面查询。公开知识库不能确认个人是否已经扣费。",
+      "document_role": "hard_negative",
+      "topic_id": "printing"
+    },
+    {
+      "document_id": "technical-classroom-device",
+      "title": "教室多媒体设备报障",
+      "scope": "technical",
+      "content": "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。",
+      "document_role": "reference",
+      "topic_id": "classroom_device"
+    },
+    {
+      "document_id": "technical-classroom-booking",
+      "title": "教室借用说明",
+      "scope": "technical",
+      "content": "临时借用教室应通过教学场地管理流程申请。教室借用审批与已发生的多媒体故障报修无关。",
+      "document_role": "hard_negative",
+      "topic_id": "classroom_device"
+    },
+    {
+      "document_id": "technical-classroom-software",
+      "title": "教学软件安装说明",
+      "scope": "technical",
+      "content": "教学软件安装需求应提前提交并说明课程。软件安装不处理投影、扩音或控制台硬件故障。",
+      "document_role": "hard_negative",
+      "topic_id": "classroom_device"
+    },
+    {
+      "document_id": "academic-scholarship-application",
+      "title": "奖学金申请材料说明",
+      "scope": "academic",
+      "content": "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。",
+      "document_role": "reference",
+      "topic_id": "scholarship"
+    },
+    {
+      "document_id": "academic-scholarship-payment",
+      "title": "奖学金发放说明",
+      "scope": "academic",
+      "content": "奖学金发放时间以财务和学院通知为准。发放环节发生在评审之后，不属于申请材料准备。",
+      "document_role": "hard_negative",
+      "topic_id": "scholarship"
+    },
+    {
+      "document_id": "academic-scholarship-ranking",
+      "title": "奖学金排名说明",
+      "scope": "academic",
+      "content": "不同项目采用不同评审规则，公开知识库不能计算个人排名或承诺获奖。",
+      "document_role": "hard_negative",
+      "topic_id": "scholarship"
+    },
+    {
+      "document_id": "academic-internship-credit",
+      "title": "实习学分认定流程",
+      "scope": "academic",
+      "content": "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。",
+      "document_role": "reference",
+      "topic_id": "internship"
+    },
+    {
+      "document_id": "academic-internship-safety",
+      "title": "实习安全教育说明",
+      "scope": "academic",
+      "content": "参加校外实习前应完成学院要求的安全教育。安全教育记录不等同于实习学分认定材料。",
+      "document_role": "hard_negative",
+      "topic_id": "internship"
+    },
+    {
+      "document_id": "academic-internship-recruitment",
+      "title": "实习岗位信息说明",
+      "scope": "academic",
+      "content": "学校发布的实习岗位信息仅供选择参考。获得岗位不代表相关经历一定能够认定学分。",
+      "document_role": "hard_negative",
+      "topic_id": "internship"
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "standard-wifi-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "校园无线网连接失败怎么排查？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-wifi-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "校园 Wi-Fi 认证失败要检查哪些设置？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-wifi-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "学校那个网总弹证书错误，咋整？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-wifi-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "连校内无线一直转圈，时间没错还要看啥？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-wifi-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "手机能搜到学校网络但就是上不去，应该先排哪里？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-vpn-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "校外 VPN 无法登录怎么排查？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-vpn-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "VPN 认证失败需要检查什么？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-vpn-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "回家后内网死活进不去怎么办？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-vpn-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "那个校外连学校资源的软件一直认证失败？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-vpn-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "不在学校时打不开校内系统，客户端报错怎么处理？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-mail-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "校园邮箱客户端收不到邮件怎么排查？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-mail-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "校园邮箱 IMAP 认证失败怎么办？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-mail-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "学校邮件在手机上就是收不到？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-mail-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "网页能登录，软件里一直说密码不对是咋回事？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-mail-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "邮箱客户端发不出去但浏览器正常，要看哪些配置？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-dorm_network-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "宿舍有线网口没网络怎么排查？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-dorm_network-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "宿舍网络报修需要提供哪些信息？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-dorm_network-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "寝室墙上那个网线口插了没反应？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-dorm_network-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "同屋能上网就我这个口不行要怎么报？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-dorm_network-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "宿舍电脑接线后没有网络，先换什么再查什么？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-portal-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "统一门户打不开怎么排查？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-portal-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "统一门户反复跳回登录页怎么办？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-portal-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "学校那个总入口一直转圈？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-portal-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "登录后又把我踢回登录界面怎么办？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-portal-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "别的网站能开，校内门户就是白屏，要先查浏览器什么？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-course-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "选课容量满了应该怎么处理？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-course-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "选课提示先修条件不满足怎么办？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-course-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "想上的课抢没了还有办法吗？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-course-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "系统说前置课不够，这门还能选不？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-course-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "课表撞车导致提交不了，要找谁处理？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-grade_review-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "课程成绩有异议怎么申请复核？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-grade_review-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "成绩复核需要提交哪些信息？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-grade_review-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "感觉老师分给错了能查吗？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-grade_review-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "这门课分数不对，我要准备啥去核？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-grade_review-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "上学期成绩看着有问题，找哪里按原记录确认？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-deferral-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "生病无法参加考试怎么申请缓考？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-deferral-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "缓考申请提交后是否就算批准？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-deferral-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "明天考试但突然住院了怎么办？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-deferral-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "临时去不了考场，要走哪个教务流程？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-deferral-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "材料交了是不是就肯定能晚点考？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-transcript-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "在校生成绩单在哪里申请？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-transcript-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "英文纸质成绩单怎么领取？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-transcript-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "出国要那份英文分数证明怎么弄？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-transcript-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "想拿盖章的纸质成绩记录去哪里办？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-transcript-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "学校能开的中英文成绩材料从哪个入口申请？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-graduation-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "毕业资格审核主要检查什么？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-graduation-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "培养方案显示缺项应该找谁核验？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-graduation-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "我到底够不够毕业要看哪几块？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-graduation-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "学分好像差一点，谁能确认培养方案？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-graduation-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "系统里实践环节没完成会影响毕业审核吗？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-card_loss-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "校园卡丢失后怎么挂失？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-card_loss-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "找回旧校园卡后能否解挂？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-card_loss-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "饭卡找不着了第一步干嘛？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-card_loss-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "那张学校卡丢了怎么先把钱保护住？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-card_loss-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "旧卡后来找到了还能恢复使用吗？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-card_reissue-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "补办校园卡需要带什么？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-card_reissue-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "新校园卡启用后旧卡还能用吗？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-card_reissue-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "饭卡没了重新做一张要拿啥？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-card_reissue-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "去卡务窗口补卡怎么证明是本人？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-card_reissue-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "新卡拿到手以后原来那张还算数吗？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-dorm_repair-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "宿舍门锁坏了怎么报修？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-dorm_repair-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "宿舍设施报修需要填写哪些信息？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-dorm_repair-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "寝室灯坏了在哪儿叫人修？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-dorm_repair-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "宿舍一直漏水除了填单还要找谁？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-dorm_repair-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "柜子坏了报的时候要拍照和写哪些位置？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-certificate-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "在读证明从哪里申请？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-certificate-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "英文在读证明申请时要说明什么？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-certificate-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "办签证要学校证明我还在读，去哪开？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-certificate-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "想要密封盖章的学生身份证明怎么申请？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-certificate-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "能不能开英文版的在校证明，要备注用途吗？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-library-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "图书馆借的书怎么续借？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-library-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "图书被别人预约后还能续借吗？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-library-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "借的书还没看完能再拖一阵吗？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-library-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "有人排队要这本书了我还能点续期不？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-library-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "书过期了系统为什么不给继续借？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-service_hall-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "去综合服务大厅办事前要确认什么？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-service_hall-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "服务大厅节假日是否正常受理？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-service_hall-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "去一站式大厅会不会白跑，要先查啥？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-service_hall-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "线下办业务要带证件还要约时间吗？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-service_hall-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "假期想去学校大厅办事，时间以哪里为准？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-printing-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "校园自助打印任务卡住怎么办？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-printing-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "打印故障报修需要记录什么？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-printing-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "学校打印机一直显示排队不出纸？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-printing-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "文件传上去了终端没反应要记哪些东西？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-printing-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "自助打印扣了钱却没打出来找哪里核？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-classroom_device-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "教室投影坏了怎么报障？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-classroom_device-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "多媒体设备报障要提供哪些信息？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-classroom_device-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "上课时大屏突然黑了找谁？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-classroom_device-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "讲台那个控制机器没声音怎么报？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-classroom_device-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "教室设备坏了要写楼号房号和课程时间吗？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-scholarship-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "申请奖学金通常要准备哪些材料？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-scholarship-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "提交奖学金材料是否代表已经获奖？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-scholarship-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "评奖要交表格、成绩和承诺书吗？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-scholarship-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "东西都交上去是不是就稳拿奖了？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-scholarship-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "想申学校奖励要先看学院哪一期通知？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "standard-internship-01",
+      "split": "calibration",
+      "category": "standard",
+      "user_input": "实习学分认定需要提交什么？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "standard-internship-02",
+      "split": "holdout",
+      "category": "standard",
+      "user_input": "谁负责审核实习学分数量？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "rewrite-internship-01",
+      "split": "calibration",
+      "category": "rewrite_required",
+      "user_input": "公司实习能不能换学分要拿哪些证明？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-internship-02",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "实习做完了怎么让学院认到培养方案里？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "rewrite-internship-03",
+      "split": "holdout",
+      "category": "rewrite_required",
+      "user_input": "工作内容和导师意见交给谁决定能算几分？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-001-wifi-vpn",
+      "split": "calibration",
+      "category": "multi_information",
+      "user_input": "校园无线网连接失败怎么排查；另外，VPN 认证失败需要检查什么？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。；使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "technical-campus-wifi",
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。",
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-002-vpn-mail",
+      "split": "calibration",
+      "category": "multi_information",
+      "user_input": "VPN 认证失败需要检查什么；另外，校园邮箱客户端收不到邮件怎么排查？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。；先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "technical-vpn-access",
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。",
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-003-mail-dorm_network",
+      "split": "calibration",
+      "category": "multi_information",
+      "user_input": "校园邮箱客户端收不到邮件怎么排查；另外，宿舍网络报修需要提供哪些信息？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。；更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-campus-mail",
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。",
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-004-dorm_network-portal",
+      "split": "calibration",
+      "category": "multi_information",
+      "user_input": "宿舍网络报修需要提供哪些信息；另外，统一门户打不开怎么排查？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。；对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-dorm-network",
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。",
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-005-portal-course",
+      "split": "calibration",
+      "category": "multi_information",
+      "user_input": "统一门户打不开怎么排查；另外，选课提示先修条件不满足怎么办？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。；在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "technical-portal-access",
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。",
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-006-course-grade_review",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "选课提示先修条件不满足怎么办；另外，课程成绩有异议怎么申请复核？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。；在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-course-selection",
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。",
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-007-grade_review-deferral",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "课程成绩有异议怎么申请复核；另外，缓考申请提交后是否就算批准？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。；尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-grade-review",
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。",
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-008-deferral-transcript",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "缓考申请提交后是否就算批准；另外，在校生成绩单在哪里申请？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。；通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-exam-deferral",
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。",
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-009-transcript-graduation",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "在校生成绩单在哪里申请；另外，培养方案显示缺项应该找谁核验？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。；先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-transcript",
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。",
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-010-graduation-card_loss",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "培养方案显示缺项应该找谁核验；另外，校园卡丢失后怎么挂失？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。；校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "academic-graduation-review",
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。",
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-011-card_loss-card_reissue",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园卡丢失后怎么挂失；另外，新校园卡启用后旧卡还能用吗？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。；携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "general-card-loss",
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。",
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-012-card_reissue-dorm_repair",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "新校园卡启用后旧卡还能用吗；另外，宿舍门锁坏了怎么报修？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。；通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "general-card-reissue",
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。",
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-013-dorm_repair-certificate",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍门锁坏了怎么报修；另外，英文在读证明申请时要说明什么？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。；从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-dorm-repair",
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。",
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-014-certificate-library",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "英文在读证明申请时要说明什么；另外，图书馆借的书怎么续借？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。；在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-enrollment-certificate",
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。",
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-015-library-service_hall",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "图书馆借的书怎么续借；另外，服务大厅节假日是否正常受理？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。；前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-library-service",
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。",
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-016-service_hall-printing",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "服务大厅节假日是否正常受理；另外，校园自助打印任务卡住怎么办？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。；确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "general-service-hall",
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。",
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-017-printing-classroom_device",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园自助打印任务卡住怎么办；另外，多媒体设备报障要提供哪些信息？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。；记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "technical-campus-printing",
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。",
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-018-classroom_device-scholarship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "多媒体设备报障要提供哪些信息；另外，申请奖学金通常要准备哪些材料？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。；查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "technical-classroom-device",
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。",
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-019-scholarship-internship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "申请奖学金通常要准备哪些材料；另外，谁负责审核实习学分数量？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。；提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-scholarship-application",
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。",
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-020-internship-wifi",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "谁负责审核实习学分数量；另外，校园无线网连接失败怎么排查？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。；删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "academic-internship-credit",
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。",
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-021-wifi-dorm_network",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园无线网连接失败怎么排查；另外，宿舍网络报修需要提供哪些信息？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。；更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-campus-wifi",
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。",
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-022-vpn-portal",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "VPN 认证失败需要检查什么；另外，统一门户打不开怎么排查？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。；对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-vpn-access",
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。",
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-023-mail-course",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园邮箱客户端收不到邮件怎么排查；另外，选课提示先修条件不满足怎么办？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。；在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "technical-campus-mail",
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。",
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-024-dorm_network-grade_review",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍网络报修需要提供哪些信息；另外，课程成绩有异议怎么申请复核？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。；在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "technical-dorm-network",
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。",
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-025-portal-deferral",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "统一门户打不开怎么排查；另外，缓考申请提交后是否就算批准？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。；尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "technical-portal-access",
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。",
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-026-course-transcript",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "选课提示先修条件不满足怎么办；另外，在校生成绩单在哪里申请？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。；通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "academic-course-selection",
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。",
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-027-grade_review-graduation",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "课程成绩有异议怎么申请复核；另外，培养方案显示缺项应该找谁核验？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。；先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "academic-grade-review",
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。",
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-028-deferral-card_loss",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "缓考申请提交后是否就算批准；另外，校园卡丢失后怎么挂失？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。；校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral",
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。",
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-029-transcript-card_reissue",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "在校生成绩单在哪里申请；另外，新校园卡启用后旧卡还能用吗？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。；携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "academic-transcript",
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。",
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-030-graduation-dorm_repair",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "培养方案显示缺项应该找谁核验；另外，宿舍门锁坏了怎么报修？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。；通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "academic-graduation-review",
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。",
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-031-card_loss-certificate",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园卡丢失后怎么挂失；另外，英文在读证明申请时要说明什么？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。；从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "general-card-loss",
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。",
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-032-card_reissue-library",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "新校园卡启用后旧卡还能用吗；另外，图书馆借的书怎么续借？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。；在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "general-card-reissue",
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。",
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-033-dorm_repair-service_hall",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍门锁坏了怎么报修；另外，服务大厅节假日是否正常受理？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。；前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "general-dorm-repair",
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。",
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-034-certificate-printing",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "英文在读证明申请时要说明什么；另外，校园自助打印任务卡住怎么办？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。；确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "general-enrollment-certificate",
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。",
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-035-library-classroom_device",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "图书馆借的书怎么续借；另外，多媒体设备报障要提供哪些信息？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。；记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "general-library-service",
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。",
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-036-service_hall-scholarship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "服务大厅节假日是否正常受理；另外，申请奖学金通常要准备哪些材料？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。；查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "general-service-hall",
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。",
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-037-printing-internship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园自助打印任务卡住怎么办；另外，谁负责审核实习学分数量？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。；提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "technical-campus-printing",
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。",
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-038-classroom_device-wifi",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "多媒体设备报障要提供哪些信息；另外，校园无线网连接失败怎么排查？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。；删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "technical-classroom-device",
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。",
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-039-scholarship-vpn",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "申请奖学金通常要准备哪些材料；另外，VPN 认证失败需要检查什么？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。；使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "academic-scholarship-application",
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。",
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-040-internship-mail",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "谁负责审核实习学分数量；另外，校园邮箱客户端收不到邮件怎么排查？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。；先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "academic-internship-credit",
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。",
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-041-wifi-deferral",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园无线网连接失败怎么排查；另外，缓考申请提交后是否就算批准？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。；尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "technical-campus-wifi",
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。",
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-042-vpn-transcript",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "VPN 认证失败需要检查什么；另外，在校生成绩单在哪里申请？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。；通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。",
+      "reference_document_ids": [
+        "technical-vpn-access",
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。",
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-043-mail-graduation",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园邮箱客户端收不到邮件怎么排查；另外，培养方案显示缺项应该找谁核验？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。；先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "technical-campus-mail",
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。",
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-044-dorm_network-card_loss",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍网络报修需要提供哪些信息；另外，校园卡丢失后怎么挂失？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。；校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "technical-dorm-network",
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。",
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-045-portal-card_reissue",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "统一门户打不开怎么排查；另外，新校园卡启用后旧卡还能用吗？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。；携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "technical-portal-access",
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。",
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-046-course-dorm_repair",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "选课提示先修条件不满足怎么办；另外，宿舍门锁坏了怎么报修？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。；通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "academic-course-selection",
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。",
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-047-grade_review-certificate",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "课程成绩有异议怎么申请复核；另外，英文在读证明申请时要说明什么？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。；从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "academic-grade-review",
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。",
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-048-deferral-library",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "缓考申请提交后是否就算批准；另外，图书馆借的书怎么续借？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。；在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "academic-exam-deferral",
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。",
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-049-transcript-service_hall",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "在校生成绩单在哪里申请；另外，服务大厅节假日是否正常受理？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。；前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "academic-transcript",
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。",
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-050-graduation-printing",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "培养方案显示缺项应该找谁核验；另外，校园自助打印任务卡住怎么办？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。；确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "academic-graduation-review",
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。",
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-051-card_loss-classroom_device",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园卡丢失后怎么挂失；另外，多媒体设备报障要提供哪些信息？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。；记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "general-card-loss",
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。",
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-052-card_reissue-scholarship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "新校园卡启用后旧卡还能用吗；另外，申请奖学金通常要准备哪些材料？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。；查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "general-card-reissue",
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。",
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-053-dorm_repair-internship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍门锁坏了怎么报修；另外，谁负责审核实习学分数量？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。；提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "general-dorm-repair",
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。",
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-054-certificate-wifi",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "英文在读证明申请时要说明什么；另外，校园无线网连接失败怎么排查？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。；删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "general-enrollment-certificate",
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。",
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-055-library-vpn",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "图书馆借的书怎么续借；另外，VPN 认证失败需要检查什么？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。；使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "general-library-service",
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。",
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-056-service_hall-mail",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "服务大厅节假日是否正常受理；另外，校园邮箱客户端收不到邮件怎么排查？",
+      "reference": "前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。；先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "general-service-hall",
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。",
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-057-printing-dorm_network",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园自助打印任务卡住怎么办；另外，宿舍网络报修需要提供哪些信息？",
+      "reference": "确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。；更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "technical-campus-printing",
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。",
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-058-classroom_device-portal",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "多媒体设备报障要提供哪些信息；另外，统一门户打不开怎么排查？",
+      "reference": "记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。；对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。",
+      "reference_document_ids": [
+        "technical-classroom-device",
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。",
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-059-scholarship-course",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "申请奖学金通常要准备哪些材料；另外，选课提示先修条件不满足怎么办？",
+      "reference": "查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。；在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application",
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。",
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-060-internship-grade_review",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "谁负责审核实习学分数量；另外，课程成绩有异议怎么申请复核？",
+      "reference": "提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。；在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。",
+      "reference_document_ids": [
+        "academic-internship-credit",
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。",
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-061-wifi-graduation",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园无线网连接失败怎么排查；另外，培养方案显示缺项应该找谁核验？",
+      "reference": "删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。；先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。",
+      "reference_document_ids": [
+        "technical-campus-wifi",
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。",
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-062-vpn-card_loss",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "VPN 认证失败需要检查什么；另外，校园卡丢失后怎么挂失？",
+      "reference": "使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。；校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。",
+      "reference_document_ids": [
+        "technical-vpn-access",
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。",
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-063-mail-card_reissue",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园邮箱客户端收不到邮件怎么排查；另外，新校园卡启用后旧卡还能用吗？",
+      "reference": "先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。；携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。",
+      "reference_document_ids": [
+        "technical-campus-mail",
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。",
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-064-dorm_network-dorm_repair",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍网络报修需要提供哪些信息；另外，宿舍门锁坏了怎么报修？",
+      "reference": "更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。；通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。",
+      "reference_document_ids": [
+        "technical-dorm-network",
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。",
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-065-portal-certificate",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "统一门户打不开怎么排查；另外，英文在读证明申请时要说明什么？",
+      "reference": "对比其他校园站点，清理浏览器缓存并关闭代理插件；登录循环时记录浏览器版本、时间和错误信息。；从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。",
+      "reference_document_ids": [
+        "technical-portal-access",
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。",
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-066-course-library",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "选课提示先修条件不满足怎么办；另外，图书馆借的书怎么续借？",
+      "reference": "在公布的选课轮次内操作；容量、先修或时间冲突时按页面提示联系开课院系，最终状态以教务系统为准。；在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。",
+      "reference_document_ids": [
+        "academic-course-selection",
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。",
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-067-grade_review-service_hall",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "课程成绩有异议怎么申请复核；另外，服务大厅节假日是否正常受理？",
+      "reference": "在复核受理期内提交课程名称、学号、考核学期和具体疑问，由开课单位按原始记录复核。；前往大厅前确认业务窗口、身份证明、预约要求和受理时间；个人进度通过授权系统查询。",
+      "reference_document_ids": [
+        "academic-grade-review",
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。",
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-068-deferral-printing",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "缓考申请提交后是否就算批准；另外，校园自助打印任务卡住怎么办？",
+      "reference": "尽早通过教务渠道申请缓考并提交所需证明，是否批准以教务审核结果为准。；确认设备处于校园网络并重新选择打印队列；记录终端编号、文件类型、提交时间和错误提示，扣费状态由服务窗口核验。",
+      "reference_document_ids": [
+        "academic-exam-deferral",
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。",
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-069-transcript-classroom_device",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "在校生成绩单在哪里申请；另外，多媒体设备报障要提供哪些信息？",
+      "reference": "通过教务服务入口申请并选择中英文版本；纸质盖章件按学院或服务大厅通知领取。；记录教学楼、教室、设备类型、故障现象和课程时间；上课期间紧急故障联系教学技术值班人员。",
+      "reference_document_ids": [
+        "academic-transcript",
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。",
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-070-graduation-scholarship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "培养方案显示缺项应该找谁核验；另外，申请奖学金通常要准备哪些材料？",
+      "reference": "先查看培养方案课程、学分、实践环节和学籍状态，对缺失项目联系学院教学办公室核验。；查看学院当期通知并提交申请表、成绩或成果证明和诚信承诺；结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-graduation-review",
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。",
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-071-card_loss-internship",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "校园卡丢失后怎么挂失；另外，谁负责审核实习学分数量？",
+      "reference": "校园卡遗失后立即通过服务入口或窗口挂失；旧卡能否解挂以校园卡中心规则为准。；提交实习证明、工作内容和指导教师意见，课程归属、学分数量和认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "general-card-loss",
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。",
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-072-card_reissue-wifi",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "新校园卡启用后旧卡还能用吗；另外，校园无线网连接失败怎么排查？",
+      "reference": "携带有效身份证明到校园卡服务窗口核验补办；新卡启用后旧卡通常失效，费用和领取时间以现场通知为准。；删除旧无线配置并重新连接，检查系统时间、证书和代理设置；仍失败时记录设备、地点和错误截图。",
+      "reference_document_ids": [
+        "general-card-reissue",
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。",
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-073-dorm_repair-vpn",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "宿舍门锁坏了怎么报修；另外，VPN 认证失败需要检查什么？",
+      "reference": "通过宿舍报修入口提交楼栋、房间、位置、故障现象、联系时间和照片；紧急漏水或用电风险同时联系值班人员。；使用学校 VPN 客户端和统一身份认证，检查二次验证、系统时间、客户端版本与当前网络，并保留错误码。",
+      "reference_document_ids": [
+        "general-dorm-repair",
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。",
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-074-certificate-mail",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "英文在读证明申请时要说明什么；另外，校园邮箱客户端收不到邮件怎么排查？",
+      "reference": "从证明服务入口申请电子或纸质在读证明；英文、密封或额外盖章需求需说明用途。；先在网页端验证账号，再核对 IMAP、SMTP 地址和端口；开启二次验证时使用客户端专用凭据。",
+      "reference_document_ids": [
+        "general-enrollment-certificate",
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。",
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "multi-075-library-dorm_network",
+      "split": "holdout",
+      "category": "multi_information",
+      "user_input": "图书馆借的书怎么续借；另外，宿舍网络报修需要提供哪些信息？",
+      "reference": "在图书馆系统办理符合条件的续借；被预约、逾期或达到次数限制的图书可能无法续借。；更换网线并测试其他端口，检查设备注册；报修时提供楼栋、房间、网口、设备类型和网卡地址。",
+      "reference_document_ids": [
+        "general-library-service",
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。",
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": true
+    },
+    {
+      "case_id": "unsupported-001-card_loss",
+      "split": "calibration",
+      "category": "unsupported_personal_state",
+      "user_input": "帮我查一下校园卡现在还有多少钱？",
+      "reference": "公开知识库不能查询个人校园卡余额，需要通过授权系统核验。",
+      "reference_document_ids": [
+        "general-card-loss"
+      ],
+      "reference_contexts": [
+        "校园卡遗失后应立即通过校园卡服务入口或服务窗口挂失，降低余额被冒用风险。找回旧卡后是否可以解挂以校园卡中心规则为准，助手不能查询卡内余额。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-002-card_reissue",
+      "split": "calibration",
+      "category": "unsupported_personal_state",
+      "user_input": "我的补办卡今天制作好了吗？",
+      "reference": "公开知识库不能确认个人制卡进度，领取时间以校园卡中心通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-003-transcript",
+      "split": "calibration",
+      "category": "unsupported_personal_state",
+      "user_input": "我这门课最终得了多少分？",
+      "reference": "知识助手不能读取个人真实成绩，需要通过教务系统查询。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-004-grade_review",
+      "split": "calibration",
+      "category": "unsupported_personal_state",
+      "user_input": "我的成绩复核肯定能改分吗？",
+      "reference": "不能承诺复核结果，复核由开课单位依据原始记录处理。",
+      "reference_document_ids": [
+        "academic-grade-review"
+      ],
+      "reference_contexts": [
+        "对课程成绩有异议时，应在学院公布的复核受理期内提交课程名称、学号、考核学期和具体疑问。复核由开课单位按原始记录处理，服务助手不能修改成绩或承诺复核结果。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-005-deferral",
+      "split": "calibration",
+      "category": "unsupported_personal_state",
+      "user_input": "我提交缓考后已经批准了吗？",
+      "reference": "提交申请不代表已经批准，结果以教务审核为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-006-graduation",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "你直接判断我今年能不能毕业？",
+      "reference": "不能仅凭聊天判断毕业资格，需要核对培养方案并由学院确认。",
+      "reference_document_ids": [
+        "academic-graduation-review"
+      ],
+      "reference_contexts": [
+        "毕业资格审核通常核对培养方案课程、学分、实践环节和学籍状态。学生应先查看教务系统中的培养方案完成情况，对缺失项目联系学院教学办公室核验，不能仅凭聊天记录判断能否毕业。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-007-course",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "我刚才选的课是不是已经成功了？",
+      "reference": "公开知识库不能证明个人选课状态，应以教务系统记录为准。",
+      "reference_document_ids": [
+        "academic-course-selection"
+      ],
+      "reference_contexts": [
+        "学生应在教务系统公布的选课轮次内提交课程。遇到容量已满、先修条件不满足或时间冲突时，应按页面提示联系开课院系；知识库不能证明个人已经选课成功。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-008-vpn",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "帮我看看 VPN 账号有没有访问财务系统的权限？",
+      "reference": "公开知识库不能查询个人系统权限，需要联系资源所属部门核验。",
+      "reference_document_ids": [
+        "technical-vpn-access"
+      ],
+      "reference_contexts": [
+        "校外访问校内资源应安装学校发布的 VPN 客户端，使用统一身份认证并完成二次验证。认证失败时检查系统时间、客户端版本和当前网络；持续失败时保留错误码、日志时间和客户端版本。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-009-wifi",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "现在校园无线网是不是全校都坏了？",
+      "reference": "历史知识不能确认实时故障范围，应查看信息中心当前公告或联系网络服务台。",
+      "reference_document_ids": [
+        "technical-campus-wifi"
+      ],
+      "reference_contexts": [
+        "设备无法连接校园 Wi-Fi 时，先确认选择学校官方无线网络名称，再删除旧配置并重新连接。检查系统时间、证书提示和代理设置；仍失败时记录设备型号、操作系统、发生地点和错误截图，交校园网络服务台核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-010-mail",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "替我读取校园邮箱里最新一封邮件？",
+      "reference": "知识助手不能读取个人邮箱内容。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-011-dorm_network",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "宿舍这个网口一定是交换机坏了吗？",
+      "reference": "不能直接断言交换机故障，应先完成网线、端口和设备注册排查。",
+      "reference_document_ids": [
+        "technical-dorm-network"
+      ],
+      "reference_contexts": [
+        "宿舍网口无网络时，先更换网线并测试同房间其他端口，再检查设备是否完成校园网注册。报修时提供宿舍楼栋、房间号、网口编号、设备类型和网卡地址。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-012-portal",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "统一门户现在恢复了吗？",
+      "reference": "公开知识库不能确认实时服务状态，应查看当前公告或联系信息中心。",
+      "reference_document_ids": [
+        "technical-portal-access"
+      ],
+      "reference_contexts": [
+        "统一门户打不开时，先对比其他校园站点是否正常，清理浏览器缓存并关闭可能改写请求的代理插件。出现登录循环时记录浏览器版本、发生时间和页面错误信息，由信息中心检查认证服务。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-013-transcript",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "帮我把纸质成绩单直接寄到国外学校？",
+      "reference": "知识库只说明申请与领取流程，不能替用户执行邮寄。",
+      "reference_document_ids": [
+        "academic-transcript"
+      ],
+      "reference_contexts": [
+        "在校生成绩单可通过教务服务入口申请，按用途选择中文或英文版本。需要纸质盖章件时，应查看学院或服务大厅的领取通知；助手不能读取用户的真实成绩记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-014-certificate",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "直接给我开一份英文在读证明？",
+      "reference": "知识助手不能代为签发证明，应通过学校证明服务入口申请。",
+      "reference_document_ids": [
+        "general-enrollment-certificate"
+      ],
+      "reference_contexts": [
+        "在读证明应从学校证明服务入口申请，按用途选择电子版或纸质版。需要英文版本、密封件或额外盖章时，应在申请中说明用途，并以服务大厅审核结果为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-015-library",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "图书馆今天晚上十点一定开门吗？",
+      "reference": "不能用历史信息承诺当日开放时间，应查看图书馆当日公告。",
+      "reference_document_ids": [
+        "general-library-service"
+      ],
+      "reference_contexts": [
+        "读者可以在图书馆系统查看借阅记录并办理符合条件的续借。已被预约、已经逾期或达到续借次数限制的图书可能无法续借；具体开放时间应查看图书馆当日公告。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-016-service_hall",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "我的大厅业务现在排到第几步了？",
+      "reference": "个人办理进度需要通过授权系统查询。",
+      "reference_document_ids": [
+        "general-service-hall"
+      ],
+      "reference_contexts": [
+        "前往综合服务大厅前应确认事项所属窗口、所需身份证明和是否需要预约。不同业务受理时间可能不同，节假日安排以大厅公告为准；个人办理进度需通过授权系统查询。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-017-printing",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "打印到底扣了我多少钱？",
+      "reference": "公开知识库不能查询个人扣费明细，应由打印服务窗口或授权页面核验。",
+      "reference_document_ids": [
+        "technical-campus-printing"
+      ],
+      "reference_contexts": [
+        "打印终端无法连接时，先确认设备处于校园网络并重新选择打印队列。任务长期停留时记录终端编号、文件类型、提交时间和错误提示；涉及扣费状态时由打印服务窗口核验。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-018-classroom_device",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "你远程把教室投影仪修好？",
+      "reference": "知识助手不能远程维修设备，应联系教学技术值班人员并提供故障信息。",
+      "reference_document_ids": [
+        "technical-classroom-device"
+      ],
+      "reference_contexts": [
+        "投影、扩音或控制台故障时，应记录教学楼、教室号、设备类型、故障现象和课程时间。上课期间的紧急故障联系教学技术值班人员，普通用户不得自行拆卸设备。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-019-scholarship",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "我今年奖学金排名第几？",
+      "reference": "公开知识库不能计算个人奖学金排名，结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-020-internship",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "直接把我的实习学分写进教务系统？",
+      "reference": "知识助手不能写入教务记录，认定结果由培养单位审核。",
+      "reference_document_ids": [
+        "academic-internship-credit"
+      ],
+      "reference_contexts": [
+        "申请实习学分认定时，应提交学院要求的实习证明、工作内容和指导教师意见。课程归属、学分数量和认定结果由培养单位审核，助手不能直接写入教务记录。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-021-dorm_repair",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "宿舍门锁报修单已经派给师傅了吗？",
+      "reference": "公开知识库不能查询个人报修派单状态，需要通过授权报修系统查看。",
+      "reference_document_ids": [
+        "general-dorm-repair"
+      ],
+      "reference_contexts": [
+        "宿舍照明、门锁、水电或家具故障可通过宿舍报修入口提交。报修单应包含楼栋、房间、故障位置、现象描述、可联系时间和必要照片；紧急漏水或用电风险应同时联系值班人员。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-022-card_reissue",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "校园卡补办一定免费吗？",
+      "reference": "不能承诺补办费用，具体费用以校园卡中心现场通知为准。",
+      "reference_document_ids": [
+        "general-card-reissue"
+      ],
+      "reference_contexts": [
+        "补办校园卡时应携带有效身份证明，到校园卡服务窗口完成身份核验。新卡启用后旧卡通常不再作为有效凭证；具体费用和领取时间以校园卡中心现场通知为准。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-023-mail",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "告诉我校园邮箱密码是多少？",
+      "reference": "知识助手不能获取或提供用户密码、验证码等敏感凭据。",
+      "reference_document_ids": [
+        "technical-campus-mail"
+      ],
+      "reference_contexts": [
+        "校园邮箱无法收发邮件时，应先在网页端验证账号，再核对学校公布的 IMAP、SMTP 地址和端口。开启二次验证的账号需要使用客户端专用凭据；排障材料不得包含密码或验证码。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-024-deferral",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "你保证我的缓考肯定通过？",
+      "reference": "不能保证缓考通过，是否批准以教务审核结果为准。",
+      "reference_document_ids": [
+        "academic-exam-deferral"
+      ],
+      "reference_contexts": [
+        "因疾病或突发情况无法参加考试时，应尽早通过教务渠道申请缓考，并按学校要求提交证明材料。是否批准以教务审核结果为准，不能把提交申请描述为已经获批。"
+      ],
+      "rewrite_expected": false
+    },
+    {
+      "case_id": "unsupported-025-scholarship",
+      "split": "holdout",
+      "category": "unsupported_personal_state",
+      "user_input": "我交了奖学金材料就一定获奖吧？",
+      "reference": "提交材料不代表已经获奖，最终结果以评审公示为准。",
+      "reference_document_ids": [
+        "academic-scholarship-application"
+      ],
+      "reference_contexts": [
+        "申请奖学金应查看学院当期通知，按要求提交申请表、成绩或成果证明和诚信承诺。不同项目条件不同，提交材料不代表已经获奖，最终结果以评审公示为准。"
+      ],
+      "rewrite_expected": false
+    }
+  ]
+}

@@ -1,0 +1,546 @@
+{
+  "policy_version": "supervisor-few-shots-v1",
+  "examples": [
+    {
+      "id": "payment-technical-multi-001",
+      "query": "插件报401，而且这个月又重复扣了两次钱",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "插件报401，而且这个月又重复扣了两次钱", "references": []},
+        "intents": ["technical_troubleshooting", "payment_issue"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["multi_intent", "fallback"],
+      "review_status": "approved"
+    },
+    {
+      "id": "cancel-negative-info-001",
+      "query": "不是要取消订阅，只想比较Pro和Team的区别",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "不是要取消订阅，只想比较Pro和Team的区别", "references": []},
+        "intents": ["subscription_info_query"],
+        "negative_labels": ["subscription_cancel"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative", "fallback"],
+      "review_status": "approved"
+    },
+    {
+      "id": "log-negative-invoice-001",
+      "query": "文档里的401只是示例，我实际只想查询发票状态",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "文档里的401只是示例，我实际只想查询发票状态", "references": []},
+        "intents": ["invoice_handling"],
+        "negative_labels": ["technical_troubleshooting"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative", "fallback"],
+      "review_status": "approved"
+    },
+    {
+      "id": "out-of-scope-flight-001",
+      "query": "帮我查明天的航班",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "帮我查明天的航班", "references": []},
+        "intents": [],
+        "negative_labels": [],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "fallback"],
+      "review_status": "approved"
+    },
+    {
+      "id": "rewrite-order-001",
+      "query": "那这笔退款到哪了",
+      "context": {"case": {"entities": {"order_id": ["TP-1001"]}}},
+      "expected": {
+        "rewrite": {
+          "status": "resolved",
+          "effective_query": "查询订单TP-1001的退款进度",
+          "references": [{"mention": "这笔退款", "source": "case.entities.order_id", "value": "TP-1001"}]
+        },
+        "intents": ["refund_handling"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["rewrite"],
+      "review_status": "approved"
+    },
+    {
+      "id": "rewrite-ambiguous-order-001",
+      "query": "这笔订单怎么还没退",
+      "context": {"case": {"entities": {"order_id": ["TP-1001", "TP-1002"]}}},
+      "expected": {
+        "rewrite": {"status": "ambiguous", "effective_query": "这笔订单怎么还没退", "references": []},
+        "intents": [],
+        "negative_labels": [],
+        "scope_status": "uncertain"
+      },
+      "tags": ["rewrite", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "payment-refund-negative-001",
+      "query": "我不是要退款，是银行卡扣款了但订阅没生效",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "我不是要退款，是银行卡扣款了但订阅没生效", "references": []},
+        "intents": ["payment_issue"],
+        "negative_labels": ["refund_handling"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "security-login-negative-001",
+      "query": "我能登录，只是想退出其他设备并开启两步验证",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "我能登录，只是想退出其他设备并开启两步验证", "references": []},
+        "intents": ["account_security_request"],
+        "negative_labels": ["account_login_issue"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "complaint-payment-multi-001",
+      "query": "重复扣款一直没解决，我要投诉并查清这笔账单",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "重复扣款一直没解决，我要投诉并查清这笔账单", "references": []},
+        "intents": ["payment_issue", "service_complaint"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["multi_intent"],
+      "review_status": "approved"
+    },
+    {
+      "id": "entitlement-info-negative-001",
+      "query": "先别给我增加额度，我只想知道Team版有多少Token",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "先别给我增加额度，我只想知道Team版有多少Token", "references": []},
+        "intents": ["subscription_info_query"],
+        "negative_labels": ["entitlement_change_request"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "payment-complaint-negative-001",
+      "query": "账单优惠没有生效，我只需要核对实际扣款金额",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "账单优惠没有生效，我只需要核对实际扣款金额", "references": []},
+        "intents": ["payment_issue"],
+        "negative_labels": ["service_complaint"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "refund-cancel-negative-001",
+      "query": "刚买错套餐，请撤销这笔交易并原路退款",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "刚买错套餐，请撤销这笔交易并原路退款", "references": []},
+        "intents": ["refund_handling"],
+        "negative_labels": ["subscription_cancel"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "feedback-info-multi-001",
+      "query": "团队报表很好用，顺便想了解Pro每月额度",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "团队报表很好用，顺便想了解Pro每月额度", "references": []},
+        "intents": ["service_feedback", "subscription_info_query"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["multi_intent"],
+      "review_status": "approved"
+    },
+    {
+      "id": "payment-technical-negative-001",
+      "query": "银行卡支付页面提示失败但余额已扣，我只想核对这笔付款",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "银行卡支付页面提示失败但余额已扣，我只想核对这笔付款", "references": []},
+        "intents": ["payment_issue"],
+        "negative_labels": ["technical_troubleshooting"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "purchase-positive-info-negative-001",
+      "query": "套餐已经选好了，请直接开通Team年付订阅",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "套餐已经选好了，请直接开通Team年付订阅", "references": []},
+        "intents": ["subscription_purchase"],
+        "negative_labels": ["subscription_info_query"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["positive", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "change-positive-purchase-negative-001",
+      "query": "不要重新购买，把我现有的Basic升级到Pro",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "不要重新购买，把我现有的Basic升级到Pro", "references": []},
+        "intents": ["subscription_change"],
+        "negative_labels": ["subscription_purchase"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["positive", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "cancel-positive-change-negative-001",
+      "query": "不用调整套餐，帮我关闭当前订阅的自动续费",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "不用调整套餐，帮我关闭当前订阅的自动续费", "references": []},
+        "intents": ["subscription_cancel"],
+        "negative_labels": ["subscription_change"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["positive", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "login-positive-security-negative-001",
+      "query": "先不要改安全设置，我的TokenPlan账号被锁住进不去了",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "先不要改安全设置，我的TokenPlan账号被锁住进不去了", "references": []},
+        "intents": ["account_login_issue"],
+        "negative_labels": ["account_security_request"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["positive", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "entitlement-positive-info-negative-001",
+      "query": "现有规则我清楚了，请给工作区再增加两个席位",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "现有规则我清楚了，请给工作区再增加两个席位", "references": []},
+        "intents": ["entitlement_change_request"],
+        "negative_labels": ["subscription_info_query"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["positive", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "info-purchase-negative-001",
+      "query": "先不买，我只想问Pro套餐按月怎么收费",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "先不买，我只想问Pro套餐按月怎么收费", "references": []},
+        "intents": ["subscription_info_query"],
+        "negative_labels": ["subscription_purchase"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "technical-payment-negative-002",
+      "query": "银行卡付款已经成功，现在是TokenPlan索引服务持续超时",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "银行卡付款已经成功，现在是TokenPlan索引服务持续超时", "references": []},
+        "intents": ["technical_troubleshooting"],
+        "negative_labels": ["payment_issue"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "refund-invoice-negative-001",
+      "query": "不是要开发票，请查询TokenPlan退款什么时候到账",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "不是要开发票，请查询TokenPlan退款什么时候到账", "references": []},
+        "intents": ["refund_handling"],
+        "negative_labels": ["invoice_handling"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "login-security-negative-002",
+      "query": "我不需要修改密码，只想解决TokenPlan登录认证失败",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "我不需要修改密码，只想解决TokenPlan登录认证失败", "references": []},
+        "intents": ["account_login_issue"],
+        "negative_labels": ["account_security_request"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "complaint-feedback-negative-001",
+      "query": "这不是优化建议，我要投诉客服无故关闭工单",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "这不是优化建议，我要投诉客服无故关闭工单", "references": []},
+        "intents": ["service_complaint"],
+        "negative_labels": ["service_feedback"],
+        "scope_status": "in_scope"
+      },
+      "tags": ["negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-streaming-change-001",
+      "query": "把我的视频会员从家庭版改为个人版",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "把我的视频会员从家庭版改为个人版", "references": []},
+        "intents": [],
+        "negative_labels": ["subscription_change"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-gym-cancel-001",
+      "query": "替我停掉健身房的包月会员",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "替我停掉健身房的包月会员", "references": []},
+        "intents": [],
+        "negative_labels": ["subscription_cancel"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-bank-payment-001",
+      "query": "手机银行里同一笔餐费被扣了两遍",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "手机银行里同一笔餐费被扣了两遍", "references": []},
+        "intents": [],
+        "negative_labels": ["payment_issue"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-tax-invoice-001",
+      "query": "税务网站提示电子发票抬头校验失败",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "税务网站提示电子发票抬头校验失败", "references": []},
+        "intents": [],
+        "negative_labels": ["invoice_handling"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-shop-refund-001",
+      "query": "网购退货完成后商家一直没有退钱",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "网购退货完成后商家一直没有退钱", "references": []},
+        "intents": [],
+        "negative_labels": ["refund_handling"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-microsoft-login-001",
+      "query": "微软邮箱账号验证失败，完全登录不了",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "微软邮箱账号验证失败，完全登录不了", "references": []},
+        "intents": [],
+        "negative_labels": ["account_login_issue"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-ide-technical-001",
+      "query": "JetBrains内置AI补全一直抛出连接错误",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "JetBrains内置AI补全一直抛出连接错误", "references": []},
+        "intents": [],
+        "negative_labels": ["technical_troubleshooting"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-logistics-complaint-001",
+      "query": "快递员态度恶劣，我要向物流公司投诉",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "快递员态度恶劣，我要向物流公司投诉", "references": []},
+        "intents": [],
+        "negative_labels": ["service_complaint"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-app-purchase-001",
+      "query": "帮我购买手机应用商店的音乐会员",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "帮我购买手机应用商店的音乐会员", "references": []},
+        "intents": [],
+        "negative_labels": ["subscription_purchase"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-video-info-001",
+      "query": "某视频网站高级会员每个月多少钱",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "某视频网站高级会员每个月多少钱", "references": []},
+        "intents": [],
+        "negative_labels": ["subscription_info_query"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-google-security-001",
+      "query": "我要修改谷歌账户密码并退出旧设备",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "我要修改谷歌账户密码并退出旧设备", "references": []},
+        "intents": [],
+        "negative_labels": ["account_security_request"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-collaboration-entitlement-001",
+      "query": "给协作软件的团队空间再加五个成员席位",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "给协作软件的团队空间再加五个成员席位", "references": []},
+        "intents": [],
+        "negative_labels": ["entitlement_change_request"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-product-feedback-001",
+      "query": "建议外卖平台把订单页面做得更清楚",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "建议外卖平台把订单页面做得更清楚", "references": []},
+        "intents": [],
+        "negative_labels": ["service_feedback"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "ood-bank-login-001",
+      "query": "银行客户端提示密码错误，账户进不去",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "银行客户端提示密码错误，账户进不去", "references": []},
+        "intents": [],
+        "negative_labels": ["account_login_issue"],
+        "scope_status": "out_of_scope"
+      },
+      "tags": ["out_of_scope", "negative"],
+      "review_status": "approved"
+    },
+    {
+      "id": "rewrite-workspace-cancel-001",
+      "query": "把剩下的那个也关掉续费",
+      "context": {"case": {"entities": {"workspace_id": ["ws-blue"]}}},
+      "expected": {
+        "rewrite": {
+          "status": "resolved",
+          "effective_query": "关闭工作区ws-blue的自动续费",
+          "references": [{"mention": "剩下的那个", "source": "case.entities.workspace_id", "value": "ws-blue"}]
+        },
+        "intents": ["subscription_cancel"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["rewrite", "positive"],
+      "review_status": "approved"
+    },
+    {
+      "id": "implicit-complaint-001",
+      "query": "同一个问题反复反馈仍没人处理，请给出正式处理结论",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "同一个问题反复反馈仍没人处理，请给出正式处理结论", "references": []},
+        "intents": ["service_complaint"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["implicit", "positive"],
+      "review_status": "approved"
+    },
+    {
+      "id": "payment-refund-complaint-multi-001",
+      "query": "账单多扣款一直未解决，请核对扣费、退回多收金额，并记录正式投诉",
+      "context": {},
+      "expected": {
+        "rewrite": {"status": "not_needed", "effective_query": "账单多扣款一直未解决，请核对扣费、退回多收金额，并记录正式投诉", "references": []},
+        "intents": ["payment_issue", "refund_handling", "service_complaint"],
+        "negative_labels": [],
+        "scope_status": "in_scope"
+      },
+      "tags": ["multi_intent", "positive"],
+      "review_status": "approved"
+    }
+  ]
+}

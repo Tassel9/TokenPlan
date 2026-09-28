@@ -1,0 +1,146 @@
+# UrbanOps 市政运维智能体 — Docker Compose 服务编排
+# 分层记忆基础设施：SQLite（短期记忆）+ RabbitMQ（长期更新队列）+ ChromaDB（长期事实）
+
+services:
+
+  # ── RabbitMQ（长期记忆更新任务）──────────────────────────────────────────────
+  rabbitmq:
+    image: rabbitmq:4.3.5-management-alpine
+    container_name: tokenplan-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-tokenplan}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-tokenplan123}
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    restart: unless-stopped
+    networks:
+      - tokenplan-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # ── ChromaDB 向量数据库（长期用户事实）────────────────────────────────────────
+  chromadb:
+    image: chromadb/chroma:0.5.23
+    container_name: tokenplan-chromadb
+    ports:
+      - "8001:8000"
+    environment:
+      - IS_PERSISTENT=TRUE
+      - PERSIST_DIRECTORY=/chroma/chroma
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - chromadb-data:/chroma/chroma
+    restart: unless-stopped
+    networks:
+      - tokenplan-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/api/v1/heartbeat || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── Prometheus 监控 ─────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tokenplan-prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    restart: unless-stopped
+    networks:
+      - tokenplan-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # ── UrbanOps 主应用 ──────────────────────────────────────────────────────────
+  tokenplan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: tokenplan-app
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # 容器内固定值，覆盖 .env 中的本地路径
+      - SESSION_DB_PATH=/app/data/session/conversations.sqlite3
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-tokenplan}:${RABBITMQ_PASSWORD:-tokenplan123}@rabbitmq:5672/
+      - CHROMA_HOST=chromadb
+      - CHROMA_PORT=8000
+      - CHROMA_PERSIST_DIRECTORY=/app/data/chroma
+      - SKILL_CATALOG_PATH=/app/skills/catalog
+      - EVAL_BASELINE_PATH=/app/data/eval/baseline.json
+    volumes:
+      - ./data/chroma:/app/data/chroma
+      - ./data/session:/app/data/session
+      - ./data/eval:/app/data/eval
+      - ./logs:/app/logs
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      chromadb:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - tokenplan-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
+  # ── Nginx 反向代理 ──────────────────────────────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    container_name: tokenplan-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./config/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - nginx-logs:/var/log/nginx
+    depends_on:
+      tokenplan:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - tokenplan-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# ── 网络 ────────────────────────────────────────────────────────────────────
+networks:
+  tokenplan-network:
+    driver: bridge
+
+# ── 数据卷 ──────────────────────────────────────────────────────────────────
+volumes:
+  rabbitmq-data:
+  chromadb-data:
+  prometheus-data:
+  nginx-logs:

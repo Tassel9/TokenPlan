@@ -1,0 +1,2 @@
+# Optional Jev-backed Supervisor intent Tool Call (Python 3.9 compatible).
+httpx==0.28.1

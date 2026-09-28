@@ -1,0 +1,79 @@
+{
+  "metadata": {
+    "schema_version": "intent-eval-case-v2",
+    "dataset_id": "supervisor-intent-multiturn-v1",
+    "dataset_role": "context_reference_frozen_holdout",
+    "business_domain": "token_plan_subscription",
+    "annotation_unit": "one current user request expressed against a short multi-turn dialog context, mapped to a fine-grained intent set",
+    "production_evidence": false,
+    "frozen": true,
+    "frozen_before_first_live_run": true,
+    "construction": {
+      "method": "Manually curated multi-turn benchmark targeting context resolution: anaphora, ellipsis, topic switch, stale or resolved history, contextual negation, and cross-turn multi-intent assembly.",
+      "model_output_used_for_gold_labels": false,
+      "evaluated_model_output_inspected_before_freeze": false,
+      "target_case_count": 48
+    },
+    "independent_review": {"required": true, "status": "pending", "reviewer": null},
+    "limitations": [
+      "The cases are synthetic and are not sampled from production traffic.",
+      "The gold labels have not received independent business review.",
+      "This fixture must not be edited after its first live run; observed failures belong in regression data."
+    ]
+  },
+  "cases": [
+    {"id":"mt-a01","message":"它现在到哪一步了","history":[{"role":"user","content":"TokenPlan 订单 TP-8841 我上周申请退款了"},{"role":"assistant","content":"该订单的退款申请正在审核中。"}],"case_state":{"entities":{"order_id":["TP-8841"]}},"expected_intents":["refund_handling"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a02","message":"它就一直卡在这个错误上","history":[{"role":"user","content":"VS Code 插件一直返回 401"},{"role":"assistant","content":"请尝试重新登录后再试。"},{"role":"user","content":"试了，还是不行"}],"case_state":{"entities":{"ide":["VS Code"],"error_code":["401"]}},"expected_intents":["technical_troubleshooting"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a03","message":"把第二个给我退掉","history":[{"role":"user","content":"我有两个订单 TP-1008 和 TP-1009，第二个好像重复扣费了"},{"role":"assistant","content":"已定位到 TP-1009 的重复扣费记录。"}],"case_state":{"entities":{"order_id":["TP-1008","TP-1009"]}},"expected_intents":["refund_handling"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a04","message":"另外那个也停掉","history":[{"role":"user","content":"帮我看看这两个工作区的续费状态"},{"role":"assistant","content":"ws-alpha 已关闭续费；ws-beta 仍在自动续费。"},{"role":"user","content":"ws-alpha 保持这样"}],"case_state":{"entities":{"workspace_id":["ws-beta"]}},"expected_intents":["subscription_cancel"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a05","message":"按这个把上个月那张也重开","history":[{"role":"user","content":"发票抬头要改成远帆科技"},{"role":"assistant","content":"已记录新的抬头名称。"}],"case_state":{"entities":{"company_name":["远帆科技"]}},"expected_intents":["invoice_handling"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a06","message":"帮我开通它","history":[{"role":"user","content":"我在比较 Team 年付和 Pro 月付"},{"role":"assistant","content":"Team 年付更适合固定团队协作。"},{"role":"user","content":"那就 Team 吧"}],"case_state":{"entities":{"plan":["Team 年付"]}},"expected_intents":["subscription_purchase"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a07","message":"给它再补两个位置","history":[{"role":"user","content":"research-team 这个工作区席位满了"},{"role":"assistant","content":"可以按需为该工作区增加席位。"}],"case_state":{"entities":{"workspace_id":["research-team"]}},"expected_intents":["entitlement_change_request"],"dimensions":["multi_turn","anaphora"]},
+    {"id":"mt-a08","message":"帮我把它换掉吧","history":[{"role":"user","content":"我的账号一直登录不上"},{"role":"assistant","content":"建议先重置密码再试。"},{"role":"user","content":"邮箱也可能有问题"}],"expected_intents":["account_security_request"],"dimensions":["multi_turn","anaphora"]},
+
+    {"id":"mt-e01","message":"那还能开票吗","history":[{"role":"user","content":"TP-2210 这笔退款审核通过了吗"},{"role":"assistant","content":"已通过，预计三个工作日到账。"}],"case_state":{"entities":{"order_id":["TP-2210"]}},"expected_intents":["invoice_handling"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e02","message":"嗯，那就好，顺便帮我把自动续费关了","history":[{"role":"user","content":"TP-5567 的退款收到了"},{"role":"assistant","content":"很高兴问题已解决。"}],"expected_intents":["subscription_cancel"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e03","message":"行，那就升吧","history":[{"role":"user","content":"Basic 想换到 Pro"},{"role":"assistant","content":"可以为您办理套餐升级。"},{"role":"user","content":"价格差多少"}],"expected_intents":["subscription_change"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e04","message":"先帮我查下这个月的费用为什么多了一笔","history":[{"role":"user","content":"插件报 401 的事先放放"},{"role":"assistant","content":"好的，需要时随时说。"}],"expected_intents":["payment_issue"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e05","message":"一周了，我要投诉","history":[{"role":"user","content":"我的工单被来回转交"},{"role":"assistant","content":"很抱歉带来不便，我们会跟进。"},{"role":"user","content":"还是没人处理"}],"expected_intents":["service_complaint"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e06","message":"那我需要准备什么","history":[{"role":"user","content":"发票能开公司抬头吗"},{"role":"assistant","content":"支持开具公司抬头发票。"}],"expected_intents":["invoice_handling"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e07","message":"对，就退这个","history":[{"role":"user","content":"我误买了月付，想退掉"},{"role":"assistant","content":"请确认需要退回的订单。"},{"role":"user","content":"就是刚才扣的那笔"}],"expected_intents":["refund_handling"],"dimensions":["multi_turn","ellipsis"]},
+    {"id":"mt-e08","message":"要团队版吧，帮我开通","history":[{"role":"user","content":"个人版和团队版有什么区别"},{"role":"assistant","content":"团队版支持更多席位与协作功能。"}],"expected_intents":["subscription_purchase"],"dimensions":["multi_turn","ellipsis"]},
+
+    {"id":"mt-t01","message":"对了，我的账号现在进不去了","history":[{"role":"user","content":"发票流程大概多久"},{"role":"assistant","content":"一般两个工作日内开具。"}],"expected_intents":["account_login_issue"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t02","message":"先不说这个，我的密码需要换掉","history":[{"role":"user","content":"工单处理太慢了"},{"role":"assistant","content":"抱歉，我们会加快处理。"}],"expected_intents":["account_security_request"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t03","message":"现在说说插件，它同步一直失败","history":[{"role":"user","content":"重复扣费已经退了"},{"role":"assistant","content":"退款已到账。"}],"expected_intents":["technical_troubleshooting"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t04","message":"另外，我想建议额度提醒提前一点","history":[{"role":"user","content":"我们组需要更多席位"},{"role":"assistant","content":"可以为工作区增加席位。"}],"expected_intents":["service_feedback"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t05","message":"还有个问题，发票抬头写错了要重开","history":[{"role":"user","content":"退款什么时候能到"},{"role":"assistant","content":"三个工作日内到账。"}],"expected_intents":["invoice_handling"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t06","message":"你们这个客服响应速度真的不行","history":[{"role":"user","content":"登录不上，重置密码后好了"},{"role":"assistant","content":"问题已解决。"}],"expected_intents":["service_complaint"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t07","message":"顺便问下，年付比月付便宜多少","history":[{"role":"user","content":"Pro 包含哪些模型"},{"role":"assistant","content":"Pro 支持高级模型访问。"}],"expected_intents":["subscription_info_query"],"dimensions":["multi_turn","topic_switch"]},
+    {"id":"mt-t08","message":"我的支付方式要换一下，一直扣款失败","history":[{"role":"user","content":"发票已重开"},{"role":"assistant","content":"请查收新的发票。"}],"expected_intents":["payment_issue"],"dimensions":["multi_turn","topic_switch"]},
+
+    {"id":"mt-r01","message":"算了，那帮我把发票重开一下","history":[{"role":"user","content":"这笔费用我想退"},{"role":"assistant","content":"该订单不符合退款条件。"},{"role":"user","content":"明白了"}],"expected_intents":["invoice_handling"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r02","message":"帮我看看现在的套餐还剩多少天","history":[{"role":"user","content":"到期后不想续了"},{"role":"assistant","content":"可以为您关闭自动续费。"},{"role":"user","content":"先等等，我再考虑一下"}],"expected_intents":["subscription_info_query"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r03","message":"顺便反馈下，新版索引速度确实快多了","history":[{"role":"user","content":"插件之前的报错后来自己好了"},{"role":"assistant","content":"好的，有任何异常再联系。"}],"expected_intents":["service_feedback"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r04","message":"虚惊一场，不过我还是想开启两步验证","history":[{"role":"user","content":"之前担心密码泄露，查了是误报"},{"role":"assistant","content":"已确认没有异常。"}],"expected_intents":["account_security_request"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r05","message":"那先这样，帮我把续费停掉","history":[{"role":"user","content":"本来想升级套餐"},{"role":"assistant","content":"可以随时为您办理升级。"},{"role":"user","content":"先不升了"}],"case_state":{"last_intents":["subscription_change"]},"expected_intents":["subscription_cancel"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r06","message":"收到，那重复扣费那笔还得处理","history":[{"role":"user","content":"发票已经重开好了"},{"role":"assistant","content":"新发票已发送。"}],"expected_intents":["payment_issue"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r07","message":"不过我还想提个建议，希望加暗色模式","history":[{"role":"user","content":"我本来要投诉客服的"},{"role":"assistant","content":"抱歉带来不好的体验。"},{"role":"user","content":"问题解决了，不投诉了"}],"expected_intents":["service_feedback"],"dimensions":["multi_turn","stale_context"]},
+    {"id":"mt-r08","message":"那算了，我想问下 TokenPlan 发票怎么开","history":[{"role":"user","content":"健身房年卡能退吗"},{"role":"assistant","content":"抱歉，我们只处理 TokenPlan 相关问题。"},{"role":"user","content":"好吧"}],"expected_intents":["invoice_handling"],"dimensions":["multi_turn","stale_context"]},
+
+    {"id":"mt-n01","message":"报错先放着，帮我改掉密码","history":[{"role":"user","content":"插件报错，另外密码可能泄露了"},{"role":"assistant","content":"建议先修改密码并留意登录记录。"}],"expected_intents":["account_security_request"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n02","message":"对，不用退了，先把我的邮箱换掉","history":[{"role":"user","content":"这笔退款我不想要了"},{"role":"assistant","content":"好的，已为您取消退款申请。"}],"case_state":{"last_intents":["refund_handling"]},"expected_intents":["account_security_request"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n03","message":"先别升级，帮我看看还有没有更便宜的方案","history":[{"role":"user","content":"客服建议我升级到更高版本"},{"role":"assistant","content":"升级后支持更多并发额度。"}],"expected_intents":["subscription_info_query"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n04","message":"发票先不用重开，把退款办了吧","history":[{"role":"user","content":"发票抬头写错了"},{"role":"assistant","content":"可以为您重开。"}],"expected_intents":["refund_handling"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n05","message":"能登录了，不用重置，我只要把绑定的邮箱换掉","history":[{"role":"user","content":"登录不上"},{"role":"assistant","content":"可以重置密码尝试。"}],"expected_intents":["account_security_request"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n06","message":"不开票了，那笔重复扣费得查一下","history":[{"role":"user","content":"能给我开一张发票吗"},{"role":"assistant","content":"可以开具电子发票。"}],"expected_intents":["payment_issue"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n07","message":"先不投诉了，帮我把自动续费关掉","history":[{"role":"user","content":"我想投诉客服关单"},{"role":"assistant","content":"已收到您的反馈。"}],"expected_intents":["subscription_cancel"],"dimensions":["multi_turn","negation"]},
+    {"id":"mt-n08","message":"不加席位了，现在这个套餐最多支持多少人","history":[{"role":"user","content":"能给工作区加席位吗"},{"role":"assistant","content":"可以增加席位。"}],"expected_intents":["subscription_info_query"],"dimensions":["multi_turn","negation"]},
+
+    {"id":"mt-x01","message":"两张都退掉，然后给我开一张发票","history":[{"role":"user","content":"两张订单 TP-3105 和 TP-3106 都重复扣费了"},{"role":"assistant","content":"已记录两笔重复扣费。"}],"case_state":{"entities":{"order_id":["TP-3105","TP-3106"]}},"expected_intents":["refund_handling","invoice_handling"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x02","message":"两个问题一起处理吧","history":[{"role":"user","content":"插件报 401，另外密码可能泄露了"},{"role":"assistant","content":"建议重新登录并修改密码。"}],"expected_intents":["technical_troubleshooting","account_security_request"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x03","message":"都按刚才说的办","history":[{"role":"user","content":"我想把套餐升到 Pro，旧的年付续费也不想留了"},{"role":"assistant","content":"可以办理升级并关闭旧续费。"}],"expected_intents":["subscription_change","subscription_cancel"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x04","message":"一起弄，还要把其他设备的登录都下线","history":[{"role":"user","content":"账号登录不上，绑定邮箱也想换"},{"role":"assistant","content":"可以协助更换绑定邮箱。"}],"expected_intents":["account_login_issue","account_security_request"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x05","message":"两个都帮我办完吧","history":[{"role":"user","content":"TP-7788 要退款，另外发票抬头要改"},{"role":"assistant","content":"已登记退款申请，抬头修改也收到了。"}],"case_state":{"entities":{"order_id":["TP-7788"]}},"expected_intents":["refund_handling","invoice_handling"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x06","message":"都处理一下吧","history":[{"role":"user","content":"给 design 组加两个席位"},{"role":"assistant","content":"可以增加席位。"},{"role":"user","content":"还有这次扣费金额也不对"}],"expected_intents":["entitlement_change_request","payment_issue"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x07","message":"我要投诉，另外把这单的退款查一下","history":[{"role":"user","content":"工单被直接关了，我很不满"},{"role":"assistant","content":"很抱歉，我们会核实处理。"}],"expected_intents":["service_complaint","refund_handling"],"dimensions":["multi_turn","multi_intent"]},
+    {"id":"mt-x08","message":"对，就按这个办，另外建议到期前给我发个提醒","history":[{"role":"user","content":"本月底到期后就不想继续用了"},{"role":"assistant","content":"可以为您关闭自动续费。"}],"expected_intents":["subscription_cancel","service_feedback"],"dimensions":["multi_turn","multi_intent"]}
+  ]
+}

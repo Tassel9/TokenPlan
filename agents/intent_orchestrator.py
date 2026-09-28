@@ -51,7 +51,7 @@ from core.supervisor_decision import (
 )
 from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from core.request_control import RequestControlAction, RequestControlPolicy
-from memory.conversation_state import CustomerServiceCase, decide_case_update
+from memory.conversation_state import OperationsCase, decide_case_update
 from memory.agent_memory import AgentMemoryStore
 from monitor.execution_trace import TraceEventType
 from response.intent_composer import IntentResponseComposer
@@ -78,9 +78,9 @@ logger = logging.getLogger(__name__)
 # 意图→能力 Agent 映射直接委派，跳过 Supervisor 的两次 LLM 规划（SEND_MESSAGES
 # 派发 + FINAL 收口）；能力 Agent 内部的检索、生成与护栏链路保持不变。
 _FAST_PATH_INTENT_AGENTS: Dict[FineGrainedIntent, str] = {
-    FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.TECHNICAL_TROUBLESHOOTING: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.INSPECTION_STANDARD_QUERY: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.TERMINAL_ACCESS_ISSUE: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.FACILITY_TROUBLESHOOTING: AgentType.RAG_KNOWLEDGE.value,
 }
 # 设施数据诉求兜底：即使识别为单知识意图也不走快速通道。
 _PERSONAL_DATA_REQUEST = re.compile(
@@ -275,8 +275,8 @@ class IntentOrchestrator:
                 AgentRegistration(
                     name=AgentType.BUSINESS_DATA_QUERY.value,
                     description=(
-                        "通过受控只读接口查询 MySQL 等结构化业务数据，"
-                        "用于核验设施状态、巡检记录、告警和工单进度；当前未接入时转人工"
+                        "通过受控只读接口查询当前用户的结构化业务数据，"
+                        "用于核验设施、维修工单和操作申请记录"
                     ),
                     instance=business_data_query,
                     skill_owner=business_data_query.skill_owner,
@@ -284,8 +284,8 @@ class IntentOrchestrator:
                 AgentRegistration(
                     name=AgentType.BUSINESS_OPERATION.value,
                     description=(
-                        "通过受控写工具创建、派发或更新巡检与维修工单，"
-                        "要求身份校验、用户确认、幂等与审计；当前未接入时转人工"
+                        "通过受控写工具提交巡检、告警、维修工单或权限变更申请，"
+                        "要求身份校验、用户确认、幂等与审计，且只声明申请已受理"
                     ),
                     instance=business_operation,
                     skill_owner=business_operation.skill_owner,
@@ -456,7 +456,7 @@ class IntentOrchestrator:
             timings["total_ms"] = (time.monotonic() - started) * 1000
             return dict(timings)
 
-        case_state = CustomerServiceCase.from_dict(
+        case_state = OperationsCase.from_dict(
             req.case_state,
             user_id=req.user_id,
             conv_id=req.conv_id,

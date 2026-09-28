@@ -6,8 +6,8 @@
 set -e
 
 # 配置
-IMAGE_NAME="tokenplan"
-CONTAINER_NAME="tokenplan-app"
+IMAGE_NAME="urbanops"
+CONTAINER_NAME="urbanops-app"
 VERSION=${VERSION:-latest}
 REGISTRY=""  # 如果镜像在私有仓库，设置为 registry.example.com/
 

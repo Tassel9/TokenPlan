@@ -150,7 +150,7 @@ class RetrievalReflectionRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         async def decide(payload):
             self.assertTrue(payload["retrieval_reflection_required"])
             self.assertEqual(
-                "customer-service-agent-loop-v9-retrieval-reflection",
+                "urbanops-agent-loop-v9-retrieval-reflection",
                 payload["prompt_version"],
             )
             return json.dumps({

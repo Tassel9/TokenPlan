@@ -40,7 +40,7 @@ BASE_ENV = {
     "SESSION_DB_PATH": "./data/session/conversations.sqlite3",
     "CHROMA_HOST": "localhost",
     "CHROMA_PORT": "8001",
-    "RABBITMQ_URL": "amqp://tokenplan:tokenplan123@localhost:5672/",
+    "RABBITMQ_URL": "amqp://urbanops:urbanops123@localhost:5672/",
 }
 
 
@@ -142,7 +142,7 @@ class DoctorCheckTests(unittest.TestCase):
         json.dumps(payload, ensure_ascii=False)
 
     def test_endpoint_parser_handles_urls_and_bare_hosts(self):
-        self.assertEqual(doctor.parse_endpoint("amqp://tokenplan:pw@localhost:5672/", 5672), ("localhost", 5672))
+        self.assertEqual(doctor.parse_endpoint("amqp://urbanops:pw@localhost:5672/", 5672), ("localhost", 5672))
         self.assertEqual(doctor.parse_endpoint("localhost", 8000), ("localhost", 8000))
         self.assertIsNone(doctor.parse_endpoint("", 8000))
 
@@ -162,7 +162,7 @@ class CliDispatchTests(unittest.TestCase):
             with redirect_stdout(buffer):
                 code = cli.main(["doctor"])
         self.assertEqual(code, 0)
-        self.assertIn("TokenPlan 配置自检", buffer.getvalue())
+        self.assertIn("UrbanOps 配置自检", buffer.getvalue())
 
     def test_doctor_exit_code_is_one_when_blocked(self):
         buffer = io.StringIO()

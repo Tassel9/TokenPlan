@@ -1,34 +1,31 @@
 const intentLabels: Record<string, string> = {
-  subscription_info_query: '运维规范查询',
-  subscription_purchase: '巡检任务创建',
-  subscription_change: '巡检计划变更',
-  subscription_cancel: '巡检任务取消',
-  payment_issue: '设备异常上报',
-  invoice_handling: '工单处理',
-  refund_handling: '工单撤回',
-  account_login_issue: '终端接入故障',
-  account_security_request: '终端安全管理',
-  entitlement_change_request: '设备权限变更',
-  technical_troubleshooting: '设备故障排查',
-  service_complaint: '运维投诉',
-  service_feedback: '运维反馈',
+  inspection_standard_query: '运维规范查询',
+  inspection_task_create: '巡检任务创建',
+  inspection_task_update: '巡检计划变更',
+  inspection_task_cancel: '巡检任务取消',
+  alert_report: '设备异常上报',
+  work_order_handling: '工单处理',
+  work_order_withdrawal: '工单撤回',
+  terminal_access_issue: '终端接入故障',
+  terminal_security_request: '终端安全管理',
+  operations_permission_change: '设备权限变更',
+  facility_troubleshooting: '设备故障排查',
+  operations_complaint: '运维投诉',
+  operations_feedback: '运维反馈',
 }
 
 const agentLabels: Record<string, string> = {
-  general: '通用 Agent',
-  billing: '工单 Agent',
-  technical: '故障诊断 Agent',
   rag_knowledge: '知识检索 Agent',
   business_data_query: '设施数据查询 Agent',
   business_operation: '工单操作 Agent',
 }
 
 const skillLabels: Record<string, string> = {
-  'plan-benefits': '巡检维护规范',
-  'billing-policy': '巡检工单流程',
-  'refund-policy': '工单撤回规则',
-  'account-security': '终端接入安全',
-  'technical-troubleshooting': '设备故障排查',
+  'inspection-standards': '巡检维护规范',
+  'work-order-process': '巡检工单流程',
+  'work-order-return': '工单撤回规则',
+  'terminal-security': '终端接入安全',
+  'facility-troubleshooting': '设备故障排查',
 }
 
 export function labelIntent(value: string): string {

@@ -73,7 +73,7 @@
 
 - 剩余 2pp 损失定位：150 例中有 **2 例**金标文档在候选 12 内但被重排挤出 top-5；候选 50 内金标缺失数为 **0**。
 - 模型尺寸选择：`bge-small-zh-v1.5`（512 维/24M）与 `bge-base-zh-v1.5`（768 维/102M）**召回相同（均为 98.0%）**，但 query 编码 15.6 ms vs 40.4 ms、链路 112.9 ms vs 138.9 ms → 选 small（`embedding_model_compare.json`）。
-- 兼容性：BGE 集合名独立为 `tokenplan_knowledge_base_v3`，可通过 `RAG_EMBEDDING_BACKEND=chroma-default` 回退（见 `docs/configuration.md`）。
+- 当前运行时隔离：BGE 集合名为 `urbanops_knowledge_base_v1`，Chroma 默认后端集合为 `urbanops_knowledge_base_chroma_v1`；本节指标仍来自历史 CampusCare/TokenPlan 冻结集，不能视为 UrbanOps 效果（见 `docs/configuration.md`）。
 
 ### 4.3 重排改 bf16 推理
 

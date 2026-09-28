@@ -104,7 +104,7 @@ class SQLiteSessionStoreTests(unittest.TestCase):
             "request_id": "req-1",
             "task_id": "technical-1",
             "source_agent": "technical",
-            "intent": "technical_troubleshooting",
+            "intent": "facility_troubleshooting",
             "status": "COMPLETED",
             "summary": "bounded result",
             "facts": {"kind": "diagnostic"},
@@ -123,8 +123,8 @@ class ConcurrentAgentResultTests(unittest.IsolatedAsyncioTestCase):
         try:
             _, token, seq, _ = store.acquire("u", "c", 30000)
             tasks = [
-                IntentInvocation("technical", "technical_troubleshooting", "technical", "q", "f"),
-                IntentInvocation("billing", "invoice_handling", "billing", "q", "f"),
+                IntentInvocation("technical", "facility_troubleshooting", "technical", "q", "f"),
+                IntentInvocation("billing", "work_order_handling", "billing", "q", "f"),
             ]
             state = RequestResultState("req")
             state.register_stage(tasks)

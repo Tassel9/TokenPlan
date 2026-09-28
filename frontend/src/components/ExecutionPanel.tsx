@@ -1,7 +1,7 @@
 import { BrainCircuit, CheckCircle2, ChevronDown, Database, Puzzle, Route } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { supervisorIntentLabels, supervisorRewrite } from '../api/tokenplan'
-import type { ChatResponse, IntentExecution } from '../api/tokenplan'
+import { supervisorIntentLabels, supervisorRewrite } from '../api/urbanops'
+import type { ChatResponse, IntentExecution } from '../api/urbanops'
 import { labelAgent, labelIntent, labelSkill } from '../utils/labels'
 
 const stageLabels: Record<string, string> = {

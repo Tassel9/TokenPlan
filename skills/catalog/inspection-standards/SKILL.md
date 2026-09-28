@@ -1,11 +1,11 @@
 ---
-name: plan-benefits
+name: inspection-standards
 description: >-
   查询 UrbanOps 设备巡检规范、维护周期、检查项目和适用范围。用于公开运维标准咨询；不用于查询实时设备状态或巡检结果。
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  urbanops-owner-agent: rag_knowledge
 ---
 
 # 设备巡检与维护规范
@@ -36,4 +36,4 @@ metadata:
 ## 按需资源
 
 - 需要比较不同设施或工况的规范、处理知识冲突时读取 `references/comparison-boundaries.md`。
-- 需要输出紧凑巡检对照表时读取 `assets/plan-comparison-template.md`。
+- 需要输出紧凑巡检对照表时读取 `assets/inspection-standard-template.md`。

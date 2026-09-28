@@ -1,17 +1,17 @@
 import unittest
 
 from agents.specialist_agents import AgentInput
-from memory.conversation_state import CustomerServiceCase
+from memory.conversation_state import OperationsCase
 
 
 class IntentSessionStateTests(unittest.TestCase):
     def test_legacy_skill_bindings_are_not_loaded_into_case_state(self):
-        state = CustomerServiceCase.from_dict(
+        state = OperationsCase.from_dict(
             {
                 "case_id": "case-intent",
-                "last_intents": ["account_security_request"],
+                "last_intents": ["terminal_security_request"],
                 "active_skill_bindings": [{
-                    "skill_id": "account-security",
+                    "skill_id": "terminal-security",
                     "version": "1.0.0",
                     "owner_agent": "general",
                 }],
@@ -31,7 +31,7 @@ class IntentSessionStateTests(unittest.TestCase):
             user_id="u1",
             conv_id="c1",
             intent_id="intent-1",
-            intent="technical_troubleshooting",
+            intent="facility_troubleshooting",
         )
 
         self.assertFalse(hasattr(agent_input, "skill_bindings"))

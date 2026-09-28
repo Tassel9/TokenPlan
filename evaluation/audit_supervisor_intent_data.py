@@ -20,10 +20,10 @@ DEFAULT_FIXTURES = (
 DEFAULT_OUTPUT = ROOT / "evaluation" / "reports" / "supervisor_intent_latest_audit.json"
 
 LABELS = (
-    "subscription_info_query", "subscription_purchase", "subscription_change",
-    "subscription_cancel", "payment_issue", "invoice_handling", "refund_handling",
-    "account_login_issue", "account_security_request", "entitlement_change_request",
-    "technical_troubleshooting", "service_complaint", "service_feedback",
+    "inspection_standard_query", "inspection_task_create", "inspection_task_update",
+    "inspection_task_cancel", "alert_report", "work_order_handling", "work_order_withdrawal",
+    "terminal_access_issue", "terminal_security_request", "operations_permission_change",
+    "facility_troubleshooting", "operations_complaint", "operations_feedback",
 )
 HARD_DIMENSION_GROUPS = {
     "negation_or_false_activation": {"negation", "false_activation"},

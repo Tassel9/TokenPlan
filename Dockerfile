@@ -45,9 +45,9 @@ FROM base AS production
 COPY --from=dependencies /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=dependencies /usr/local/bin /usr/local/bin
 # 复制预下载的 ONNX 模型缓存
-COPY --from=dependencies /root/.cache/chroma /home/tokenplan/.cache/chroma
+COPY --from=dependencies /root/.cache/chroma /home/urbanops/.cache/chroma
 # 复制预下载的 tokenizer 与中文 BGE 模型缓存
-COPY --from=dependencies /root/.cache/huggingface /home/tokenplan/.cache/huggingface
+COPY --from=dependencies /root/.cache/huggingface /home/urbanops/.cache/huggingface
 
 # 复制应用代码
 COPY . .
@@ -56,10 +56,10 @@ COPY . .
 RUN mkdir -p /app/data/chroma /app/logs /app/config
 
 # 非 root 用户运行
-RUN useradd -m -u 1000 tokenplan && \
-    chown -R tokenplan:tokenplan /app && \
-    chown -R tokenplan:tokenplan /home/tokenplan/.cache
-USER tokenplan
+RUN useradd -m -u 1000 urbanops && \
+    chown -R urbanops:urbanops /app && \
+    chown -R urbanops:urbanops /home/urbanops/.cache
+USER urbanops
 
 EXPOSE 8000
 

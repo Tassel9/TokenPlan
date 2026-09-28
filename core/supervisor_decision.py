@@ -11,19 +11,19 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 class FineGrainedIntent(str, Enum):
-    SUBSCRIPTION_INFO_QUERY = "subscription_info_query"
-    SUBSCRIPTION_PURCHASE = "subscription_purchase"
-    SUBSCRIPTION_CHANGE = "subscription_change"
-    SUBSCRIPTION_CANCEL = "subscription_cancel"
-    PAYMENT_ISSUE = "payment_issue"
-    INVOICE_HANDLING = "invoice_handling"
-    REFUND_HANDLING = "refund_handling"
-    ACCOUNT_LOGIN_ISSUE = "account_login_issue"
-    ACCOUNT_SECURITY_REQUEST = "account_security_request"
-    ENTITLEMENT_CHANGE_REQUEST = "entitlement_change_request"
-    TECHNICAL_TROUBLESHOOTING = "technical_troubleshooting"
-    SERVICE_COMPLAINT = "service_complaint"
-    SERVICE_FEEDBACK = "service_feedback"
+    INSPECTION_STANDARD_QUERY = "inspection_standard_query"
+    INSPECTION_TASK_CREATE = "inspection_task_create"
+    INSPECTION_TASK_UPDATE = "inspection_task_update"
+    INSPECTION_TASK_CANCEL = "inspection_task_cancel"
+    ALERT_REPORT = "alert_report"
+    WORK_ORDER_HANDLING = "work_order_handling"
+    WORK_ORDER_WITHDRAWAL = "work_order_withdrawal"
+    TERMINAL_ACCESS_ISSUE = "terminal_access_issue"
+    TERMINAL_SECURITY_REQUEST = "terminal_security_request"
+    OPERATIONS_PERMISSION_CHANGE = "operations_permission_change"
+    FACILITY_TROUBLESHOOTING = "facility_troubleshooting"
+    OPERATIONS_COMPLAINT = "operations_complaint"
+    OPERATIONS_FEEDBACK = "operations_feedback"
 
 
 @dataclass(frozen=True)
@@ -37,79 +37,79 @@ class IntentSpec:
 
 
 INTENT_SPECS: Dict[FineGrainedIntent, IntentSpec] = {
-    FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: IntentSpec(
+    FineGrainedIntent.INSPECTION_STANDARD_QUERY: IntentSpec(
         domain="巡检管理",
         retrieval_text="巡检规范、检查项目、维护周期、保养要求、设备手册、设施标准、处置流程、适用范围",
         decision_text="查询设备巡检规范、维护周期、检查项目、处置流程或适用范围；创建任务所附带的设备参数不构成独立规范查询",
         confidence_text="查询设备巡检规范、维护周期、检查项目、处置流程或适用范围",
     ),
-    FineGrainedIntent.SUBSCRIPTION_PURCHASE: IntentSpec(
+    FineGrainedIntent.INSPECTION_TASK_CREATE: IntentSpec(
         domain="巡检管理",
         retrieval_text="创建巡检任务、新建巡检、安排巡检、发起巡查、生成巡检计划",
         decision_text="创建新的巡检任务或巡查计划；调整已有计划不属于新建",
         confidence_text="创建巡检任务或巡查计划",
     ),
-    FineGrainedIntent.SUBSCRIPTION_CHANGE: IntentSpec(
+    FineGrainedIntent.INSPECTION_TASK_UPDATE: IntentSpec(
         domain="巡检管理",
         retrieval_text="调整巡检计划、变更巡检时间、更换巡检人员、修改巡检范围、调整任务优先级",
         decision_text="调整现有巡检任务的时间、人员、范围或优先级；首次创建归入巡检任务创建",
         confidence_text="调整现有巡检任务或巡查计划",
     ),
-    FineGrainedIntent.SUBSCRIPTION_CANCEL: IntentSpec(
+    FineGrainedIntent.INSPECTION_TASK_CANCEL: IntentSpec(
         domain="巡检管理",
         retrieval_text="取消巡检任务、终止巡查、停止巡检计划、撤销巡检安排",
         decision_text="明确取消尚未完成的巡检任务或终止巡查计划；撤回已提交工单归入工单撤回",
         confidence_text="取消巡检任务或终止巡查计划",
     ),
-    FineGrainedIntent.PAYMENT_ISSUE: IntentSpec(
+    FineGrainedIntent.ALERT_REPORT: IntentSpec(
         domain="异常与工单",
         retrieval_text="设备告警、异常上报、重复告警、状态异常、数据突变、离线告警、高温告警、水位告警",
         decision_text="上报设备告警、传感数据异常、设备离线或重复告警；需要分析根因和排查步骤时同时归入设备故障排查",
         confidence_text="设备告警、状态异常、数据突变或异常上报",
     ),
-    FineGrainedIntent.INVOICE_HANDLING: IntentSpec(
+    FineGrainedIntent.WORK_ORDER_HANDLING: IntentSpec(
         domain="异常与工单",
         retrieval_text="维修工单、创建工单、派发工单、工单进度、工单状态、转派工单、关闭工单、催办工单",
         decision_text="查询或办理维修工单的创建、派发、转派、进度、关闭或催办",
         confidence_text="查询或办理维修工单",
     ),
-    FineGrainedIntent.REFUND_HANDLING: IntentSpec(
+    FineGrainedIntent.WORK_ORDER_WITHDRAWAL: IntentSpec(
         domain="异常与工单",
         retrieval_text="撤回工单、退回工单、驳回工单、取消报修、工单退回原因、撤回进度",
         decision_text="撤回、退回或驳回已提交的维修工单，或查询相关条件与进度；取消尚未执行的巡检计划归入巡检任务取消",
         confidence_text="查询或办理工单撤回、退回或驳回",
     ),
-    FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: IntentSpec(
+    FineGrainedIntent.TERMINAL_ACCESS_ISSUE: IntentSpec(
         domain="终端与权限",
         retrieval_text="终端离线、设备无法接入、网关连接失败、认证失败、北斗终端掉线、遥测中断、数据不上报",
         decision_text="设备、网关或移动终端无法接入平台，或认证、通信、遥测上报失败；已接入后的安全配置归入终端安全管理",
         confidence_text="终端离线、设备无法接入、认证失败或遥测中断",
     ),
-    FineGrainedIntent.ACCOUNT_SECURITY_REQUEST: IntentSpec(
+    FineGrainedIntent.TERMINAL_SECURITY_REQUEST: IntentSpec(
         domain="终端与权限",
         retrieval_text="终端密钥、设备证书、接入凭证、访问控制、终端解绑、会话撤销、安全策略",
         decision_text="查询或变更终端密钥、设备证书、接入凭证、绑定关系或安全策略；设备无法接入归入终端接入故障",
         confidence_text="查询或变更终端凭证、证书、绑定关系或安全策略",
     ),
-    FineGrainedIntent.ENTITLEMENT_CHANGE_REQUEST: IntentSpec(
+    FineGrainedIntent.OPERATIONS_PERMISSION_CHANGE: IntentSpec(
         domain="终端与权限",
         retrieval_text="开通设备权限、增加点位权限、修改区域权限、调整角色、授权巡检、变更工单权限",
         decision_text="明确要求新增或调整设备、区域、巡检或工单操作权限；只查询现有规范不属于权限变更",
         confidence_text="新增或调整设备、区域、巡检或工单权限",
     ),
-    FineGrainedIntent.TECHNICAL_TROUBLESHOOTING: IntentSpec(
+    FineGrainedIntent.FACILITY_TROUBLESHOOTING: IntentSpec(
         domain="故障处置",
         retrieval_text="设备故障、泵站异常、路灯故障、井盖告警、传感器漂移、振动异常、温度异常、通信超时、排障步骤",
         decision_text="分析市政设施、传感器、网关或平台接口的故障现象并给出排查步骤；单纯上报告警归入设备异常上报",
         confidence_text="分析设备、传感器、网关或平台接口故障并给出排查步骤",
     ),
-    FineGrainedIntent.SERVICE_COMPLAINT: IntentSpec(
+    FineGrainedIntent.OPERATIONS_COMPLAINT: IntentSpec(
         domain="运维服务",
         retrieval_text="投诉、不满、追责、处置太慢、工单无人处理、反复报修无结果、长期未解决、要个说法",
         decision_text="对运维处置、工单流转或值守响应表达明确不满、投诉或追责，或说明同一问题反复、长期处理仍无结果；单纯陈述故障或等待事实不等于投诉",
         confidence_text="对运维处置、工单流转或值守响应表达明确不满、投诉或追责",
     ),
-    FineGrainedIntent.SERVICE_FEEDBACK: IntentSpec(
+    FineGrainedIntent.OPERATIONS_FEEDBACK: IntentSpec(
         domain="运维服务",
         retrieval_text="建议、改进建议、希望新增、增加告警展示、优化巡检流程、意见反馈、运维评价、表扬",
         decision_text="提供运维流程、工作台或处置体验的评价和改进建议，但不要求处理具体故障或工单",
@@ -139,22 +139,16 @@ class ScopeStatus(str, Enum):
 
 
 ENTITY_KEYS = {
-    "order_id", "account_email", "workspace_id", "plan", "model", "ide",
-    "date", "amount", "error_code", "facility_id", "work_order_id",
-    "location", "asset_type", "alert_code",
+    "facility_id", "work_order_id", "inspection_task_id", "terminal_id",
+    "operator_id", "team_id", "permission_scope", "location", "asset_type",
+    "alert_code", "date", "error_code",
 }
 EntityKey = Literal[
-    "order_id", "account_email", "workspace_id", "plan", "model", "ide",
-    "date", "amount", "error_code", "facility_id", "work_order_id",
-    "location", "asset_type", "alert_code",
+    "facility_id", "work_order_id", "inspection_task_id", "terminal_id",
+    "operator_id", "team_id", "permission_scope", "location", "asset_type",
+    "alert_code", "date", "error_code",
 ]
 _INTENT_ID = re.compile(r"^intent-(\d+)-([a-z_]+)$")
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
-_ORDER_RE = re.compile(
-    r"(?:订单号|订单|order(?:\s*id)?)\s*[#：:]?\s*([A-Za-z0-9-]{4,})",
-    flags=re.IGNORECASE,
-)
-_AMOUNT_RE = re.compile(r"(?:¥|￥|\$)\s*\d+(?:\.\d{1,2})?|\d+(?:\.\d{1,2})?\s*元")
 _ERROR_CODE_RE = re.compile(r"(?<!\d)([45]\d{2})(?!\d)")
 _FACILITY_RE = re.compile(
     r"(?:设备|设施|泵站|路灯|井盖|终端)(?:编号|ID|号)?\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
@@ -162,6 +156,14 @@ _FACILITY_RE = re.compile(
 )
 _WORK_ORDER_RE = re.compile(
     r"(?:工单号|工单|work\s*order)\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
+    flags=re.IGNORECASE,
+)
+_INSPECTION_TASK_RE = re.compile(
+    r"(?:巡检任务|巡查任务|任务)(?:编号|ID|号)?\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
+    flags=re.IGNORECASE,
+)
+_TERMINAL_RE = re.compile(
+    r"(?:终端|网关)(?:编号|ID|号)?\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
     flags=re.IGNORECASE,
 )
 _ALERT_CODE_RE = re.compile(
@@ -375,10 +377,17 @@ class SupervisorDecisionValidator:
             for value in cls._guarded_literals(effective_query):
                 if value.casefold() not in evidence_text.casefold():
                     raise ValueError("rewrite introduced an ungrounded sensitive literal")
-            explicit_orders = {value.casefold() for value in _ORDER_RE.findall(original_query)}
-            resolved_orders = {value.casefold() for value in _ORDER_RE.findall(effective_query)}
-            if explicit_orders and not resolved_orders.issubset(explicit_orders):
-                raise ValueError("rewrite changed an explicit order id")
+            explicit_work_orders = {
+                value.casefold() for value in _WORK_ORDER_RE.findall(original_query)
+            }
+            resolved_work_orders = {
+                value.casefold() for value in _WORK_ORDER_RE.findall(effective_query)
+            }
+            if (
+                explicit_work_orders
+                and not resolved_work_orders.issubset(explicit_work_orders)
+            ):
+                raise ValueError("rewrite changed an explicit work order id")
         elif status == RewriteStatus.AMBIGUOUS:
             if not ambiguity or not clarification:
                 raise ValueError("ambiguous rewrite requires candidates and a question")
@@ -481,12 +490,11 @@ class SupervisorDecisionValidator:
     @classmethod
     def extract_explicit_entities(cls, text: str) -> Dict[str, List[str]]:
         values = {
-            "account_email": list(dict.fromkeys(_EMAIL_RE.findall(text))),
-            "order_id": list(dict.fromkeys(_ORDER_RE.findall(text))),
-            "amount": list(dict.fromkeys(_AMOUNT_RE.findall(text))),
             "error_code": list(dict.fromkeys(_ERROR_CODE_RE.findall(text))),
             "facility_id": list(dict.fromkeys(_FACILITY_RE.findall(text))),
             "work_order_id": list(dict.fromkeys(_WORK_ORDER_RE.findall(text))),
+            "inspection_task_id": list(dict.fromkeys(_INSPECTION_TASK_RE.findall(text))),
+            "terminal_id": list(dict.fromkeys(_TERMINAL_RE.findall(text))),
             "alert_code": list(dict.fromkeys(_ALERT_CODE_RE.findall(text))),
         }
         return {key: bucket for key, bucket in values.items() if bucket}
@@ -603,12 +611,12 @@ class SupervisorDecisionValidator:
     @classmethod
     def _guarded_literals(cls, text: str) -> List[str]:
         return list(dict.fromkeys(
-            _EMAIL_RE.findall(text)
-            + _ORDER_RE.findall(text)
-            + _AMOUNT_RE.findall(text)
-            + _FACILITY_RE.findall(text)
+            _FACILITY_RE.findall(text)
             + _WORK_ORDER_RE.findall(text)
+            + _INSPECTION_TASK_RE.findall(text)
+            + _TERMINAL_RE.findall(text)
             + _ALERT_CODE_RE.findall(text)
+            + _ERROR_CODE_RE.findall(text)
         ))
 
     @staticmethod

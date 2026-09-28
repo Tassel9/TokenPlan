@@ -29,24 +29,24 @@ from skills.registry import SkillBinding, SkillRegistry, SkillRegistryError
 logger = logging.getLogger(__name__)
 
 _RETRIEVAL_ENTITY_KEYS = (
-    "facility_id", "work_order_id", "location", "asset_type", "alert_code",
-    "date", "error_code", "plan", "model", "ide", "amount",
+    "permission_scope", "location", "asset_type", "alert_code", "date",
+    "error_code",
 )
 _CHINESE_FULL_DATE = re.compile(
     r"^(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日?$"
 )
 _INTENT_SKILLS = {
-    "subscription_info_query": "plan-benefits",
-    "subscription_purchase": "billing-policy",
-    "subscription_change": "billing-policy",
-    "subscription_cancel": "billing-policy",
-    "payment_issue": "billing-policy",
-    "invoice_handling": "billing-policy",
-    "refund_handling": "refund-policy",
-    "account_login_issue": "account-security",
-    "account_security_request": "account-security",
-    "entitlement_change_request": "plan-benefits",
-    "technical_troubleshooting": "technical-troubleshooting",
+    "inspection_standard_query": "inspection-standards",
+    "inspection_task_create": "work-order-process",
+    "inspection_task_update": "work-order-process",
+    "inspection_task_cancel": "work-order-process",
+    "alert_report": "work-order-process",
+    "work_order_handling": "work-order-process",
+    "work_order_withdrawal": "work-order-return",
+    "terminal_access_issue": "terminal-security",
+    "terminal_security_request": "terminal-security",
+    "operations_permission_change": "inspection-standards",
+    "facility_troubleshooting": "facility-troubleshooting",
 }
 
 
@@ -584,6 +584,7 @@ class RAGKnowledgeAgent(BaseAgent):
         "改用“工单创建后”“现场确认后”等中性表达。"
         "涉及缓存、限额、时效等机制说明时，明确其尽力而为、非持久或不保证的特性，以官方文档与实际响应为准，不夸大效果。"
         "指引核验设备、告警或工单状态时，给出具体操作入口（如监控平台、设施台账或工单页面），不要只让用户“确认状态”。"
+        "需要用户自行办理时给出明确的官方自助路径；没有可靠入口时不要编造链接。"
         "超出知识检索边界时必须 HANDOFF，不得猜测。"
         "只返回结构化动作，不输出内部推理。"
     )

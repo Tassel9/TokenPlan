@@ -251,7 +251,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
             user_id="u1",
             conv_id="c1",
             intent_id="intent-1",
-            intent="subscription_info_query",
+            intent="inspection_standard_query",
         )
 
         await agent.handle(request)
@@ -266,18 +266,17 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
     def test_agent_context_filters_private_entities(self):
         filtered = _safe_retrieval_entities({
-            "plan": ["Pro"],
-            "model": ["Claude"],
-            "ide": ["Cursor"],
+            "location": ["东城区"],
+            "asset_type": ["排水泵站"],
+            "alert_code": ["ALM-42"],
             "error_code": ["ERR-42"],
-            "amount": ["20美元"],
-            "order_id": ["ORDER-SECRET"],
-            "account_email": ["user@example.com"],
-            "workspace_id": ["workspace-secret"],
+            "work_order_id": ["WO-SECRET"],
+            "operator_id": ["operator-secret"],
+            "team_id": ["team-secret"],
         })
 
         self.assertEqual(
-            {"plan", "model", "ide", "error_code", "amount"},
+            {"location", "asset_type", "alert_code", "error_code"},
             set(filtered),
         )
         self.assertNotIn("SECRET", str(filtered))
@@ -712,7 +711,7 @@ class RagAgentPromptContractTests(unittest.TestCase):
         self.assertIn("团队", prompt)
         self.assertIn("官方自助路径", prompt)
         self.assertIn("逐一回应", prompt)
-        self.assertIn("退款完成后", prompt)
+        self.assertIn("工单创建后", prompt)
         self.assertIn("整段重复", prompt)
         self.assertIn("不同角度", prompt)
         self.assertIn("尽力而为", prompt)

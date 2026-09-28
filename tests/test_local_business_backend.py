@@ -2,16 +2,16 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from mcp.business_data_service import BusinessDataService
+from mcp.local_business_backend import UrbanOpsLocalBackend
 from mcp.tool_capabilities import BUSINESS_DATA_QUERY, BUSINESS_OPERATION_EXECUTE
 from mcp.tool_registry import Tool, ToolRegistry
 
 
-class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
+class UrbanOpsLocalBackendTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
-        self.service = BusinessDataService(
-            str(Path(self.temp_dir.name) / "business.sqlite3")
+        self.service = UrbanOpsLocalBackend(
+            str(Path(self.temp_dir.name) / "urbanops_local.sqlite3")
         )
 
     def tearDown(self):
@@ -19,34 +19,36 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
         self.temp_dir.cleanup()
 
     async def test_query_is_user_scoped_and_parameterized(self):
-        self.service.upsert_account(
+        self.service.upsert_facility(
+            "FAC-1",
             "user-1",
-            plan="pro",
-            subscription_status="active",
-            quota_remaining=1200,
+            asset_type="排水泵站",
+            status="online",
+            location="东城区",
         )
-        self.service.upsert_order(
-            "ORDER-1",
+        self.service.upsert_work_order(
+            "WO-1",
             "user-1",
-            order_type="subscription",
-            status="paid",
-            amount=99,
+            facility_id="FAC-1",
+            status="processing",
+            priority="high",
         )
 
-        account = await self.service.query(
-            {"resource": "account"}, {"user_id": "user-1"}
+        facility = await self.service.query(
+            {"resource": "facility", "record_id": "FAC-1"},
+            {"user_id": "user-1"},
         )
-        own_order = await self.service.query(
-            {"resource": "order", "record_id": "ORDER-1"},
+        own_work_order = await self.service.query(
+            {"resource": "work_order", "record_id": "WO-1"},
             {"user_id": "user-1"},
         )
         other_user = await self.service.query(
-            {"resource": "order", "record_id": "ORDER-1"},
+            {"resource": "work_order", "record_id": "WO-1"},
             {"user_id": "user-2"},
         )
 
-        self.assertEqual("pro", account.data["record"]["plan"])
-        self.assertEqual("paid", own_order.data["record"]["status"])
+        self.assertEqual("排水泵站", facility.data["record"]["asset_type"])
+        self.assertEqual("processing", own_work_order.data["record"]["status"])
         self.assertFalse(other_user.data["found"])
         self.assertIsNone(other_user.data["record"])
 
@@ -57,9 +59,9 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
             "idempotency_key": "idem-1",
         }
         params = {
-            "operation": "request_refund",
-            "target_id": "ORDER-1",
-            "details": {"reason": "duplicate charge"},
+            "operation": "withdraw_work_order",
+            "target_id": "WO-1",
+            "details": {"reason": "duplicate report"},
         }
 
         first = await self.service.submit_operation(params, context)
@@ -71,7 +73,7 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("request_accepted_only", first.data["completion_claim"])
         with self.assertRaisesRegex(ValueError, "different operation"):
             await self.service.submit_operation(
-                {"operation": "request_invoice", "target_id": "ORDER-1"},
+                {"operation": "assign_work_order", "target_id": "WO-1"},
                 context,
             )
 
@@ -109,7 +111,7 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
 
         denied = await registry.call(
             "business_operation",
-            {"operation": "request_refund", "target_id": "ORDER-1"},
+            {"operation": "withdraw_work_order", "target_id": "WO-1"},
             context={
                 "user_id": "user-1",
                 "agent_type": "business_data_query",
@@ -117,7 +119,7 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         missing_approval = await registry.call(
             "business_operation",
-            {"operation": "request_refund", "target_id": "ORDER-1"},
+            {"operation": "withdraw_work_order", "target_id": "WO-1"},
             context={
                 "user_id": "user-1",
                 "agent_type": "business_operation",
@@ -125,7 +127,7 @@ class BusinessDataServiceTests(unittest.IsolatedAsyncioTestCase):
         )
         accepted = await registry.call(
             "business_operation",
-            {"operation": "request_refund", "target_id": "ORDER-1"},
+            {"operation": "withdraw_work_order", "target_id": "WO-1"},
             context={
                 "user_id": "user-1",
                 "agent_type": "business_operation",

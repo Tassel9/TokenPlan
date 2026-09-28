@@ -156,7 +156,7 @@ class IncrementalTraceHookTests(unittest.IsolatedAsyncioTestCase):
             primary_agent="general",
             invocations=[IntentInvocation(
                 intent_id="intent-1",
-                intent="subscription_info_query",
+                intent="inspection_standard_query",
                 agent="general",
                 query="套餐区别",
                 focus="解释套餐区别",

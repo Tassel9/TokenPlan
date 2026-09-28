@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 # 配置
-IMAGE_NAME="tokenplan"
+IMAGE_NAME="urbanops"
 REGISTRY=""  # 如果需要推送到私有仓库，设置为 registry.example.com/
 VERSION=${VERSION:-latest}
 BUILD_ARGS=""

@@ -77,7 +77,6 @@ export type HealthResponse = {
 
 const configuredBase = String(
   import.meta.env.VITE_URBANOPS_API_BASE_URL
-  ?? import.meta.env.VITE_TOKENPLAN_API_BASE_URL
   ?? '',
 ).trim()
 const API_BASE_URL = (configuredBase || '/api').replace(/\/$/, '')

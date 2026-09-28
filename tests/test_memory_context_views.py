@@ -54,7 +54,7 @@ class MemoryContextViewTests(unittest.TestCase):
             user_id="user-1",
             conv_id="conv-1",
             intent_id="intent-1",
-            intent="technical_troubleshooting",
+            intent="facility_troubleshooting",
             short_term_context="正在排查插件登录问题",
             long_term_context="用户偏好先给结论",
             case_state={"pending_slots": ["error_code"]},

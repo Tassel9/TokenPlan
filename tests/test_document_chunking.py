@@ -264,7 +264,7 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
         self.assertEqual(2, len(self.kb._collection.delete_calls))
         self.assertEqual(2, metadata["page_start"])
         self.assertEqual("额度与用量", metadata["heading_path"])
-        self.assertEqual("coding-plan-structure-v2", metadata["splitter_version"])
+        self.assertEqual("urbanops-structure-v1", metadata["splitter_version"])
         self.assertTrue(metadata["content_sha256"])
         self.assertEqual(
             "coding_plan.quota_troubleshooting", metadata["knowledge_key"]

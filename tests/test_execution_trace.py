@@ -23,12 +23,12 @@ def _result():
         stage_timings_ms={"few_shot_retrieval_ms": 2.0, "worker_execution_ms": 12.0},
         intent_executions=[{
             "intent_id": "intent-1",
-            "intent": "refund_handling",
+            "intent": "work_order_withdrawal",
             "agent_type": "billing",
             "status": "COMPLETED",
             "reason_code": "answered",
             "latency_ms": 12.0,
-            "skill_id": "refund-policy",
+            "skill_id": "work-order-return",
             "skill_version": "1.0.0",
             "evidence_count": 1,
             "routing": {

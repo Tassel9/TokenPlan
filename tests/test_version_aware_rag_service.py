@@ -249,7 +249,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         static = {
             "document_id": "plugin-guide",
             "chunk_id": "plugin-guide-0",
-            "content": "插件安装入口位于 TokenPlan 官方控制台。",
+            "content": "插件安装入口位于 UrbanOps 官方控制台。",
             "score": 0.9,
         }
         knowledge_base = VersionLookupKnowledgeBase([])

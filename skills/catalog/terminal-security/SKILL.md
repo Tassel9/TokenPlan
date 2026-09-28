@@ -1,11 +1,11 @@
 ---
-name: account-security
+name: terminal-security
 description: >-
   处理 UrbanOps 终端接入、设备证书、接入凭证、绑定关系和安全策略。用于终端安全指导；不用于直接修改真实设备配置。
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  urbanops-owner-agent: rag_knowledge
 ---
 
 # UrbanOps 终端接入与安全
@@ -36,4 +36,4 @@ metadata:
 ## 按需资源
 
 - 需要区分自助恢复、后台操作和服务故障时读取 `references/security-boundaries.md`。
-- 需要整理转人工信息时读取 `assets/account-handoff-template.md`。
+- 需要整理转人工信息时读取 `assets/terminal-security-handoff-template.md`。

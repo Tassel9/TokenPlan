@@ -21,7 +21,7 @@ import {
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { ApiError, getHealth, sendChat, supervisorIntentLabels, type ChatResponse } from './api/tokenplan'
+import { ApiError, getHealth, sendChat, supervisorIntentLabels, type ChatResponse } from './api/urbanops'
 import { ConversationList, type ConversationSummary } from './components/ConversationList'
 import { ExecutionPanel } from './components/ExecutionPanel'
 import { labelAgent, labelIntent } from './utils/labels'
@@ -72,7 +72,7 @@ const quickActions = [
     tone: 'blue',
   },
   {
-    label: '复合问题演示',
+    label: '复合问题示例',
     description: '一次触发多个运维任务协作',
     prompt: '泵站 P-102 高温告警，请先查询最近巡检记录，再给出排查步骤并生成维修工单。',
     icon: BrainCircuit,
@@ -101,9 +101,9 @@ function loadConversations(): Conversation[] {
 
 function loadUserId(): string {
   try {
-    return localStorage.getItem(USER_ID_KEY) || 'demo-user'
+    return localStorage.getItem(USER_ID_KEY) || 'local-user'
   } catch {
-    return 'demo-user'
+    return 'local-user'
   }
 }
 
@@ -170,7 +170,7 @@ function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(USER_ID_KEY, userId.trim() || 'demo-user')
+      localStorage.setItem(USER_ID_KEY, userId.trim() || 'local-user')
     } catch {
       // 用户标识仍保留在本次页面状态中。
     }
@@ -270,7 +270,7 @@ function App() {
     try {
       const result = await sendChat({
         message,
-        user_id: userId.trim() || 'demo-user',
+        user_id: userId.trim() || 'local-user',
         conv_id: activeId,
       })
       const assistantMessage: ChatMessage = {

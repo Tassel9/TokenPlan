@@ -11,7 +11,12 @@ class AgentMemoryPolicyTests(unittest.TestCase):
     def invocation(self, task_id, intent, agent):
         return IntentInvocation(
             task_id, intent, agent, "处理当前请求", "处理当前请求",
-            entities={"order_id": ["ORDER-1"], "error_code": ["401"], "secret": ["no"]},
+            entities={
+                "facility_id": ["FAC-1"],
+                "alert_code": ["ALM-401"],
+                "error_code": ["401"],
+                "secret": ["no"],
+            },
         )
 
     def result(self, invocation, text):
@@ -19,21 +24,24 @@ class AgentMemoryPolicyTests(unittest.TestCase):
 
     def test_related_memory_is_explicit_and_entity_projection_is_narrow(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
-        technical = self.invocation("technical-1", "technical_troubleshooting", "technical")
-        billing = self.invocation("billing-1", "payment_issue", "billing")
+        technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
+        billing = self.invocation("billing-1", "alert_report", "billing")
         store.write(technical, self.result(technical, "401 caused by plugin configuration"),
                     request_id="req-1", case_id="case-1")
 
         view = store.context_for(billing, request_id="req-1", case_id="case-1")
         payload = view.to_runtime_payload()
-        self.assertEqual({"order_id"}, set(payload["entities"]))
+        self.assertEqual(
+            {"facility_id", "alert_code"},
+            set(payload["entities"]),
+        )
         self.assertEqual(["technical"], [item["source_agent"] for item in payload["related_memory"]])
         self.assertNotIn("secret", str(payload))
 
     def test_unrelated_intents_do_not_leak_same_case_memory(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
-        technical = self.invocation("technical-1", "technical_troubleshooting", "technical")
-        general = self.invocation("general-1", "service_feedback", "general")
+        technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
+        general = self.invocation("general-1", "operations_feedback", "general")
         store.write(technical, self.result(technical, "private technical result"),
                     request_id="req-1", case_id="case-1")
         view = store.context_for(general, request_id="req-2", case_id="case-1")
@@ -41,9 +49,9 @@ class AgentMemoryPolicyTests(unittest.TestCase):
 
     def test_related_projection_filters_other_intents_owned_by_source_agent(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
-        invoice = self.invocation("invoice-1", "invoice_handling", "billing")
-        refund = self.invocation("refund-1", "refund_handling", "billing")
-        complaint = self.invocation("complaint-1", "service_complaint", "general")
+        invoice = self.invocation("invoice-1", "work_order_handling", "billing")
+        refund = self.invocation("refund-1", "work_order_withdrawal", "billing")
+        complaint = self.invocation("complaint-1", "operations_complaint", "general")
         store.write(invoice, self.result(invoice, "unrelated invoice"),
                     request_id="req-1", case_id="case-1")
         store.write(refund, self.result(refund, "refund finding"),
@@ -53,8 +61,8 @@ class AgentMemoryPolicyTests(unittest.TestCase):
 
     def test_case_isolation_wins_over_business_relation(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
-        technical = self.invocation("technical-1", "technical_troubleshooting", "technical")
-        billing = self.invocation("billing-1", "payment_issue", "billing")
+        technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
+        billing = self.invocation("billing-1", "alert_report", "billing")
         store.write(technical, self.result(technical, "other case"),
                     request_id="req-1", case_id="case-a")
         view = store.context_for(billing, request_id="req-2", case_id="case-b")
@@ -65,8 +73,8 @@ class AgentMemoryPolicyTests(unittest.TestCase):
             backend = SQLiteSessionStore(str(Path(tmp) / "session.sqlite3"))
             try:
                 first = AgentMemoryStore(backend=backend, user_id="u", conv_id="c")
-                technical = self.invocation("technical-1", "technical_troubleshooting", "technical")
-                billing = self.invocation("billing-1", "payment_issue", "billing")
+                technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
+                billing = self.invocation("billing-1", "alert_report", "billing")
                 first.write(technical, self.result(technical, "persisted technical result"),
                             request_id="req-1", case_id="case-1")
                 second = AgentMemoryStore(backend=backend, user_id="u", conv_id="c")

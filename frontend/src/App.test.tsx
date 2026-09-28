@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChatResponse } from './api/tokenplan'
+import type { ChatResponse } from './api/urbanops'
 
-vi.mock('./api/tokenplan', async () => {
-  const actual = await vi.importActual<typeof import('./api/tokenplan')>('./api/tokenplan')
+vi.mock('./api/urbanops', async () => {
+  const actual = await vi.importActual<typeof import('./api/urbanops')>('./api/urbanops')
   return {
     ...actual,
     getHealth: vi.fn(),
@@ -13,26 +13,26 @@ vi.mock('./api/tokenplan', async () => {
 })
 
 import App from './App'
-import { getHealth, sendChat } from './api/tokenplan'
+import { getHealth, sendChat } from './api/urbanops'
 
 const responseFixture: ChatResponse = {
   conv_id: 'conv-1',
-  trace_id: 'trace-demo-001',
+  trace_id: 'trace-local-001',
   response: '我会先排查泵站高温告警，再处理维修工单。',
   supervisor: {
     analysis: {
       rewrite: { status: 'resolved', effective_query: '泵站 P-102 高温告警排查；创建维修工单' },
       intents: [
-        { intent_id: 'intent-1-technical_troubleshooting', label: 'technical_troubleshooting', supporting_text: ['泵站 P-102 高温告警'] },
-        { intent_id: 'intent-2-invoice_handling', label: 'invoice_handling', supporting_text: ['创建维修工单'] },
+        { intent_id: 'intent-1-facility_troubleshooting', label: 'facility_troubleshooting', supporting_text: ['泵站 P-102 高温告警'] },
+        { intent_id: 'intent-2-work_order_handling', label: 'work_order_handling', supporting_text: ['创建维修工单'] },
       ],
     },
   },
-  agent_type: 'technical',
+  agent_type: 'rag_knowledge',
   escalated: false,
   latency_ms: 680,
   knowledge_used: true,
-  agent_types: ['technical', 'billing'],
+  agent_types: ['rag_knowledge', 'business_operation'],
   status: 'COMPLETED',
   overall_status: 'COMPLETED',
   response_action: 'ANSWER',
@@ -42,18 +42,18 @@ const responseFixture: ChatResponse = {
   intent_dispatch: {},
   intent_executions: [
     {
-      intent: 'technical_troubleshooting',
+      intent: 'facility_troubleshooting',
       status: 'COMPLETED',
-      agent_type: 'technical',
+      agent_type: 'rag_knowledge',
       latency_ms: 320,
-      selected_skill_ids: ['technical-troubleshooting'],
+      selected_skill_ids: ['facility-troubleshooting'],
     },
     {
-      intent: 'invoice_handling',
+      intent: 'work_order_handling',
       status: 'COMPLETED',
-      agent_type: 'billing',
+      agent_type: 'business_operation',
       latency_ms: 290,
-      selected_skill_ids: ['billing-policy'],
+      selected_skill_ids: ['work-order-process'],
     },
   ],
   intent_result_summary: {},
@@ -98,14 +98,14 @@ describe('UrbanOps workspace', () => {
     expect(screen.queryByRole('complementary', { name: '本轮执行详情' })).not.toBeInTheDocument()
     expect(mockedSendChat).toHaveBeenCalledWith(expect.objectContaining({
       message: '泵站 P-102 高温告警，请排查并创建维修工单',
-      user_id: 'demo-user',
+      user_id: 'local-user',
       conv_id: expect.any(String),
     }))
 
     await user.click(screen.getByRole('button', { name: /查看本次处理过程/ }))
     expect(screen.getAllByText('设备故障排查').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('工单 Agent').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('工单操作 Agent').length).toBeGreaterThan(0)
     expect(screen.getAllByText('设备故障排查、巡检工单流程').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('trace-demo-001').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('trace-local-001').length).toBeGreaterThan(0)
   })
 })

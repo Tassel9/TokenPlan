@@ -34,7 +34,7 @@ def build_agentic_search_runtime(
 
     manager.register(Tool(
         name="knowledge_search",
-        description="search TokenPlan subscription knowledge",
+        description="search UrbanOps subscription knowledge",
         handler=knowledge_search,
         schema={
             "type": "object",
@@ -174,12 +174,12 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return [{
                     "document_id": "plugin-service-overview",
                     "title": "插件服务概览",
-                    "content": "TokenPlan 支持 VS Code 和 JetBrains 系列插件。",
+                    "content": "UrbanOps 支持 VS Code 和 JetBrains 系列插件。",
                 }]
             return [{
                 "document_id": "vscode-plugin-setup",
                 "title": "VS Code 插件安装流程",
-                "content": "先从扩展市场安装 TokenPlan 插件，再登录订阅账户。",
+                "content": "先从扩展市场安装 UrbanOps 插件，再登录订阅账户。",
             }]
 
         async def decision_provider(payload):
@@ -198,7 +198,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                     first_data[0]["document_id"],
                 )
                 self.assertEqual(
-                    "customer-service-agent-loop-v8",
+                    "urbanops-agent-loop-v8",
                     payload["prompt_version"],
                 )
                 self.assertEqual(
@@ -246,7 +246,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             )
             return json.dumps({
                 "action": "FINAL",
-                "message": "请先从扩展市场安装 TokenPlan 插件，再登录订阅账户。",
+                "message": "请先从扩展市场安装 UrbanOps 插件，再登录订阅账户。",
                 "reason_code": "evidence_complete",
             }, ensure_ascii=False)
 

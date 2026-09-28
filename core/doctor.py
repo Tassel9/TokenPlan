@@ -35,10 +35,10 @@ PLACEHOLDER_KEY = "your_deepseek_api_key_here"
 # Code defaults live in app_services.py / knowledge_base.py; repeated here so a
 # missing variable is still probed instead of silently skipped.
 DEFAULT_SESSION_DB_PATH = "./data/session/conversations.sqlite3"
-DEFAULT_RABBITMQ_URL = "amqp://tokenplan:tokenplan123@rabbitmq:5672/"
+DEFAULT_RABBITMQ_URL = "amqp://urbanops:urbanops123@rabbitmq:5672/"
 DEFAULT_CHROMA_HOST = "chromadb"
 DEFAULT_CHROMA_PORT = 8000
-DEFAULT_LOCAL_RABBITMQ_HINT = "amqp://tokenplan:tokenplan123@localhost:5672/"
+DEFAULT_LOCAL_RABBITMQ_HINT = "amqp://urbanops:urbanops123@localhost:5672/"
 DEFAULT_LOCAL_SKILL_CATALOG = "skills/catalog"
 
 Probe = Callable[[str, int, float], Tuple[bool, str]]

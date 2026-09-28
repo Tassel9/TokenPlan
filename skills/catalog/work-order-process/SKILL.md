@@ -1,11 +1,11 @@
 ---
-name: billing-policy
+name: work-order-process
 description: >-
   解释 UrbanOps 巡检任务、异常上报和维修工单的公开流转规则。用于工单流程咨询；不用于核验实时设施或具体工单状态。
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  urbanops-owner-agent: rag_knowledge
 ---
 
 # 巡检与工单流转规则
@@ -15,7 +15,7 @@ metadata:
 ### 输入约束
 
 - 必需：巡检任务、异常上报、工单创建、派发、转派、催办或关闭主题；必要时补充设施编号、区域、告警等级和时间。
-- 禁止索取终端密钥、平台口令和完整接入凭证；明确工单撤回或退回主题优先匹配 `refund-policy`。
+- 禁止索取终端密钥、平台口令和完整接入凭证；明确工单撤回或退回主题优先匹配 `work-order-return`。
 
 ### 工作流
 
@@ -36,4 +36,4 @@ metadata:
 ## 按需资源
 
 - 判断公开流程与实时业务记录边界时读取 `references/policy-boundaries.md`。
-- 需要生成条件清晰的工单规则答复时读取 `assets/billing-response-template.md`。
+- 需要生成条件清晰的工单规则答复时读取 `assets/work-order-process-template.md`。

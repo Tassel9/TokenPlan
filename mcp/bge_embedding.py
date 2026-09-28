@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 BGE_EMBEDDING_BACKEND = "bge"
 CHROMA_DEFAULT_EMBEDDING_BACKEND = "chroma-default"
-BGE_EMBEDDING_FUNCTION_NAME = "tokenplan-bge-zh"
+BGE_EMBEDDING_FUNCTION_NAME = "urbanops-bge-zh"
 
 # Measured on the frozen 150-case retrieval set: bge-small-zh-v1.5 and
 # bge-base-zh-v1.5 tie on document Recall@5 (0.98), while one cold query encode

@@ -6,8 +6,8 @@
   "max_recalled_facts": 3,
   "facts": [
     {"memory_key": "environment.os", "value": "Windows"},
-    {"memory_key": "environment.ide", "value": "VS Code"},
-    {"memory_key": "preference.billing_cycle", "value": "年付"},
+    {"memory_key": "environment.client_device", "value": "手持巡检终端"},
+    {"memory_key": "preference.inspection_shift", "value": "夜班"},
     {"memory_key": "style.answer_order", "value": "先给结论"},
     {"memory_key": "style.response_length", "value": "简短"}
   ],
@@ -28,29 +28,29 @@
       "relevant_keys": ["environment.os"]
     },
     {
-      "case_id": "ide_tool",
-      "query": "我常用的开发工具是哪个？",
-      "relevant_keys": ["environment.ide"]
+      "case_id": "client_device_direct",
+      "query": "我常用的巡检终端是哪种？",
+      "relevant_keys": ["environment.client_device"]
     },
     {
-      "case_id": "ide_editor",
-      "query": "我用什么编辑器写代码？",
-      "relevant_keys": ["environment.ide"]
+      "case_id": "client_device_usage",
+      "query": "我通常用哪种设备执行巡检？",
+      "relevant_keys": ["environment.client_device"]
     },
     {
-      "case_id": "billing_direct",
-      "query": "我的账单周期偏好是什么？",
-      "relevant_keys": ["preference.billing_cycle"]
+      "case_id": "inspection_shift_direct",
+      "query": "我的巡检班次偏好是什么？",
+      "relevant_keys": ["preference.inspection_shift"]
     },
     {
-      "case_id": "billing_renewal",
-      "query": "续费时按我的付费习惯推荐",
-      "relevant_keys": ["preference.billing_cycle"]
+      "case_id": "inspection_shift_schedule",
+      "query": "排班时按我的巡检习惯安排",
+      "relevant_keys": ["preference.inspection_shift"]
     },
     {
-      "case_id": "billing_history",
-      "query": "我之前说月付还是年付？",
-      "relevant_keys": ["preference.billing_cycle"]
+      "case_id": "inspection_shift_history",
+      "query": "我之前说白班还是夜班？",
+      "relevant_keys": ["preference.inspection_shift"]
     }
   ]
 }

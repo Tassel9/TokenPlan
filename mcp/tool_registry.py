@@ -638,7 +638,7 @@ class ToolRegistry:
             "allowed_document_ids",
             "tenant_id",
             "project_id",
-            "workspace_id",
+            "team_id",
             "user_id",
             "knowledge_scope",
             "as_of",

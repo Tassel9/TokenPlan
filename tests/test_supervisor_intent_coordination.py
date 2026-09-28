@@ -27,9 +27,9 @@ def first_analysis(query="插件报401，而且重复扣款"):
             "inherited_entities": {}, "ambiguity_candidates": {},
             "clarification_question": "", "reason_code": "self_contained"},
         "intents": [
-            {"intent_id": "intent-1-technical_troubleshooting", "label": "technical_troubleshooting",
+            {"intent_id": "intent-1-facility_troubleshooting", "label": "facility_troubleshooting",
              "supporting_text": ["插件报401"], "tree_score": 0.95},
-            {"intent_id": "intent-2-payment_issue", "label": "payment_issue",
+            {"intent_id": "intent-2-alert_report", "label": "alert_report",
              "supporting_text": ["重复扣款"], "tree_score": 0.96},
         ], "scope_status": "in_scope", "reason_code": "two_requests"}
 
@@ -47,9 +47,9 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled",
                     "messages": [
                         {"recipient": "technical", "content": "排查401",
-                         "intent_ids": ["intent-1-technical_troubleshooting"]},
+                         "intent_ids": ["intent-1-facility_troubleshooting"]},
                         {"recipient": "billing", "content": "核查重复扣款",
-                         "intent_ids": ["intent-2-payment_issue"]}],
+                         "intent_ids": ["intent-2-alert_report"]}],
                     "reason_code": "dispatch"}
             return {"action": "FINAL", "message": "两个问题均已处理。", "reason_code": "done"}
 
@@ -72,7 +72,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
             return {"action": "ASK_USER", "analysis": {
                 "rewrite": {"status": "ambiguous", "effective_query": query, "references": [],
                     "extracted_entities": {}, "inherited_entities": {},
-                    "ambiguity_candidates": {"order_id": ["TP-1", "TP-2"]},
+                    "ambiguity_candidates": {"work_order_id": ["TP-1", "TP-2"]},
                     "clarification_question": "请问是哪一笔订单？", "reason_code": "multiple"},
                 "intents": [], "scope_status": "uncertain", "reason_code": "ambiguous"},
                 "message": "请问是哪一笔订单？", "reason_code": "ask_order"}
@@ -115,7 +115,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [{
                         "recipient": "technical",
                         "content": "先排查插件报401",
-                        "intent_ids": ["intent-1-technical_troubleshooting"],
+                        "intent_ids": ["intent-1-facility_troubleshooting"],
                     }],
                     "reason_code": "technical_prerequisite",
                 }
@@ -126,7 +126,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [{
                         "recipient": "billing",
                         "content": "根据前序结果核查重复扣款",
-                        "intent_ids": ["intent-2-payment_issue"],
+                        "intent_ids": ["intent-2-alert_report"],
                     }],
                     "reason_code": "billing_after_technical",
                 }
@@ -175,7 +175,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                 "messages": [{
                     "recipient": "technical",
                     "content": "先排查插件报401",
-                    "intent_ids": ["intent-1-technical_troubleshooting"],
+                    "intent_ids": ["intent-1-facility_troubleshooting"],
                 }],
                 "reason_code": "technical_prerequisite",
             }
@@ -213,8 +213,8 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                         "recipient": "technical",
                         "content": "处理两个独立诉求",
                         "intent_ids": [
-                            "intent-1-technical_troubleshooting",
-                            "intent-2-payment_issue",
+                            "intent-1-facility_troubleshooting",
+                            "intent-2-alert_report",
                         ],
                     }],
                     "reason_code": "independent_batch",
@@ -246,7 +246,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                 "messages": [{
                     "recipient": "technical",
                     "content": "排查401",
-                    "intent_ids": ["intent-1-technical_troubleshooting"],
+                    "intent_ids": ["intent-1-facility_troubleshooting"],
                 }],
                 "reason_code": "missing_barrier",
             }

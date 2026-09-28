@@ -29,14 +29,14 @@ def analysis_payload(query=QUERY):
         },
         "intents": [
             {
-                "intent_id": "intent-1-technical_troubleshooting",
-                "label": "technical_troubleshooting",
+                "intent_id": "intent-1-facility_troubleshooting",
+                "label": "facility_troubleshooting",
                 "supporting_text": ["排查插件报401"],
                 "tree_score": 0.95,
             },
             {
-                "intent_id": "intent-2-payment_issue",
-                "label": "payment_issue",
+                "intent_id": "intent-2-alert_report",
+                "label": "alert_report",
                 "supporting_text": ["核查重复扣款"],
                 "tree_score": 0.96,
             },
@@ -114,7 +114,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [{
                         "recipient": "rag_knowledge",
                         "content": "先排查插件报401",
-                        "intent_ids": ["intent-1-technical_troubleshooting"],
+                        "intent_ids": ["intent-1-facility_troubleshooting"],
                     }],
                     "reason_code": "first_stage",
                 }
@@ -125,7 +125,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [{
                         "recipient": "business_data_query",
                         "content": "根据前序结果核查重复扣款",
-                        "intent_ids": ["intent-2-payment_issue"],
+                        "intent_ids": ["intent-2-alert_report"],
                     }],
                     "reason_code": "second_stage",
                 }
@@ -175,7 +175,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                 "messages": [{
                     "recipient": "rag_knowledge",
                     "content": "排查",
-                    "intent_ids": ["intent-1-technical_troubleshooting"],
+                    "intent_ids": ["intent-1-facility_troubleshooting"],
                 }],
                 "reason_code": "illegal_relabel",
             }
@@ -224,7 +224,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [{
                         "recipient": "rag_knowledge",
                         "content": "排查插件报401",
-                        "intent_ids": ["intent-1-technical_troubleshooting"],
+                        "intent_ids": ["intent-1-facility_troubleshooting"],
                     }],
                     "reason_code": "dispatch",
                 }

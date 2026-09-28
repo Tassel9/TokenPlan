@@ -29,7 +29,7 @@ def write_skill_with_resource(
         "description": "Unit-test Skill with one Markdown resource.",
         "metadata": {
             "version": "1.0.0",
-            "token-plan-owner-agent": owner_agent,
+            "urbanops-owner-agent": owner_agent,
         },
     }
     yaml_text = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
@@ -46,7 +46,7 @@ def write_skill_with_resource(
 
 
 def bind_plan_benefits(registry: SkillRegistry):
-    return registry.bind_for_agent("rag_knowledge", ["plan-benefits"])[0]
+    return registry.bind_for_agent("rag_knowledge", ["inspection-standards"])[0]
 
 
 def binding_context(binding, *, owner_agent: str | None = None) -> dict[str, str]:
@@ -115,7 +115,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
         )
         asset = await self.manager.call(
             SKILL_RESOURCE_TOOL,
-            {"resource_id": "assets/plan-comparison-template.md"},
+            {"resource_id": "assets/inspection-standard-template.md"},
             context=self.context,
         )
 
@@ -140,7 +140,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
             ),
             (
                 self.context,
-                "../account-security/SKILL.md",
+                "../terminal-security/SKILL.md",
                 "not available",
             ),
         )
@@ -167,7 +167,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_multi_skill_resource_read_requires_selected_skill_id(self):
         account = self.registry.bind_for_agent(
             "rag_knowledge",
-            ["account-security"],
+            ["terminal-security"],
         )[0]
         context = {
             "agent_type": "rag_knowledge",

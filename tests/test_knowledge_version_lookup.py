@@ -17,7 +17,7 @@ def version_metadata(
         "total_chunks": 2,
         "title": f"policy {document_id}",
         "source_uri": f"policy://{document_id}",
-        "source_provider": "tokenplan-support",
+        "source_provider": "urbanops-support",
         "section": "account_security",
         "heading_path": "account > password",
         "page_start": 1,
@@ -209,7 +209,7 @@ class ApplicabilityMetadataTests(unittest.TestCase):
         knowledge_base.add_documents([{
             "document_id": "doc-a",
             "title": "password reset policy",
-            "content": "reset through the official TokenPlan security flow",
+            "content": "reset through the official UrbanOps security flow",
             "knowledge_key": "subscription.account.password_reset",
             "fact_value": "official-portal",
             "authority": "official",

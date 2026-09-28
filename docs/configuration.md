@@ -49,6 +49,7 @@ python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked�
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 会话、摘要、CaseState 和并发提交记录的本地文件 |
+| `LOCAL_BACKEND_DB_PATH` | `./data/local/urbanops_local.sqlite3` | 本地 SQLite 夹具；仅验证用户隔离、审批、幂等和审计边界，不是真实市政平台 |
 | `SESSION_HISTORY_MAX_MESSAGES` | `100` | 每会话保留的原始归档消息上限 |
 | `SESSION_HISTORY_PAGE_SIZE` | `50` | 历史读取默认条数 |
 | `SESSION_HOT_MEMORY_MAX_MESSAGES` | `40` | 摘要持续失败时的近期对话硬上限 |
@@ -71,7 +72,7 @@ python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked�
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RABBITMQ_URL` | `amqp://tokenplan:tokenplan123@rabbitmq:5672/` | 容器内地址 |
+| `RABBITMQ_URL` | `amqp://urbanops:urbanops123@rabbitmq:5672/` | 容器内地址 |
 | `LONG_TERM_MEMORY_QUEUE_ENABLED` | `true` | 置 `false` 只关闭长期记忆写入（在线问答不受影响），也是"不想跑 MQ"的降级开关 |
 | `LONG_TERM_MEMORY_WORKER_ENABLED` | `true` | API 与 Worker 暂同进程；拆独立 Worker 后 API 侧置 `false` |
 | `LONG_TERM_MEMORY_WORKER_PREFETCH` | `1` | 预取数 |
@@ -181,7 +182,7 @@ python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked�
 
 | 变量 | compose 默认值 |
 |---|---|
-| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `tokenplan` / `tokenplan123` |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `urbanops` / `urbanops123` |
 | `IMAGE_NAME` / `VERSION` / `REGISTRY` | 见 `scripts/build-image.sh`、`scripts/run-image.sh` |
 | `CONFIG_DIR` / `DATA_DIR` / `LOGS_DIR` | 见 `scripts/run-image.sh` |
 

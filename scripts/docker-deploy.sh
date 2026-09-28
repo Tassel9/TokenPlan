@@ -12,7 +12,7 @@ YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
 
 # 配置
-PROJECT_NAME="tokenplan"
+PROJECT_NAME="urbanops"
 COMPOSE_FILE="docker-compose.yml"
 ENV_FILE=".env"
 
@@ -189,12 +189,12 @@ backup_data() {
     mkdir -p "$backup_dir"
 
     # 使用 SQLite 在线备份 API，避免直接复制 WAL 数据库文件。
-    docker-compose exec -T tokenplan python -c 'import sqlite3; source=sqlite3.connect("/app/data/session/conversations.sqlite3"); target=sqlite3.connect("/app/data/session/backup.sqlite3"); source.backup(target); target.close(); source.close()'
+    docker-compose exec -T urbanops python -c 'import sqlite3; source=sqlite3.connect("/app/data/session/conversations.sqlite3"); target=sqlite3.connect("/app/data/session/backup.sqlite3"); source.backup(target); target.close(); source.close()'
     cp data/session/backup.sqlite3 "$backup_dir/conversations.sqlite3"
     rm data/session/backup.sqlite3
 
     # 备份 ChromaDB 数据
-    docker cp tokenplan-chromadb:/chroma/chroma "$backup_dir/"
+    docker cp urbanops-chromadb:/chroma/chroma "$backup_dir/"
 
     # 备份配置
     cp .env "$backup_dir/"
@@ -231,7 +231,7 @@ restore_data() {
         rm -f data/session/conversations.sqlite3-wal data/session/conversations.sqlite3-shm
 
         # 恢复 ChromaDB 数据
-        docker cp "$backup_dir/chroma" tokenplan-chromadb:/chroma/
+        docker cp "$backup_dir/chroma" urbanops-chromadb:/chroma/
 
         # 恢复配置
         cp "$backup_dir/.env" .env
@@ -271,7 +271,7 @@ UrbanOps 市政运维智能体 - Docker 部署脚本
 示例:
     ./scripts/docker-deploy.sh install
     ./scripts/docker-deploy.sh start
-    ./scripts/docker-deploy.sh logs tokenplan
+    ./scripts/docker-deploy.sh logs urbanops
     ./scripts/docker-deploy.sh backup
     ./scripts/docker-deploy.sh restore backups/20231201_120000
 

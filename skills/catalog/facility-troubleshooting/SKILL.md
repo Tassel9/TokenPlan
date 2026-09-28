@@ -1,11 +1,11 @@
 ---
-name: technical-troubleshooting
+name: facility-troubleshooting
 description: >-
   诊断 UrbanOps 管理的泵站、路灯、井盖、传感器、网关和平台接口故障。用于低风险排查与转人工信息整理；不用于承诺现场故障已经修复。
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  urbanops-owner-agent: rag_knowledge
 ---
 
 # UrbanOps 设备故障排查

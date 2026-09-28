@@ -16,7 +16,7 @@ MANIFEST_PATH = (
 
 
 class SupervisorIntentLatestManifestTests(unittest.TestCase):
-    def test_manifest_locks_current_report_dataset_and_runtime_config(self):
+    def test_runtime_migration_invalidates_legacy_evaluation_manifest(self):
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         report_path = ROOT / manifest["report"]["path"]
         dataset_path = ROOT / manifest["dataset"]["path"]
@@ -25,6 +25,8 @@ class SupervisorIntentLatestManifestTests(unittest.TestCase):
         dataset = json.loads(dataset_path.read_text(encoding="utf-8"))
 
         self.assertFalse(manifest["production_evidence"])
+        self.assertFalse(manifest["latest"])
+        self.assertEqual("urbanops-domain-migration", manifest["invalidated_by"])
         self.assertEqual("pending", manifest["review"]["status"])
         self.assertEqual(6, manifest["runtime_config"]["candidate_top_n"])
         env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
@@ -36,13 +38,16 @@ class SupervisorIntentLatestManifestTests(unittest.TestCase):
             dataset["metadata"]["construction"]["model_output_used_for_gold_labels"]
         )
 
-        for section, path in (
-            ("report", report_path),
-            ("dataset", dataset_path),
-            ("few_shots", few_shots_path),
-        ):
-            digest = hashlib.sha256(path.read_bytes()).hexdigest()
-            self.assertEqual(manifest[section]["sha256"], digest)
+        report_digest = hashlib.sha256(report_path.read_bytes()).hexdigest()
+        self.assertEqual(manifest["report"]["sha256"], report_digest)
+        dataset_digest = hashlib.sha256(dataset_path.read_bytes()).hexdigest()
+        self.assertNotEqual(manifest["dataset"]["sha256"], dataset_digest)
+
+        current_few_shots = json.loads(few_shots_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            "urbanops_municipal_operations",
+            current_few_shots["business_domain"],
+        )
 
         self.assertEqual(
             report["candidate_metrics"]["candidate_top_n"],

@@ -5,7 +5,7 @@ This module deliberately does not build a flat "Agent memory" snapshot:
 * short-term memory is recent conversation plus an incremental SQLite summary;
 * long-term memory is an append-only user-fact log plus its current projection.
 
-Request execution state and ``CustomerServiceCase`` belong to working memory.
+Request execution state and ``OperationsCase`` belong to working memory.
 Skills, SOPs and tool policies belong to procedural memory.
 """
 import asyncio
@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import chromadb
 from anthropic import AsyncAnthropic
 
-from memory.conversation_state import CustomerServiceCase
+from memory.conversation_state import OperationsCase
 from memory.long_term_facts import (
     FACT_SCHEMA_VERSION,
     MEMORY_FIELDS,
@@ -66,9 +66,9 @@ LEGACY_PROFILE_COLLECTION = "user_profile"
 MEMORY_KEY_LABELS = {
     "style.response_length": "回答长度偏好",
     "style.answer_order": "回答顺序偏好",
-    "preference.billing_cycle": "账单周期偏好",
+    "preference.inspection_shift": "巡检班次偏好",
     "environment.os": "操作系统",
-    "environment.ide": "开发工具",
+    "environment.client_device": "运维客户端设备",
 }
 
 
@@ -234,7 +234,7 @@ class MemoryManager:
         self._llm_bulkhead = resource_limits.llm if resource_limits else None
         try:
             self._tokenizer = load_deepseek_tokenizer(model)
-            self._tokenizer.encode("TokenPlan", add_special_tokens=False)
+            self._tokenizer.encode("UrbanOps", add_special_tokens=False)
         except Exception as ex:
             raise RuntimeError(
                 "DeepSeek tokenizer 加载或计数自检失败，拒绝启动短期记忆"
@@ -406,7 +406,7 @@ class MemoryManager:
         assistant_content: str,
         user_metadata: Optional[Dict[str, Any]] = None,
         assistant_metadata: Optional[Dict[str, Any]] = None,
-        case_state: Optional[CustomerServiceCase] = None,
+        case_state: Optional[OperationsCase] = None,
         gate_key: str,
         gate_token: str,
         turn_seq: int,
@@ -427,7 +427,7 @@ class MemoryManager:
         )
         case_payload = ""
         if case_state is not None:
-            normalized_case = CustomerServiceCase.from_dict(
+            normalized_case = OperationsCase.from_dict(
                 case_state.to_dict(),
                 user_id=user_id,
                 conv_id=conv_id,
@@ -926,32 +926,32 @@ class MemoryManager:
             pending=pending,
         )
 
-    async def get_case_state(self, user_id: str, conv_id: str) -> CustomerServiceCase:
+    async def get_case_state(self, user_id: str, conv_id: str) -> OperationsCase:
         """读取当前会话的结构化案件状态。"""
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
         raw = self.session_store.case(user_id, conv_id)
         if not raw:
-            return CustomerServiceCase.new(user_id, conv_id)
+            return OperationsCase.new(user_id, conv_id)
         try:
-            return CustomerServiceCase.from_dict(
+            return OperationsCase.from_dict(
                 json.loads(raw), user_id=user_id, conv_id=conv_id,
             )
         except (TypeError, ValueError, json.JSONDecodeError) as ex:
             logger.warning(f"案件状态损坏，使用空状态: {user_id}/{conv_id}: {ex}")
-            return CustomerServiceCase.new(user_id, conv_id)
+            return OperationsCase.new(user_id, conv_id)
 
     async def save_case_state(
         self,
         user_id: str,
         conv_id: str,
         *,
-        state: CustomerServiceCase,
-    ) -> CustomerServiceCase:
+        state: OperationsCase,
+    ) -> OperationsCase:
         """Persist the already-computed active task state in SQLite."""
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
-        normalized = CustomerServiceCase.from_dict(
+        normalized = OperationsCase.from_dict(
             state.to_dict(),
             user_id=user_id,
             conv_id=conv_id,
@@ -1083,7 +1083,8 @@ class MemoryManager:
             "对话已经确认的信息；open_questions 只记录仍缺失或未解决的问题。"
             "每一项必须填写来源 source_turn_seqs，不得引用输入中不存在的轮次。"
             "旧版纯文本摘要中继承的内容使用来源轮次 0。不要保存跨会话用户画像、长期偏好、"
-            "订单状态、支付状态、CaseState 字段或原文没有的信息，不要保留重复和已经撤回的内容。"
+            "工单状态、巡检任务状态、告警处置状态、CaseState 字段或原文没有的信息，"
+            "不要保留重复和已经撤回的内容。"
             "必须严格按 Tool Schema 输出：current_goal 必须是对象，confirmed_information 和 "
             "open_questions 必须是对象数组；禁止把对象编码成 JSON 字符串、XML 或普通文本。\n\n"
             f"已有摘要：\n{old_summary or '（无）'}\n\n新增旧消息：\n{text}"

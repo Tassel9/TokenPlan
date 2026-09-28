@@ -1,11 +1,11 @@
 ---
-name: refund-policy
+name: work-order-return
 description: >-
   解释 UrbanOps 工单撤回、退回和驳回的条件、材料、时限与例外。用于工单回退规则咨询；不用于核验或修改具体工单状态。
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  urbanops-owner-agent: rag_knowledge
 ---
 
 # 工单撤回与退回规则
@@ -37,4 +37,4 @@ metadata:
 ## 按需资源
 
 - 判断工单回退诉求边界时读取 `references/request-boundaries.md`。
-- 组织最终规则答复时读取 `assets/refund-response-template.md`。
+- 组织最终规则答复时读取 `assets/work-order-return-template.md`。

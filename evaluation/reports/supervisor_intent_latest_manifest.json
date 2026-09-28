@@ -1,6 +1,8 @@
 {
   "schema_version": "tokenplan-supervisor-intent-latest-manifest-v1",
-  "latest": true,
+  "latest": false,
+  "invalidated_by": "urbanops-domain-migration",
+  "invalidated_at": "2026-09-28",
   "production_evidence": false,
   "business_domain": "token_plan_subscription",
   "report": {
@@ -37,5 +39,5 @@
     "status": "pending",
     "gold_labels_model_generated": false
   },
-  "boundary": "Curated frozen offline holdout evaluated with a live model; not production traffic or production evidence."
+  "boundary": "Historical TokenPlan offline holdout only. Runtime labels and few-shots now target UrbanOps, so this report is invalid for current UrbanOps quality claims and must be rebuilt."
 }

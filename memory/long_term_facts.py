@@ -24,9 +24,9 @@ LEGACY_FACT_SCHEMA_VERSION = "memory-fact-v1"
 MEMORY_FIELDS = {
     "style.response_length": 365,
     "style.answer_order": 365,
-    "preference.billing_cycle": 365,
+    "preference.inspection_shift": 365,
     "environment.os": 180,
-    "environment.ide": 180,
+    "environment.client_device": 180,
 }
 
 # The five writable keys are categorical by design.  Canonical values prevent
@@ -54,9 +54,10 @@ MEMORY_VALUE_ALIASES = {
         ),
         "分步骤": ("分步骤", "按步骤", "一步一步", "step by step"),
     },
-    "preference.billing_cycle": {
-        "月付": ("月付", "按月付", "月缴", "monthly"),
-        "年付": ("年付", "按年付", "年缴", "年度付费", "annual", "yearly"),
+    "preference.inspection_shift": {
+        "白班": ("白班", "日班", "白天巡检", "day shift"),
+        "夜班": ("夜班", "夜间巡检", "night shift"),
+        "轮班": ("轮班", "倒班", "轮值", "rotating shift"),
     },
     "environment.os": {
         "Windows": ("windows", "win10", "win11"),
@@ -66,17 +67,10 @@ MEMORY_VALUE_ALIASES = {
         "Android": ("android",),
         "iOS": ("ios",),
     },
-    "environment.ide": {
-        "VS Code": ("vs code", "vscode", "visual studio code"),
-        "Visual Studio": ("visual studio",),
-        "PyCharm": ("pycharm",),
-        "IntelliJ IDEA": ("intellij idea", "idea"),
-        "Android Studio": ("android studio",),
-        "Xcode": ("xcode",),
-        "Eclipse": ("eclipse",),
-        "Neovim": ("neovim",),
-        "Vim": ("vim",),
-        "Cursor": ("cursor",),
+    "environment.client_device": {
+        "桌面工作站": ("桌面工作站", "工作站", "台式机", "desktop workstation"),
+        "移动终端": ("移动终端", "手机端", "平板端", "mobile terminal"),
+        "手持巡检终端": ("手持巡检终端", "巡检手持机", "手持机", "handheld terminal"),
     },
 }
 
@@ -106,17 +100,16 @@ _RETRACT_KEY_HINTS = {
         "回答顺序", "回复顺序", "先给结论", "先说结论", "先解释", "分步骤",
         "answer order",
     ),
-    "preference.billing_cycle": (
-        "账单周期", "付费周期", "付款周期", "月付", "年付", "billing cycle",
+    "preference.inspection_shift": (
+        "巡检班次", "值守班次", "白班", "夜班", "轮班", "inspection shift",
     ),
     "environment.os": (
         "操作系统", "系统环境", "windows", "macos", "mac os", "linux", "ubuntu",
         "android", "ios",
     ),
-    "environment.ide": (
-        "开发环境", "编辑器", "ide", "vscode", "vs code", "visual studio",
-        "pycharm", "intellij", "android studio", "xcode", "eclipse", "neovim",
-        "vim", "cursor",
+    "environment.client_device": (
+        "操作终端", "客户端设备", "工作站", "移动终端", "手持巡检终端",
+        "desktop workstation", "mobile terminal", "handheld terminal",
     ),
 }
 
@@ -282,17 +275,17 @@ def build_fact_extraction_prompt(
 只允许使用以下 memory_key：
 - style.response_length：回答篇幅偏好
 - style.answer_order：回答顺序偏好
-- preference.billing_cycle：账单周期偏好
+- preference.inspection_shift：巡检班次偏好
 - environment.os：操作系统
-- environment.ide：开发环境
+- environment.client_device：运维客户端设备
 
 value 必须与 memory_key 匹配，并尽量归一化：
 - style.response_length：简短、标准、详细
 - style.answer_order：先给结论、先解释、分步骤
-- preference.billing_cycle：月付、年付
-- environment.os / environment.ide：用户明确说出的系统或开发工具名称
+- preference.inspection_shift：白班、夜班、轮班
+- environment.os / environment.client_device：用户明确说出的系统或运维终端名称
 
-不要保存订单、退款、支付进度等当前业务状态（它们属于 CaseState/业务后端），
+不要保存工单、巡检任务、告警处置进度等当前业务状态（它们属于 CaseState/业务后端），
 不要根据助手回复推断，也不要从单次措辞推测人格、心理或隐含想法，
 不要保存密码、验证码、证件号、银行卡号、访问令牌等敏感信息。
 
@@ -376,7 +369,7 @@ def detect_pending_memory_mutations(user_text: str) -> List[MemoryFactCandidate]
             matched = [alias for alias in aliases if alias in normalized]
             if matched:
                 matches[canonical] = matched
-        if len(matches) > 1 and memory_key == "environment.ide":
+        if len(matches) > 1 and memory_key == "environment.client_device":
             longest = max(
                 max(len(alias) for alias in aliases)
                 for aliases in matches.values()

@@ -554,18 +554,18 @@ class IntentRecognizer:
 - few_shot_examples 只说明标签边界，不是当前用户事实，不得复制其中的实体或标签。
 
 【相邻标签边界】
-- 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有同时要求解释巡检规范时才增加 subscription_info_query。
-- account_login_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时才增加 technical_troubleshooting。
-- payment_issue 只覆盖设备异常或告警上报；要求分析根因和排查步骤时增加 technical_troubleshooting。
-- subscription_info_query 查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 entitlement_change_request。
-- subscription_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 refund_handling。
-- 故障、告警或等待事实不等于 service_complaint；必须存在明确不满、投诉、追责，或同一问题经反复、长期处理仍无结果。
+- 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有同时要求解释巡检规范时才增加 inspection_standard_query。
+- terminal_access_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时才增加 facility_troubleshooting。
+- alert_report 只覆盖设备异常或告警上报；要求分析根因和排查步骤时增加 facility_troubleshooting。
+- inspection_standard_query 查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 operations_permission_change。
+- inspection_task_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 work_order_withdrawal。
+- 故障、告警或等待事实不等于 operations_complaint；必须存在明确不满、投诉、追责，或同一问题经反复、长期处理仍无结果。
 
 【改写与实体契约】
 - not_needed：effective_query 必须逐字复制 original_query，references、inherited_entities、ambiguity_candidates 均为空。
 - resolved：effective_query 必须改变，并为每个继承事实提供 mention/source/value；source 只能是 case.<路径>、case.<路径>[n] 或 history[n]。history[n] 的 n 是从 0 开始的近轮历史下标，value 必须逐字出现在该条历史内容中；不确定时不要输出该 reference。
 - ambiguous：保留 original_query，ambiguity_candidates 每个字段至少两个候选，并给出 clarification_question；不得输出 intents。
 - extracted_entities 只放当前消息中逐字出现的值；来自历史或 case_state 的值放 inherited_entities。
-- 实体键只能是 order_id、account_email、workspace_id、plan、model、ide、date、amount、error_code；每个实体值必须是字符串数组。
+- 实体键只能是 facility_id、work_order_id、inspection_task_id、terminal_id、operator_id、team_id、permission_scope、location、asset_type、alert_code、date、error_code；每个实体值必须是字符串数组。
 
 只调用一次 submit_intent_recognition，不输出解释文本。"""

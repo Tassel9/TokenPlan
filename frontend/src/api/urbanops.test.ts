@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getHealth, sendChat } from './tokenplan'
+import { ApiError, getHealth, sendChat } from './urbanops'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -15,7 +15,7 @@ describe('UrbanOps API client', () => {
 
     await sendChat({
       message: '泵站 P-102 高温告警，请排查并创建维修工单',
-      user_id: 'demo-user',
+      user_id: 'local-user',
       conv_id: 'conv-1',
     })
 
@@ -23,7 +23,7 @@ describe('UrbanOps API client', () => {
       method: 'POST',
       body: JSON.stringify({
         message: '泵站 P-102 高温告警，请排查并创建维修工单',
-        user_id: 'demo-user',
+        user_id: 'local-user',
         conv_id: 'conv-1',
       }),
     }))

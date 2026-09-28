@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import api.main
 from fastapi import HTTPException
-from memory.conversation_state import CustomerServiceCase
+from memory.conversation_state import OperationsCase
 from monitor.execution_trace import ExecutionTraceService, SQLiteTraceStore
 from pydantic import ValidationError
 import sqlite3
@@ -33,7 +33,7 @@ class _LongTermMemory:
 
 class _FakeMemory:
     def __init__(self):
-        self.case_state = CustomerServiceCase.new("anonymous", "test")
+        self.case_state = OperationsCase.new("anonymous", "test")
         self.saved_states = []
 
     async def get_short_term_memory(self, user_id, conv_id, *, turn_lease=None):
@@ -108,7 +108,7 @@ def _result():
             "resolution_complete": True,
         },
         intent_executions=[{
-            "intent_id": "intent-1-refund_handling",
+            "intent_id": "intent-1-work_order_withdrawal",
             "agent_type": "billing",
             "status": "COMPLETED",
             "reason_code": "refund_answered",
@@ -316,16 +316,16 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("session_write_failed", response.memory_error_code)
 
     async def test_chat_replaces_old_case_from_explicit_result(self):
-        self.services.memory.case_state = CustomerServiceCase.from_dict({
+        self.services.memory.case_state = OperationsCase.from_dict({
             "case_id": "case-1",
             "stage": "escalated",
-            "entities": {"order_id": ["12345"]},
-            "last_intents": ["refund_handling"],
+            "entities": {"work_order_id": ["12345"]},
+            "last_intents": ["work_order_withdrawal"],
         }, user_id="anonymous", conv_id="test")
 
         async def run(_request):
             result = _result()
-            result.intents = [SimpleNamespace(value="technical_troubleshooting")]
+            result.intents = [SimpleNamespace(value="facility_troubleshooting")]
             result.case_update_mode = "replace"
             result.explicit_entities = {"error_code": ["500"]}
             return result
@@ -336,7 +336,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.services.memory.saved_states))
         saved = self.services.memory.saved_states[0]
         self.assertEqual({"error_code": ["500"]}, saved.entities)
-        self.assertEqual(["technical_troubleshooting"], saved.last_intents)
+        self.assertEqual(["facility_troubleshooting"], saved.last_intents)
 
     async def test_chat_exception_is_recorded_and_re_raised(self):
         async def fail(request):

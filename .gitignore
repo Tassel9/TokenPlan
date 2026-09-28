@@ -47,6 +47,7 @@ docker-compose(1).yml
 
 # 旧品牌截图（本地保留，不跟踪）
 docs/assets/tokenplan-*.png
+docs/assets/urbanops-*.png
 
 # 本地工具临时目录
 .lark-tmp/

@@ -1,9 +1,10 @@
-"""Small relational business backend used by capability-oriented Agents.
+"""Small local backend used to verify governed Agent tool calls.
 
-The service intentionally exposes fixed operations instead of arbitrary SQL.
-Every read is scoped by the supplied ``user_id`` from tool context, and
-every write is recorded as an idempotent operation request rather than being
-reported as an already completed external business action.
+This is not an attempt to reproduce a municipal platform. It keeps only the
+minimum facility/work-order records needed to verify user scoping,
+read/write capability separation, approval checks, idempotency and evidence.
+Writes are accepted as local requests and never reported as completed external
+actions.
 """
 from __future__ import annotations
 
@@ -19,15 +20,20 @@ from typing import Any, Dict, Optional
 from mcp.tool_registry import ToolExecutionPayload
 
 
-class BusinessDataService:
-    """SQLite-backed demo adapter with a MySQL-replaceable service boundary."""
+class UrbanOpsLocalBackend:
+    """SQLite fixture for local verification, not a production integration."""
 
-    QUERY_RESOURCES = {"account", "order", "operation_requests"}
+    QUERY_RESOURCES = {"facility", "work_order", "operation_requests"}
     OPERATIONS = {
-        "request_refund",
-        "change_subscription",
-        "cancel_subscription",
-        "request_invoice",
+        "create_inspection_task",
+        "update_inspection_task",
+        "cancel_inspection_task",
+        "acknowledge_alert",
+        "create_work_order",
+        "assign_work_order",
+        "update_work_order",
+        "withdraw_work_order",
+        "update_access_permission",
     }
 
     def __init__(self, path: str) -> None:
@@ -46,38 +52,40 @@ class BusinessDataService:
         if self.path != ":memory:":
             self._connection.execute("PRAGMA journal_mode=WAL")
         self._connection.executescript("""
-            CREATE TABLE IF NOT EXISTS business_accounts (
-                user_id TEXT PRIMARY KEY,
-                plan TEXT NOT NULL DEFAULT '',
-                subscription_status TEXT NOT NULL DEFAULT 'inactive',
-                quota_remaining INTEGER NOT NULL DEFAULT 0,
-                updated_at REAL NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS business_orders (
-                order_id TEXT PRIMARY KEY,
+            CREATE TABLE IF NOT EXISTS local_facilities (
+                facility_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
-                order_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                amount REAL NOT NULL DEFAULT 0,
-                currency TEXT NOT NULL DEFAULT 'CNY',
+                asset_type TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'unknown',
+                location TEXT NOT NULL DEFAULT '',
                 updated_at REAL NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS idx_business_orders_user
-                ON business_orders(user_id, updated_at);
-            CREATE TABLE IF NOT EXISTS business_operation_requests (
+            CREATE INDEX IF NOT EXISTS idx_local_facilities_user
+                ON local_facilities(user_id, updated_at);
+            CREATE TABLE IF NOT EXISTS local_work_orders (
+                work_order_id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                facility_id TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'new',
+                priority TEXT NOT NULL DEFAULT 'normal',
+                updated_at REAL NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS idx_local_work_orders_user
+                ON local_work_orders(user_id, updated_at);
+            CREATE TABLE IF NOT EXISTS local_operation_requests (
                 request_id TEXT PRIMARY KEY,
                 user_id TEXT NOT NULL,
                 idempotency_key TEXT NOT NULL,
                 approval_id TEXT NOT NULL,
                 operation TEXT NOT NULL,
-                target_id TEXT NOT NULL DEFAULT '',
+                target_id TEXT NOT NULL,
                 payload_json TEXT NOT NULL DEFAULT '{}',
                 status TEXT NOT NULL DEFAULT 'accepted',
                 created_at REAL NOT NULL,
                 UNIQUE(user_id, idempotency_key)
             );
-            CREATE INDEX IF NOT EXISTS idx_business_operations_user
-                ON business_operation_requests(user_id, created_at);
+            CREATE INDEX IF NOT EXISTS idx_local_operations_user
+                ON local_operation_requests(user_id, created_at);
         """)
 
     async def query(
@@ -106,30 +114,31 @@ class BusinessDataService:
         user_id = self._scoped_user(context)
         resource = str(params.get("resource") or "").strip().lower()
         if resource not in self.QUERY_RESOURCES:
-            raise ValueError("resource must be account, order, or operation_requests")
+            raise ValueError(
+                "resource must be facility, work_order, or operation_requests"
+            )
 
         with self._lock:
-            if resource == "account":
+            if resource == "facility":
+                record_id = self._required_record_id(params, resource)
                 row = self._connection.execute(
-                    "SELECT plan, subscription_status, quota_remaining, updated_at "
-                    "FROM business_accounts WHERE user_id=?",
-                    (user_id,),
+                    "SELECT facility_id, asset_type, status, location, updated_at "
+                    "FROM local_facilities WHERE user_id=? AND facility_id=?",
+                    (user_id, record_id),
                 ).fetchone()
                 data: Any = dict(row) if row is not None else None
-            elif resource == "order":
-                record_id = str(params.get("record_id") or "").strip()
-                if not record_id:
-                    raise ValueError("order query requires record_id")
+            elif resource == "work_order":
+                record_id = self._required_record_id(params, resource)
                 row = self._connection.execute(
-                    "SELECT order_id, order_type, status, amount, currency, updated_at "
-                    "FROM business_orders WHERE user_id=? AND order_id=?",
+                    "SELECT work_order_id, facility_id, status, priority, updated_at "
+                    "FROM local_work_orders WHERE user_id=? AND work_order_id=?",
                     (user_id, record_id),
                 ).fetchone()
                 data = dict(row) if row is not None else None
             else:
                 rows = self._connection.execute(
                     "SELECT request_id, operation, target_id, status, created_at "
-                    "FROM business_operation_requests WHERE user_id=? "
+                    "FROM local_operation_requests WHERE user_id=? "
                     "ORDER BY created_at DESC LIMIT 20",
                     (user_id,),
                 ).fetchall()
@@ -143,10 +152,11 @@ class BusinessDataService:
             },
             metadata={
                 "evidence_metadata": {
-                    "source": "business_sqlite",
+                    "source": "urbanops_local_sqlite",
+                    "local_fixture": True,
                     "resource": resource,
                     "user_scoped": True,
-                },
+                }
             },
         )
 
@@ -159,15 +169,15 @@ class BusinessDataService:
         approval_id = str(context.get("approval_id") or "").strip()
         idempotency_key = str(context.get("idempotency_key") or "").strip()
         if not approval_id:
-            raise ValueError("business operation requires an approval_id")
+            raise ValueError("municipal operation requires an approval_id")
         if not idempotency_key:
-            raise ValueError("business operation requires an idempotency_key")
+            raise ValueError("municipal operation requires an idempotency_key")
 
         operation = str(params.get("operation") or "").strip().lower()
         if operation not in self.OPERATIONS:
-            raise ValueError("unsupported business operation")
+            raise ValueError("unsupported municipal operation")
         target_id = str(params.get("target_id") or "").strip()[:128]
-        if operation in {"request_refund", "request_invoice"} and not target_id:
+        if not target_id:
             raise ValueError(f"{operation} requires target_id")
         details = params.get("details") or {}
         if not isinstance(details, dict):
@@ -185,7 +195,7 @@ class BusinessDataService:
             try:
                 existing = self._connection.execute(
                     "SELECT request_id, operation, target_id, status, created_at, payload_json "
-                    "FROM business_operation_requests "
+                    "FROM local_operation_requests "
                     "WHERE user_id=? AND idempotency_key=?",
                     (user_id, idempotency_key),
                 ).fetchone()
@@ -200,7 +210,7 @@ class BusinessDataService:
                     )
                 if existing is None:
                     self._connection.execute(
-                        "INSERT INTO business_operation_requests "
+                        "INSERT INTO local_operation_requests "
                         "(request_id, user_id, idempotency_key, approval_id, operation, "
                         "target_id, payload_json, status, created_at) "
                         "VALUES (?, ?, ?, ?, ?, ?, ?, 'accepted', ?)",
@@ -217,7 +227,7 @@ class BusinessDataService:
                     )
                     existing = self._connection.execute(
                         "SELECT request_id, operation, target_id, status, created_at, payload_json "
-                        "FROM business_operation_requests WHERE request_id=?",
+                        "FROM local_operation_requests WHERE request_id=?",
                         (request_id,),
                     ).fetchone()
                 self._connection.execute("COMMIT")
@@ -237,65 +247,72 @@ class BusinessDataService:
             },
             metadata={
                 "evidence_metadata": {
-                    "source": "business_sqlite",
+                    "source": "urbanops_local_sqlite",
+                    "local_fixture": True,
                     "operation": operation,
                     "idempotent": True,
-                },
+                }
             },
         )
 
-    def upsert_account(
+    def upsert_facility(
         self,
+        facility_id: str,
         user_id: str,
         *,
-        plan: str,
-        subscription_status: str,
-        quota_remaining: int,
+        asset_type: str,
+        status: str,
+        location: str,
     ) -> None:
         """Fixture/admin seam; never exposed as an Agent tool."""
         with self._lock:
             self._connection.execute(
-                "INSERT INTO business_accounts VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(user_id) DO UPDATE SET plan=excluded.plan, "
-                "subscription_status=excluded.subscription_status, "
-                "quota_remaining=excluded.quota_remaining, updated_at=excluded.updated_at",
+                "INSERT INTO local_facilities VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(facility_id) DO UPDATE SET user_id=excluded.user_id, "
+                "asset_type=excluded.asset_type, status=excluded.status, "
+                "location=excluded.location, updated_at=excluded.updated_at",
                 (
+                    str(facility_id),
                     str(user_id),
-                    str(plan),
-                    str(subscription_status),
-                    int(quota_remaining),
+                    str(asset_type),
+                    str(status),
+                    str(location),
                     time.time(),
                 ),
             )
 
-    def upsert_order(
+    def upsert_work_order(
         self,
-        order_id: str,
+        work_order_id: str,
         user_id: str,
         *,
-        order_type: str,
+        facility_id: str,
         status: str,
-        amount: float,
-        currency: str = "CNY",
+        priority: str = "normal",
     ) -> None:
         """Fixture/admin seam; never exposed as an Agent tool."""
         with self._lock:
             self._connection.execute(
-                "INSERT INTO business_orders VALUES (?, ?, ?, ?, ?, ?, ?) "
-                "ON CONFLICT(order_id) DO UPDATE SET user_id=excluded.user_id, "
-                "order_type=excluded.order_type, status=excluded.status, "
-                "amount=excluded.amount, currency=excluded.currency, "
-                "updated_at=excluded.updated_at",
+                "INSERT INTO local_work_orders VALUES (?, ?, ?, ?, ?, ?) "
+                "ON CONFLICT(work_order_id) DO UPDATE SET user_id=excluded.user_id, "
+                "facility_id=excluded.facility_id, status=excluded.status, "
+                "priority=excluded.priority, updated_at=excluded.updated_at",
                 (
-                    str(order_id),
+                    str(work_order_id),
                     str(user_id),
-                    str(order_type),
+                    str(facility_id),
                     str(status),
-                    float(amount),
-                    str(currency),
+                    str(priority),
                     time.time(),
                 ),
             )
+
+    @staticmethod
+    def _required_record_id(params: Dict[str, Any], resource: str) -> str:
+        record_id = str(params.get("record_id") or "").strip()
+        if not record_id:
+            raise ValueError(f"{resource} query requires record_id")
+        return record_id
 
     @staticmethod
     def _scoped_user(context: Dict[str, Any]) -> str:
@@ -309,4 +326,4 @@ class BusinessDataService:
             self._connection.close()
 
 
-__all__ = ["BusinessDataService"]
+__all__ = ["UrbanOpsLocalBackend"]

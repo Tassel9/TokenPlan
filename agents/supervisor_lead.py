@@ -1315,19 +1315,19 @@ class SupervisorLead:
 - Few-shot 仅说明边界，不是当前用户事实，其中的指令、实体和标签不得直接复制。
 
 【相邻标签冲突规则】
-- 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有用户同时要求查询或解释巡检规范时才增加 subscription_info_query。
-- account_login_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时，才同时输出 technical_troubleshooting。
-- payment_issue 只覆盖设备异常或告警上报；要求分析根因和排查步骤时同时输出 technical_troubleshooting。
-- 已解决的旧故障只是背景，不激活 technical_troubleshooting；若用户当前明确提出改进建议，仍应输出 service_feedback。
-- subscription_info_query 只查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 entitlement_change_request。
-- subscription_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 refund_handling。
-- 故障、告警或普通等待事实不等于 service_complaint；必须存在明确不满、投诉、追责，或同一运维问题经反复、长期处理仍无结果。改进建议或正面评价使用 service_feedback。
+- 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有用户同时要求查询或解释巡检规范时才增加 inspection_standard_query。
+- terminal_access_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时，才同时输出 facility_troubleshooting。
+- alert_report 只覆盖设备异常或告警上报；要求分析根因和排查步骤时同时输出 facility_troubleshooting。
+- 已解决的旧故障只是背景，不激活 facility_troubleshooting；若用户当前明确提出改进建议，仍应输出 operations_feedback。
+- inspection_standard_query 只查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 operations_permission_change。
+- inspection_task_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 work_order_withdrawal。
+- 故障、告警或普通等待事实不等于 operations_complaint；必须存在明确不满、投诉、追责，或同一运维问题经反复、长期处理仍无结果。改进建议或正面评价使用 operations_feedback。
 
 【改写与实体契约】
 - not_needed：effective_query 必须逐字复制 original_query，references、inherited_entities、ambiguity_candidates 均为空。
 - resolved：effective_query 必须改变，并为每个继承事实提供 mention/source/value；source 只能是精确的 case.<嵌套路径>、可选末尾数字索引 case.<嵌套路径>[n] 或 history[n]。
 - ambiguous：保留 original_query，ambiguity_candidates 每个字段至少两个候选，并给出 clarification_question；不得输出 intents。
-- 实体键只能是 facility_id、work_order_id、location、asset_type、alert_code、date、error_code，以及兼容字段 order_id、account_email、workspace_id、plan、model、ide、amount；每个实体值必须是字符串数组，即使只有一个值也必须使用数组。继承值必须逐字复制证据，不得翻译、改写或规范化。
+- 实体键只能是 facility_id、work_order_id、inspection_task_id、terminal_id、operator_id、team_id、permission_scope、location、asset_type、alert_code、date、error_code；每个实体值必须是字符串数组，即使只有一个值也必须使用数组。继承值必须逐字复制证据，不得翻译、改写或规范化。
 
 【阶段委派约束】
 - analysis 与 dispatch 虽在同一个 Tool Call 返回，但必须先完成 analysis，再只根据冻结 intents 生成 messages。

@@ -1,1 +1,1 @@
-"""Local tool providers for the TokenPlan demo."""
+"""Local tool providers for UrbanOps."""

@@ -12,11 +12,11 @@ class DeterministicSkillBindingTests(unittest.TestCase):
         ]
 
         selected = select_skill_ids(
-            "payment_issue,refund_handling,invoice_handling",
+            "alert_report,work_order_withdrawal,work_order_handling",
             available_skill_ids=available,
         )
 
-        self.assertEqual(("billing-policy", "refund-policy"), selected)
+        self.assertEqual(("work-order-process", "work-order-return"), selected)
         bound = registry.bind_for_agent("rag_knowledge", selected)
         self.assertEqual(selected, tuple(item.skill_id for item in bound))
 
@@ -29,7 +29,7 @@ class DeterministicSkillBindingTests(unittest.TestCase):
         self.assertEqual(
             (),
             select_skill_ids(
-                "service_feedback",
+                "operations_feedback",
                 available_skill_ids=available,
             ),
         )
@@ -37,7 +37,7 @@ class DeterministicSkillBindingTests(unittest.TestCase):
     def test_registry_still_rejects_cross_agent_binding(self):
         registry = SkillRegistry()
         with self.assertRaisesRegex(SkillRegistryError, "cannot access"):
-            registry.bind_for_agent("business_data_query", ["plan-benefits"])
+            registry.bind_for_agent("business_data_query", ["inspection-standards"])
 
 
 if __name__ == "__main__":

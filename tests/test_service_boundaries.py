@@ -185,11 +185,10 @@ class KnowledgeServiceBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("._tools", source)
         self.assertEqual(
             {
-                # 业务数据查询服务（business_data_query 能力的数据源）尚未接入，
-                # 接入后在此同步补充字段断言。
                 "config", "knowledge_base", "knowledge_search", "memory",
                 "tools", "orchestrator", "skills",
-                "agent_health", "traces", "chat_service", "resource_limits",
+                "agent_health", "traces", "chat_service", "local_backend",
+                "resource_limits",
                 "profile_updates",
                 "request_rate_limiter", "conversation_turn_gate",
             },

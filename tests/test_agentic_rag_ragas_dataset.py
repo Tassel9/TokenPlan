@@ -29,7 +29,7 @@ class AgenticRagRagasDatasetTests(unittest.TestCase):
         )
         self.assertFalse(self.dataset["metadata"]["production_evidence"])
         self.assertEqual(
-            "token_plan_subscription",
+            "urbanops_streetlight_operations",
             self.dataset["metadata"]["business_domain"],
         )
         self.assertEqual(
@@ -47,34 +47,34 @@ class AgenticRagRagasDatasetTests(unittest.TestCase):
             ]
         )
 
-    def test_active_defaults_are_tokenplan_v1_fixtures(self):
+    def test_active_defaults_are_urbanops_v1_fixtures(self):
         self.assertEqual(
-            "tokenplan_agentic_rag_ragas_blueprint_v1.json",
+            "urbanops_agentic_rag_ragas_blueprint_v1.json",
             pathlib.Path(DEFAULT_BLUEPRINT).name,
         )
         self.assertEqual(
-            "tokenplan_agentic_rag_ragas_cases_v1.json",
+            "urbanops_agentic_rag_ragas_cases_v1.json",
             pathlib.Path(DEFAULT_OUTPUT).name,
         )
         self.assertEqual(
-            "tokenplan_agentic_rag_ragas_latest_manifest.json",
+            "urbanops_agentic_rag_ragas_latest_manifest.json",
             pathlib.Path(DEFAULT_MANIFEST).name,
         )
 
-    def test_topics_cover_tokenplan_subscription_service(self):
+    def test_topics_cover_urbanops_streetlight_operations(self):
         topic_ids = {topic["topic_id"] for topic in self.blueprint["topics"]}
         for required in {
-            "plan_comparison",
-            "duplicate_charge",
-            "invoice_request",
-            "refund_policy",
-            "account_security",
-            "ide_plugin_setup",
-            "http_401",
-            "http_403",
-            "http_429",
-            "model_access",
-            "quota_usage",
+            "inspection_standard",
+            "inspection_task_create",
+            "duplicate_alert",
+            "work_order_create",
+            "work_order_withdrawal",
+            "streetlight_security",
+            "streetlight_offline",
+            "certificate_auth_failure",
+            "telemetry_interruption",
+            "control_permission",
+            "energy_monitoring",
         }:
             self.assertIn(required, topic_ids)
 
@@ -133,7 +133,7 @@ class AgenticRagRagasDatasetTests(unittest.TestCase):
 
     def test_base_contract_hash_preserves_pre_split_retrieval_contract(self):
         self.assertEqual(
-            "d18ab7e8eaaea995eb13fda9cfec2efbf6cec9f199317f9865eecf7876a9ef22",
+            "88de7d6c9074635c9f83de92374d5f717ac57d0973c136adfa24ac58337347ff",
             self.dataset["base_contract_sha256"],
         )
 

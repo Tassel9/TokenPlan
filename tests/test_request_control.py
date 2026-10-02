@@ -43,12 +43,12 @@ class RequestControlPolicyTests(unittest.TestCase):
         )
 
     def test_negated_handoff_does_not_short_circuit(self):
-        decision = RequestControlPolicy.evaluate("不用转人工，告诉我电子发票有什么要求")
+        decision = RequestControlPolicy.evaluate("不用转人工，告诉我电子维修工单有什么要求")
 
         self.assertEqual(RequestControlAction.CONTINUE, decision.action)
         self.assertEqual("handoff_explicitly_negated", decision.reason_code)
 
-        decision = RequestControlPolicy.evaluate("别转人工，我想自己解决插件证书错误")
+        decision = RequestControlPolicy.evaluate("别转人工，我想自己解决控制器证书错误")
         self.assertEqual(RequestControlAction.CONTINUE, decision.action)
 
 

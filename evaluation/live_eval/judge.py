@@ -10,11 +10,7 @@ from evaluation.benchmarks.end_to_end_judge import (
 from evaluation.benchmarks.end_to_end_judge import judge_session as _judge_session
 
 
-URBANOPS_JUDGE_SYSTEM = LEGACY_JUDGE_SYSTEM.replace(
-    "TokenPlan（面向 AI 编程订阅用户的客服系统）",
-    "UrbanOps（面向市政设施运维的 Agent 系统）",
-    1,
-)
+URBANOPS_JUDGE_SYSTEM = LEGACY_JUDGE_SYSTEM
 
 
 async def judge_session(

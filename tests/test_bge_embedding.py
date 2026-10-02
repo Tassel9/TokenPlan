@@ -64,11 +64,11 @@ class BgeEmbeddingFunctionTests(unittest.TestCase):
         provider = _FakeProvider()
         function = self.build(provider)
 
-        vectors = function(["退款规则", "网络排查"])
+        vectors = function(["工单撤回规则", "网络排查"])
 
         self.assertEqual([[0.0, 0.0, 0.0], [1.0, 1.0, 1.0]], vectors)
         self.assertEqual(
-            [("many", ["退款规则", "网络排查"], False)],
+            [("many", ["工单撤回规则", "网络排查"], False)],
             provider.calls,
         )
 
@@ -76,10 +76,10 @@ class BgeEmbeddingFunctionTests(unittest.TestCase):
         provider = _FakeProvider()
         function = self.build(provider)
 
-        vector = function.embed_query("退款多久到账")
+        vector = function.embed_query("工单撤回多久到账")
 
         self.assertEqual([0.1, 0.2, 0.3], vector)
-        self.assertEqual([("single", "退款多久到账", True)], provider.calls)
+        self.assertEqual([("single", "工单撤回多久到账", True)], provider.calls)
 
     def test_empty_document_batch_short_circuits(self):
         provider = _FakeProvider()
@@ -128,7 +128,7 @@ class _FakeCollection:
         self.options.append(dict(options))
         return {
             "ids": [["c1"]],
-            "documents": [["退款说明"]],
+            "documents": [["工单撤回说明"]],
             "metadatas": [[{"document_id": "d1", "chunk_id": "c1"}]],
             "distances": [[0.2]],
         }
@@ -179,8 +179,8 @@ def build_knowledge_base(*, backend=None, collection_name=None):
             collection_name=collection_name,
             embedding_backend=backend,
             bootstrap_documents=[{
-                "title": "退款说明",
-                "content": "退款通常在 3-5 个工作日到账。",
+                "title": "工单撤回说明",
+                "content": "工单撤回通常在 3-5 个工作日到账。",
             }],
         )
     return knowledge_base, collection, client
@@ -224,22 +224,22 @@ class KnowledgeBaseEmbeddingWiringTests(unittest.TestCase):
         provider = _FakeProvider()
         knowledge_base._embedding_function = BgeEmbeddingFunction(provider=provider)
 
-        knowledge_base._dense_recall("退款多久到账", 12, None)
+        knowledge_base._dense_recall("工单撤回多久到账", 12, None)
 
         options = collection.options[0]
         self.assertNotIn("query_texts", options)
         self.assertEqual([[0.1, 0.2, 0.3]], options["query_embeddings"])
-        self.assertEqual([("single", "退款多久到账", True)], provider.calls)
+        self.assertEqual([("single", "工单撤回多久到账", True)], provider.calls)
 
     def test_dense_recall_keeps_query_texts_for_the_legacy_profile(self):
         knowledge_base, collection, _ = build_knowledge_base(
             backend="chroma-default"
         )
 
-        knowledge_base._dense_recall("退款多久到账", 12, None)
+        knowledge_base._dense_recall("工单撤回多久到账", 12, None)
 
         options = collection.options[0]
-        self.assertEqual(["退款多久到账"], options["query_texts"])
+        self.assertEqual(["工单撤回多久到账"], options["query_texts"])
         self.assertNotIn("query_embeddings", options)
 
 

@@ -34,7 +34,7 @@ def fact(
         "document_id": document_id,
         "content": f"governed fact: {value}",
         "knowledge_key": metadata.pop(
-            "knowledge_key", "subscription.account.password_reset"
+            "knowledge_key", "streetlight.account.password_reset"
         ),
         "fact_value": value,
         "authority": authority,
@@ -51,7 +51,7 @@ def fact(
 class VersionAwareMetadataTests(unittest.TestCase):
     def test_normalizes_applicability_to_chroma_safe_scalars(self):
         result = normalize_document_governance({
-            "knowledge_key": "subscription.account.password_reset",
+            "knowledge_key": "streetlight.account.password_reset",
             "fact_value": "security-flow-v2",
             "scope": ["Security", "Account"],
             "audiences": "Individual, Team",
@@ -64,7 +64,7 @@ class VersionAwareMetadataTests(unittest.TestCase):
     def test_invalid_as_of_fails_with_metadata_error(self):
         with self.assertRaises(KnowledgeMetadataError):
             annotate_retrieval_results(
-                "账号密码重置规则",
+                "路灯终端密码重置规则",
                 [fact("one", "v1")],
                 as_of="not-a-timestamp",
             )
@@ -72,13 +72,13 @@ class VersionAwareMetadataTests(unittest.TestCase):
     def test_rejects_key_without_explicit_fact_value(self):
         with self.assertRaises(KnowledgeMetadataError):
             normalize_document_governance({
-                "knowledge_key": "subscription.plan.team_price",
+                "knowledge_key": "streetlight.plan.team_price",
                 "fact_value": "",
             })
 
     def test_zero_is_a_valid_explicit_fact_value(self):
         normalized = normalize_document_governance({
-            "knowledge_key": "subscription.plan.team_price",
+            "knowledge_key": "streetlight.plan.team_price",
             "fact_value": 0,
         })
 
@@ -88,7 +88,7 @@ class VersionAwareMetadataTests(unittest.TestCase):
 class VersionAwareSelectionTests(unittest.TestCase):
     def test_authority_wins_before_newer_effective_time(self):
         results = annotate_retrieval_results(
-            "当前账号密码重置规则",
+            "当前路灯终端密码重置规则",
             [
                 fact(
                     "official-old",
@@ -113,7 +113,7 @@ class VersionAwareSelectionTests(unittest.TestCase):
 
     def test_equal_authority_uses_latest_effective_time(self):
         results = annotate_retrieval_results(
-            "当前账号密码重置规则",
+            "当前路灯终端密码重置规则",
             [
                 fact("old", "v1", effective_at="2026-01-01T00:00:00Z"),
                 fact("new", "v2", effective_at="2026-08-01T00:00:00Z"),
@@ -129,7 +129,7 @@ class VersionAwareSelectionTests(unittest.TestCase):
 
     def test_equal_authority_and_time_with_different_values_conflicts(self):
         results = annotate_retrieval_results(
-            "当前账号密码重置规则",
+            "当前路灯终端密码重置规则",
             [fact("a", "v1"), fact("b", "v2")],
             as_of=AS_OF,
         )
@@ -160,7 +160,7 @@ class VersionAwareSelectionTests(unittest.TestCase):
             september[0]["knowledge_governance"]["selected_document_ids"],
         )
         self.assertEqual(
-            ["subscription.account.password_reset"],
+            ["streetlight.account.password_reset"],
             august[0]["knowledge_governance"]["not_effective_keys"],
         )
 
@@ -168,7 +168,7 @@ class VersionAwareSelectionTests(unittest.TestCase):
 class ApplicabilityTests(unittest.TestCase):
     def test_json_string_audience_matches_chroma_metadata(self):
         results = annotate_retrieval_results(
-            "账号密码重置规则",
+            "路灯终端密码重置规则",
             [fact(
                 "shared-audience",
                 "shared-rule",
@@ -185,7 +185,7 @@ class ApplicabilityTests(unittest.TestCase):
 
     def test_scope_and_audience_select_only_applicable_version(self):
         results = annotate_retrieval_results(
-            "账号密码重置规则",
+            "路灯终端密码重置规则",
             [
                 fact(
                     "individual-account",
@@ -200,9 +200,9 @@ class ApplicabilityTests(unittest.TestCase):
                     audience="team",
                 ),
                 fact(
-                    "individual-billing",
-                    "billing-rule",
-                    scope="billing",
+                    "individual-operations",
+                    "operations-rule",
+                    scope="operations",
                     audience="individual",
                 ),
             ],
@@ -223,14 +223,14 @@ class ApplicabilityTests(unittest.TestCase):
             {
                 "individual-account": True,
                 "team-account": False,
-                "individual-billing": False,
+                "individual-operations": False,
             },
             eligibility,
         )
 
     def test_targeted_document_without_request_scope_fails_closed(self):
         results = annotate_retrieval_results(
-            "账号密码重置规则",
+            "路灯终端密码重置规则",
             [fact(
                 "individual-account",
                 "individual-rule",
@@ -248,12 +248,12 @@ class ApplicabilityTests(unittest.TestCase):
 
     def test_one_safe_key_does_not_hide_an_unresolved_scope_key(self):
         results = annotate_retrieval_results(
-            "个人套餐价格和团队账号重置规则",
+            "个人巡检方案价格和团队路灯终端重置规则",
             [
                 fact(
                     "global-plan-price",
                     "99",
-                    knowledge_key="subscription.plan.team_price",
+                    knowledge_key="streetlight.plan.team_price",
                 ),
                 fact(
                     "team-account",
@@ -268,7 +268,7 @@ class ApplicabilityTests(unittest.TestCase):
         summary = results[0]["knowledge_governance"]
         self.assertEqual("not_applicable", summary["status"])
         self.assertEqual(
-            ["subscription.account.password_reset"],
+            ["streetlight.account.password_reset"],
             [
                 decision["knowledge_key"]
                 for decision in summary["decisions"]
@@ -287,7 +287,7 @@ class InactiveStateTests(unittest.TestCase):
             freshness_ttl_days=0,
         )
 
-        for query in ("当前团队套餐价格", "最新退款材料要求", "优惠活动截止时间"):
+        for query in ("当前团队巡检方案价格", "最新工单撤回材料要求", "优惠活动截止时间"):
             with self.subTest(query=query):
                 summary = annotate_retrieval_results(
                     query,
@@ -347,13 +347,13 @@ class InactiveStateTests(unittest.TestCase):
             expired["status"], expired["status_detail"]
         ))
         self.assertEqual(
-            ["subscription.account.password_reset"], expired["expired_keys"]
+            ["streetlight.account.password_reset"], expired["expired_keys"]
         )
         self.assertEqual(("stale", "deprecated"), (
             deprecated["status"], deprecated["status_detail"]
         ))
         self.assertEqual(
-            ["subscription.account.password_reset"], deprecated["deprecated_keys"]
+            ["streetlight.account.password_reset"], deprecated["deprecated_keys"]
         )
 
     def test_review_ttl_stale_is_not_reported_as_expired(self):
@@ -371,7 +371,7 @@ class InactiveStateTests(unittest.TestCase):
         self.assertEqual("stale", summary["status"])
         self.assertEqual("review_ttl_stale", summary["status_detail"])
         self.assertEqual(
-            ["subscription.account.password_reset"],
+            ["streetlight.account.password_reset"],
             summary["review_stale_keys"],
         )
         self.assertEqual([], summary["expired_keys"])
@@ -411,11 +411,11 @@ class VersionAwareResponseGuardTests(unittest.TestCase):
 
     def test_scope_mismatch_is_blocked_with_specific_reason(self):
         result = ResponseGuard().check(
-            "团队套餐月费为 99 元。",
+            "团队巡检方案月费为 99 元。",
             tool_events=[self.event(
                 "not_applicable",
                 "not_applicable_keys",
-                "subscription.plan.team_price",
+                "streetlight.plan.team_price",
             )],
         )
 
@@ -429,7 +429,7 @@ class VersionAwareResponseGuardTests(unittest.TestCase):
             tool_events=[self.event(
                 "not_effective",
                 "not_effective_keys",
-                "subscription.account.password_reset",
+                "streetlight.account.password_reset",
             )],
         )
 

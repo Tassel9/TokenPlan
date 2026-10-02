@@ -229,7 +229,7 @@ async def main() -> int:
     base_url = os.getenv("DEEPSEEK_BASE_URL") or None
 
     client = AsyncAnthropic(api_key=api_key, base_url=base_url)
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-cross-session-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-cross-session-"))
     manager = _build_manager(api_key, base_url, model, temp_root)
     base_time = datetime.now(timezone.utc) - timedelta(days=1)
 

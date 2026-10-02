@@ -16,7 +16,7 @@ def fact(document_id, value, **metadata):
     return {
         "document_id": document_id,
         "content": f"plan fact: {value}",
-        "knowledge_key": "coding_plan.plan_catalog",
+        "knowledge_key": "urbanops_streetlight.inspection_standard",
         "fact_value": value,
         "authority": "official",
         "authority_rank": 40,
@@ -32,7 +32,7 @@ def fact(document_id, value, **metadata):
 class KnowledgeMetadataTests(unittest.TestCase):
     def test_normalizes_mutable_fact_metadata(self):
         result = normalize_document_governance({
-            "knowledge_key": "coding_plan.plan_catalog",
+            "knowledge_key": "urbanops_streetlight.inspection_standard",
             "fact_value": "pro-79",
             "version": "2026.08",
             "authority": "official",
@@ -61,7 +61,7 @@ class KnowledgeMetadataTests(unittest.TestCase):
 class KnowledgeGovernanceTests(unittest.TestCase):
     def test_unordered_conflicting_facts_fail_closed(self):
         results = annotate_retrieval_results(
-            "Coding Plan 目前有哪些套餐和价格？",
+            "智慧路灯运维 目前有哪些巡检方案和价格？",
             [fact("new", "pro-79"), fact("old", "plus-50")],
             now=NOW,
         )
@@ -69,13 +69,13 @@ class KnowledgeGovernanceTests(unittest.TestCase):
         summary = results[0]["knowledge_governance"]
         self.assertEqual("conflict", summary["status"])
         self.assertEqual(
-            ["coding_plan.plan_catalog"], summary["conflict_keys"]
+            ["urbanops_streetlight.inspection_standard"], summary["conflict_keys"]
         )
         self.assertFalse(summary["freshness_verified"])
 
     def test_newer_equally_authoritative_fact_resolves_conflict(self):
         results = annotate_retrieval_results(
-            "Coding Plan 当前套餐",
+            "智慧路灯运维 当前巡检方案",
             [
                 fact(
                     "new",
@@ -102,7 +102,7 @@ class KnowledgeGovernanceTests(unittest.TestCase):
 
     def test_review_ttl_marks_fact_stale(self):
         results = annotate_retrieval_results(
-            "最新套餐是什么？",
+            "最新巡检方案是什么？",
             [fact(
                 "only",
                 "pro-79",
@@ -115,11 +115,11 @@ class KnowledgeGovernanceTests(unittest.TestCase):
 
         summary = results[0]["knowledge_governance"]
         self.assertEqual("stale", summary["status"])
-        self.assertEqual(["coding_plan.plan_catalog"], summary["stale_keys"])
+        self.assertEqual(["urbanops_streetlight.inspection_standard"], summary["stale_keys"])
 
     def test_deprecated_old_fact_does_not_block_current_verified_fact(self):
         results = annotate_retrieval_results(
-            "Coding Plan 当前套餐",
+            "智慧路灯运维 当前巡检方案",
             [
                 fact(
                     "current",
@@ -153,12 +153,12 @@ class KnowledgeGovernanceTests(unittest.TestCase):
         summary = results[0]["knowledge_governance"]
         self.assertEqual("freshness_unverified", summary["status"])
         self.assertEqual(
-            ["coding_plan.plan_catalog"], summary["unverified_keys"]
+            ["urbanops_streetlight.inspection_standard"], summary["unverified_keys"]
         )
 
     def test_tool_event_summary_contains_no_fact_values(self):
         results = annotate_retrieval_results(
-            "当前套餐",
+            "当前巡检方案",
             [fact("new", "pro-79"), fact("old", "plus-50")],
             now=NOW,
         )

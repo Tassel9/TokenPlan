@@ -43,8 +43,8 @@ _INTENT_SKILLS = {
     "alert_report": "work-order-process",
     "work_order_handling": "work-order-process",
     "work_order_withdrawal": "work-order-return",
-    "terminal_access_issue": "terminal-security",
-    "terminal_security_request": "terminal-security",
+    "terminal_access_issue": "streetlight-security",
+    "terminal_security_request": "streetlight-security",
     "operations_permission_change": "inspection-standards",
     "facility_troubleshooting": "facility-troubleshooting",
 }

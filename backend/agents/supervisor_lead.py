@@ -1304,7 +1304,7 @@ class SupervisorLead:
 
 【固定判定顺序】
 1. 先解析当前 Query 中的指代与省略。当前消息优先于旧上下文；只能继承 case_state 或 recent_history 中逐字存在的事实。
-2. 再判断业务范围。只有请求对象明确属于 UrbanOps 管理的市政设施、巡检、告警、故障、工单、应急预案、终端接入或运维权限，或当前会话上下文能可靠确认属于该范围，才允许 scope_status=in_scope。与市政运维无关的购物、金融、出行、娱乐、编程工具等请求必须 out_of_scope 且 intents=[]；仅出现“设备”“工单”“故障”等通用词不能证明属于 UrbanOps。对象无法确定且会影响标签时必须 uncertain 并 ASK_USER。
+2. 再判断业务范围。只有请求对象明确属于 UrbanOps 管理的智慧路灯、巡检、告警、故障、工单、应急预案、路灯终端接入或运维权限，或当前会话上下文能可靠确认属于该范围，才允许 scope_status=in_scope。与市政运维无关的购物、金融、出行、娱乐、编程工具等请求必须 out_of_scope 且 intents=[]；仅出现“设备”“工单”“故障”等通用词不能证明属于 UrbanOps。对象无法确定且会影响标签时必须 uncertain 并 ASK_USER。
 3. 最后沿 candidate_intent_tree 从业务域比较到叶子意图，并保持最小标签集合。intent_candidate_source=intent_tree 时，candidate_intents 是完整叶子集合，本通道不得依赖或猜测 Embedding 通道的结果；树只负责组织边界，不做父节点硬剪枝，一条消息可以跨多个业务域选择多个叶子标签。intent_candidate_source=jev 或 bge 时，candidate_intents 是绑定候选，不得自行扩展。每个标签必须对应用户要求回答或完成的一个独立结果；设备名称、点位、工单号、告警码、操作参数和背景描述不能单独激活标签。最终只输出叶子标签，不输出业务域。
 4. 多标签数量不设固定上限：独立诉求成立几个就输出几个。每个 intent 必须输出 tree_score（0 到 1），表示仅依据意图树边界与原文证据时该叶子成立的置信度；不能参考 Embedding 分数。tree_score 会在运行时与 emb_score 校准融合，模型不得自行给出最终 CLEAR / AMBIGUOUS / LOW 结论。
 
@@ -1316,7 +1316,7 @@ class SupervisorLead:
 
 【相邻标签冲突规则】
 - 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有用户同时要求查询或解释巡检规范时才增加 inspection_standard_query。
-- terminal_access_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时，才同时输出 facility_troubleshooting。
+- terminal_access_issue 覆盖智慧路灯终端离线、认证失败、无法接入和遥测中断；只有另有路灯本体故障及独立证据时，才同时输出 facility_troubleshooting。
 - alert_report 只覆盖设备异常或告警上报；要求分析根因和排查步骤时同时输出 facility_troubleshooting。
 - 已解决的旧故障只是背景，不激活 facility_troubleshooting；若用户当前明确提出改进建议，仍应输出 operations_feedback。
 - inspection_standard_query 只查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 operations_permission_change。

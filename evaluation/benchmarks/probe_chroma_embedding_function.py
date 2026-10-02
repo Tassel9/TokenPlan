@@ -31,9 +31,9 @@ def main() -> int:
 
     print("1) create with custom EF")
     collection = client.get_or_create_collection(name="probe_v1", embedding_function=DummyEF())
-    collection.add(ids=["a", "b"], documents=["退款规则说明", "网络认证失败排查"], metadatas=[{"document_id": "a"}, {"document_id": "b"}])
+    collection.add(ids=["a", "b"], documents=["工单撤回规则说明", "网络认证失败排查"], metadatas=[{"document_id": "a"}, {"document_id": "b"}])
     print("   count:", collection.count())
-    result = collection.query(query_texts=["退款"], n_results=2)
+    result = collection.query(query_texts=["工单撤回"], n_results=2)
     print("   query ids:", result["ids"])
     print("   distance:", result["distances"])
 
@@ -41,14 +41,14 @@ def main() -> int:
     client2 = chromadb.PersistentClient(path=str(root), settings=chromadb.Settings(anonymized_telemetry=False))
     try:
         reopened = client2.get_or_create_collection(name="probe_v1", embedding_function=DummyEF())
-        print("   ok, count:", reopened.count(), "query:", reopened.query(query_texts=["退款"], n_results=1)["ids"])
+        print("   ok, count:", reopened.count(), "query:", reopened.query(query_texts=["工单撤回"], n_results=1)["ids"])
     except Exception as ex:
         print("   FAILED:", type(ex).__name__, ex)
 
     print("3) reopen same collection + different EF dim")
     try:
         other = client2.get_or_create_collection(name="probe_v1", embedding_function=DummyEF(dim=16, tag="other"))
-        print("   no error; query:", other.query(query_texts=["退款"], n_results=1)["ids"])
+        print("   no error; query:", other.query(query_texts=["工单撤回"], n_results=1)["ids"])
     except Exception as ex:
         print("   raised:", type(ex).__name__, str(ex)[:200])
 

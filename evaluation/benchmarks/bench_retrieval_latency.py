@@ -52,7 +52,7 @@ from mcp.knowledge_search_service import (  # noqa: E402
 )
 
 DEFAULT_FIXTURE = (
-    ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
+    ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 )
 
 
@@ -271,7 +271,7 @@ async def main() -> int:
     if not cases:
         raise SystemExit("no cases selected")
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-latency-bench-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-latency-bench-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,
@@ -360,7 +360,7 @@ async def main() -> int:
             merged_recall.append(float(row["document_recall"]))
 
     report = {
-        "schema": "tokenplan-hybrid-retrieval-latency-v1",
+        "schema": "urbanops-hybrid-retrieval-latency-v1",
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "host": {
             "platform": platform.platform(),

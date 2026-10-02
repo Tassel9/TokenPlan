@@ -172,7 +172,7 @@ class LongTermFactPolicyTests(unittest.TestCase):
         self.assertEqual("retract", mutations[0].operation)
 
     def test_admission_uses_allowlist_literal_evidence_and_sensitive_filter(self):
-        user_text = "我更喜欢夜班，我正在使用 Pro，我的密码是 secret"
+        user_text = "我更喜欢夜班，我正在使用 高频巡检，我的密码是 secret"
         payload = {
             "facts": [
                 {
@@ -183,9 +183,9 @@ class LongTermFactPolicyTests(unittest.TestCase):
                 },
                 {
                     "memory_key": "account.current_plan",
-                    "value": "Pro",
+                    "value": "高频巡检",
                     "operation": "set",
-                    "source_text": "我正在使用 Pro",
+                    "source_text": "我正在使用 高频巡检",
                 },
                 {
                     "memory_key": "environment.client_device",

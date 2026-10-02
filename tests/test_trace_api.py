@@ -83,16 +83,16 @@ def _result():
     return SimpleNamespace(
         request_id="req-api",
         response="safe response",
-        primary_intent=SimpleNamespace(value="billing_refund"),
-        intents=[SimpleNamespace(value="billing_refund")],
-        agent_type=SimpleNamespace(value="billing"),
-        agent_types=[SimpleNamespace(value="billing")],
+        primary_intent=SimpleNamespace(value="operations_withdrawal"),
+        intents=[SimpleNamespace(value="operations_withdrawal")],
+        agent_type=SimpleNamespace(value="operations"),
+        agent_types=[SimpleNamespace(value="operations")],
         escalated=False,
         latency_ms=4.0,
         status="COMPLETED",
         overall_status="SUCCEEDED",
         response_action="RESPOND",
-        reason_code="refund_answered",
+        reason_code="withdrawal_answered",
         evidence_ids=[],
         tool_events=[],
         steps=[],
@@ -109,13 +109,13 @@ def _result():
         },
         intent_executions=[{
             "intent_id": "intent-1-work_order_withdrawal",
-            "agent_type": "billing",
+            "agent_type": "operations",
             "status": "COMPLETED",
-            "reason_code": "refund_answered",
+            "reason_code": "withdrawal_answered",
             "latency_ms": 3.0,
             "success": True,
             "routing": {
-                "selected_agent": "billing",
+                "selected_agent": "operations",
                 "reason": "requested",
             },
         }],
@@ -162,21 +162,21 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         return _result()
 
     async def test_chat_returns_queryable_trace_id(self):
-        response = await api.main.chat(api.main.ChatRequest(message="refund"))
+        response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
 
         self.assertTrue(response.trace_id.startswith("trace-"))
         self.assertEqual("SUCCEEDED", response.overall_status)
         self.assertEqual("RESPOND", response.response_action)
         self.assertEqual(1, len(self.services.profile_updates.jobs))
         self.assertEqual(
-            "refund",
+            "withdrawal",
             self.services.profile_updates.jobs[0]["user_message"],
         )
         self.assertEqual(0.5, response.stage_timings_ms["binding_ms"])
         self.assertTrue(response.memory_persisted)
         detail = await api.main.trace_detail(response.trace_id)
         self.assertEqual("req-api", detail.request_id)
-        self.assertEqual("billing", detail.routing[0])
+        self.assertEqual("operations", detail.routing[0])
         self.assertEqual(4.0, detail.stage_timings_ms["total_ms"])
         composition = next(node for node in detail.nodes if node.kind == "composition")
         self.assertEqual("SUCCEEDED", composition.attributes["overall_status"])
@@ -204,8 +204,8 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         listed = await api.main.list_traces(
             status="COMPLETED",
-            agent="billing",
-            routing="billing",
+            agent="operations",
+            routing="operations",
             reason_code=None,
             started_after=None,
             started_before=None,
@@ -225,7 +225,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(HTTPException) as raised:
-            await api.main.chat(api.main.ChatRequest(message="refund", user_id="u1"))
+            await api.main.chat(api.main.ChatRequest(message="withdrawal", user_id="u1"))
 
         self.assertEqual(429, raised.exception.status_code)
         self.assertEqual("23", raised.exception.headers["Retry-After"])
@@ -257,7 +257,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(HTTPException) as raised:
             await api.main.chat(api.main.ChatRequest(
-                message="refund",
+                message="withdrawal",
                 user_id="u1",
                 conv_id="c1",
             ))
@@ -291,7 +291,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(HTTPException) as raised:
             await api.main.chat(api.main.ChatRequest(
-                message="refund",
+                message="withdrawal",
                 user_id="u1",
                 conv_id="c1",
             ))
@@ -309,7 +309,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.services.memory = BrokenMemory()
 
-        response = await api.main.chat(api.main.ChatRequest(message="refund"))
+        response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
 
         self.assertEqual("safe response", response.response)
         self.assertFalse(response.memory_persisted)
@@ -344,7 +344,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.services.orchestrator = SimpleNamespace(run=fail)
         with self.assertRaises(RuntimeError):
-            await api.main.chat(api.main.ChatRequest(message="refund"))
+            await api.main.chat(api.main.ChatRequest(message="withdrawal"))
 
         traces = await self.services.traces.list(status="FAILED")
         self.assertEqual(1, len(traces))
@@ -385,7 +385,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         working_traces = self.services.traces
         self.services.traces = BrokenTraces()
         try:
-            response = await api.main.chat(api.main.ChatRequest(message="refund"))
+            response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
         finally:
             self.services.traces = working_traces
 

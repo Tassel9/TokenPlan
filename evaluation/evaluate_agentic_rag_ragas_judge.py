@@ -37,13 +37,13 @@ DEFAULT_OUTPUT = (
     _ROOT / "evaluation" / "reports" / "agentic_rag_ragas_judge_report.json"
 )
 DEFAULT_DATASET = (
-    _ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
+    _ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 )
-DATASET_SCHEMA = "tokenplan-agentic-rag-ragas-dataset-v1"
+DATASET_SCHEMA = "urbanops-agentic-rag-ragas-dataset-v1"
 INPUT_SCHEMAS = {
-    "tokenplan-agentic-rag-ragas-pipeline-report-v1",
+    "urbanops-agentic-rag-ragas-pipeline-report-v1",
 }
-REPORT_SCHEMA = "tokenplan-agentic-rag-ragas-judge-report-v1"
+REPORT_SCHEMA = "urbanops-agentic-rag-ragas-judge-report-v1"
 METRICS = (
     "context_recall",
     "faithfulness",
@@ -148,9 +148,9 @@ def load_context_precision_dataset(
         raise AgenticRagJudgeError(
             "context-precision dataset must declare production_evidence=false"
         )
-    if metadata.get("business_domain") != "token_plan_subscription":
+    if metadata.get("business_domain") != "urbanops_streetlight_operations":
         raise AgenticRagJudgeError(
-            "context-precision dataset must declare the TokenPlan business domain"
+            "context-precision dataset must declare the UrbanOps streetlight operations business domain"
         )
     if payload.get("metadata_sha256") != _canonical_sha256(metadata):
         raise AgenticRagJudgeError(

@@ -81,19 +81,19 @@ INTENT_SPECS: Dict[FineGrainedIntent, IntentSpec] = {
         confidence_text="查询或办理工单撤回、退回或驳回",
     ),
     FineGrainedIntent.TERMINAL_ACCESS_ISSUE: IntentSpec(
-        domain="终端与权限",
-        retrieval_text="终端离线、设备无法接入、网关连接失败、认证失败、北斗终端掉线、遥测中断、数据不上报",
-        decision_text="设备、网关或移动终端无法接入平台，或认证、通信、遥测上报失败；已接入后的安全配置归入终端安全管理",
-        confidence_text="终端离线、设备无法接入、认证失败或遥测中断",
+        domain="智慧路灯与权限",
+        retrieval_text="智慧路灯终端离线、路灯无法接入、单灯控制器连接失败、认证失败、路灯掉线、遥测中断、数据不上报",
+        decision_text="智慧路灯终端或单灯控制器无法接入平台，或认证、通信、遥测上报失败；已接入后的安全配置归入智慧路灯终端安全管理",
+        confidence_text="智慧路灯终端离线、无法接入、认证失败或遥测中断",
     ),
     FineGrainedIntent.TERMINAL_SECURITY_REQUEST: IntentSpec(
-        domain="终端与权限",
-        retrieval_text="终端密钥、设备证书、接入凭证、访问控制、终端解绑、会话撤销、安全策略",
-        decision_text="查询或变更终端密钥、设备证书、接入凭证、绑定关系或安全策略；设备无法接入归入终端接入故障",
-        confidence_text="查询或变更终端凭证、证书、绑定关系或安全策略",
+        domain="智慧路灯与权限",
+        retrieval_text="智慧路灯终端密钥、设备证书、接入凭证、访问控制、路灯解绑、会话撤销、安全策略",
+        decision_text="查询或变更智慧路灯终端的密钥、设备证书、接入凭证、绑定关系或安全策略；路灯无法接入归入终端接入故障",
+        confidence_text="查询或变更智慧路灯终端凭证、证书、绑定关系或安全策略",
     ),
     FineGrainedIntent.OPERATIONS_PERMISSION_CHANGE: IntentSpec(
-        domain="终端与权限",
+        domain="智慧路灯与权限",
         retrieval_text="开通设备权限、增加点位权限、修改区域权限、调整角色、授权巡检、变更工单权限",
         decision_text="明确要求新增或调整设备、区域、巡检或工单操作权限；只查询现有规范不属于权限变更",
         confidence_text="新增或调整设备、区域、巡检或工单权限",
@@ -164,7 +164,7 @@ _INSPECTION_TASK_RE = re.compile(
     flags=re.IGNORECASE,
 )
 _TERMINAL_RE = re.compile(
-    r"(?:终端|网关)(?:编号|ID|号)?\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
+    r"(?:智慧路灯终端|路灯终端|智慧路灯|路灯|单灯控制器|终端)(?:编号|ID|号)?\s*[#：:]?\s*([A-Za-z]+-[A-Za-z0-9-]+)",
     flags=re.IGNORECASE,
 )
 _ALERT_CODE_RE = re.compile(

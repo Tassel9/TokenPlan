@@ -35,7 +35,7 @@ from mcp.knowledge_search_service import (  # noqa: E402
     RerankerConfig,
 )
 
-FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 LEVELS = (1, 2, 4, 8, 16)
 
 
@@ -50,7 +50,7 @@ def build(argv=None):
     cases = [c for c in fixture["cases"] if c["split"] == "holdout"]
     queries = [str(case["user_input"]) for case in cases]
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-conc-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-conc-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,

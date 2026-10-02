@@ -542,7 +542,7 @@ async def run_evaluation(args: argparse.Namespace) -> int:
         print("[end-to-end] 缺少 DEEPSEEK_API_KEY（.env 或环境变量）")
         return 1
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-e2e-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-e2e-"))
     prepare_isolated_env(temp_root)
     print(f"[end-to-end] 隔离目录: {temp_root}")
 

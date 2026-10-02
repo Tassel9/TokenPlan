@@ -30,8 +30,8 @@ class AgentHealthTests(unittest.TestCase):
     def test_invalid_judge_feedback_is_rejected(self):
         policy = AgentHealthTracker()
         for value in (None, True, "0.8", float("nan"), -0.1, 1.1):
-            self.assertFalse(policy.record_judge("billing", value))
-        self.assertEqual(0, policy.snapshot("billing").judge_samples)
+            self.assertFalse(policy.record_judge("operations", value))
+        self.assertEqual(0, policy.snapshot("operations").judge_samples)
 
     def test_degraded_agent_cools_down_then_allows_one_half_open_probe(self):
         now = [100.0]
@@ -77,21 +77,21 @@ class AgentHealthTests(unittest.TestCase):
             clock=lambda: now[0],
         )
         policy.record_execution(
-            "billing",
+            "operations",
             success=False,
             latency_ms=4000,
             status=AgentRunStatus.FAILED.value,
         )
         now[0] += 30
-        probe = policy.acquire("billing")
+        probe = policy.acquire("operations")
         policy.record_execution(
-            "billing",
+            "operations",
             success=False,
             latency_ms=4000,
             status=AgentRunStatus.FAILED.value,
             admission=probe,
         )
 
-        admission = policy.peek_admission("billing")
+        admission = policy.peek_admission("operations")
         self.assertFalse(admission.allowed)
         self.assertEqual("agent_health_cooldown", admission.reason_code)

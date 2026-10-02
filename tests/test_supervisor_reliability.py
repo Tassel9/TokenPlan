@@ -46,7 +46,7 @@ class GuardRegressionTests(unittest.TestCase):
     def test_warning_enumeration_does_not_leak_into_sensitive_check(self):
         guarded = ResponseGuard().check(
             "【转人工需要你提供的信息（用于核验，请勿发送密码、验证码、恢复码或完整卡号）】"
-            "账号标识：注册邮箱或账号 ID。"
+            "路灯终端标识：注册邮箱或路灯终端 ID。"
         )
         self.assertTrue(guarded.passed, guarded.reason_code)
 
@@ -56,7 +56,7 @@ class GuardRegressionTests(unittest.TestCase):
 
     def test_informal_half_negation_is_stripped_before_sensitive_check(self):
         guarded = ResponseGuard().check(
-            "为便于人工核验，请补充（不必提供密码、验证码、恢复码或完整卡号）：账号邮箱前缀。"
+            "为便于人工核验，请补充（不必提供密码、验证码、恢复码或完整卡号）：路灯终端邮箱前缀。"
         )
         self.assertTrue(guarded.passed, guarded.reason_code)
 
@@ -116,7 +116,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
         self.context.client.messages.create = AsyncMock(side_effect=[
             tool_call(bad), tool_call(good, "decision-2"), tool_call(final, "decision-3")])
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("FINAL", result.action.value)
         self.assertEqual(1, len(self.dispatched))
         self.assertEqual(1, len(result.decision_errors))
@@ -124,7 +124,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
     async def test_duplicate_delegation_is_repaired_with_guidance(self):
         first = {"action": "SEND_MESSAGES", "analysis": first_analysis(),
                  "barrier": "all_settled",
-                 "messages": [{"recipient": "technical", "content": "排查401与重复扣款",
+                 "messages": [{"recipient": "technical", "content": "排查401与重复告警",
                                "intent_ids": ["intent-1-facility_troubleshooting",
                                               "intent-2-alert_report"]}],
                  "reason_code": "dispatch"}
@@ -144,7 +144,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
 
         self.context.client.messages.create = AsyncMock(side_effect=fake_create)
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("FINAL", result.action.value)
         self.assertEqual(1, len(result.decision_errors))
         self.assertIn("already observed", result.decision_errors[0]["reason"])
@@ -156,14 +156,14 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
                   "messages": [
                       {"recipient": "technical", "content": "排查401",
                        "intent_ids": ["intent-1-facility_troubleshooting"]},
-                      {"recipient": "technical", "content": "核查重复扣款",
+                      {"recipient": "technical", "content": "核查重复告警",
                        "intent_ids": ["intent-2-alert_report"]}],
                   "reason_code": "dispatch"}
         final = {"action": "FINAL", "message": "两个问题均已处理。", "reason_code": "done"}
         self.context.client.messages.create = AsyncMock(side_effect=[
             tool_call(merged), tool_call(final, "decision-2")])
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("FINAL", result.action.value)
         self.assertEqual(1, len(self.dispatched))
         messages = self.dispatched[0][0]
@@ -174,7 +174,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
             tuple(messages[0].intent_ids),
         )
         self.assertIn("排查401", messages[0].content)
-        self.assertIn("核查重复扣款", messages[0].content)
+        self.assertIn("核查重复告警", messages[0].content)
         self.assertEqual(0, len(result.decision_errors))
 
     async def test_final_message_sanitized_before_surface(self):
@@ -190,7 +190,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
         self.context.client.messages.create = AsyncMock(side_effect=[
             tool_call(payload), tool_call(final, "decision-2")])
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("FINAL", result.action.value)
         self.assertNotIn("HANDOFF", result.response)
         self.assertNotIn("invalid_agent_action", result.response)
@@ -228,7 +228,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
                    "reason_code": "bad"}
         self.context.client.messages.create = AsyncMock(side_effect=[tool_call(invalid), tool_call(invalid)])
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("HANDOFF", result.action.value)
         self.assertEqual([], self.dispatched)
 
@@ -244,7 +244,7 @@ class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
         self.context.client.messages.create = AsyncMock(side_effect=[
             tool_call(first), tool_call(changed, "decision-2"), tool_call(changed, "decision-3")])
         result = await SupervisorLead(self.context, agent_registry=registry()).run(
-            "插件报401，而且重复扣款", self.dispatch)
+            "控制器报401，而且重复告警", self.dispatch)
         self.assertEqual("HANDOFF", result.action.value)
         self.assertEqual(1, len(self.dispatched))
 

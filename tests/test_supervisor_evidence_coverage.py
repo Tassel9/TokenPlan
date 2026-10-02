@@ -23,7 +23,7 @@ class EvidenceCoverageTests(unittest.IsolatedAsyncioTestCase):
 
     def test_label_catalog_examples_are_not_delegated_user_requirements(self):
         analysis = SupervisorDecisionValidator.validate_analysis(
-            first_analysis(), original_query="插件报401，而且重复扣款"
+            first_analysis(), original_query="控制器报401，而且重复告警"
         )
         rows = analysis.intent_rows
         self.assertEqual(rows[0]["label"], "facility_troubleshooting")

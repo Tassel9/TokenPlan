@@ -1,0 +1,343 @@
+{
+  "schema_version": "urbanops-agentic-rag-ragas-blueprint-v1",
+  "dataset_id": "urbanops-streetlight-agentic-rag-ragas-curated-v1",
+  "metadata": {
+    "description": "UrbanOps 智慧路灯市政运维 Agentic RAG 校准集与冻结持出集蓝图。",
+    "business_domain": "urbanops_streetlight_operations",
+    "data_origin": "curated_synthetic_urbanops_streetlight_contract",
+    "production_evidence": false,
+    "synthetic": true,
+    "dataset_role": "calibration_and_frozen_holdout",
+    "holdout_frozen": true,
+    "holdout_frozen_before_first_live_run": true,
+    "construction": {
+      "method": "assistant_authored_synthetic_then_contract_checked",
+      "gold_labels_model_generated": true,
+      "evaluated_system_output_used_for_gold_labels": false
+    },
+    "independent_review": {"required": true, "status": "pending", "reviewer": null},
+    "notes": "所有路灯巡检、告警、工单和终端规则均为评测用合成事实，不代表任何真实城市或平台的现行制度。",
+    "limitations": [
+      "样本由项目作者构造，不来自生产流量。",
+      "Gold 文档与答案尚未完成独立业务复核。",
+      "冻结 Holdout 首次运行后不得依据结果修改；新发现的问题应进入独立回归集。"
+    ]
+  },
+  "top_k": 5,
+  "split_policy": {
+    "calibration": {"standard_index": [0], "rewrite_index": [0], "multi_count": 5, "unsupported_count": 5},
+    "expected_counts": {"all": 200, "calibration": 50, "holdout": 150}
+  },
+  "multi_pair_offsets": [1, 3, 7],
+  "extra_multi_offset": 9,
+  "extra_multi_count": 15,
+  "topics": [
+    {
+      "topic_id": "inspection_standard",
+      "owner": "inspection",
+      "document_id": "streetlight-inspection-standard",
+      "title": "智慧路灯巡检项目与适用范围",
+      "content": "智慧路灯例行巡检覆盖灯具亮度、供电回路、控制器、通信链路、灯杆外观和接地状态。主干道、学校医院周边和普通支路可采用不同检查频次；实际要求以当前区域和生效规范为准。",
+      "reference_answer": "例行巡检应检查灯具、供电、控制器、通信、灯杆和接地；具体频次要结合道路等级、区域和现行规范确认。",
+      "standard_queries": ["智慧路灯日常巡检要检查哪些项目？", "不同道路等级的路灯巡检范围一样吗？"],
+      "rewrite_queries": ["平时查路灯到底要看哪些地方？", "学校门口的灯是不是要查得更细？", "灯亮着就算巡检合格了吗？"],
+      "distractors": [
+        {"document_id": "streetlight-inspection-create", "title": "新建巡检任务", "content": "创建巡检任务需要填写点位、执行时间和负责人，不解释具体检查项目。"},
+        {"document_id": "streetlight-inspection-result", "title": "巡检结果查询", "content": "具体路灯的巡检结果只能通过授权业务数据查询，不属于公开巡检标准。"}
+      ]
+    },
+    {
+      "topic_id": "inspection_cycle",
+      "owner": "inspection",
+      "document_id": "streetlight-inspection-cycle",
+      "title": "路灯例行与专项巡检周期",
+      "content": "评测规则中，普通道路路灯按月开展例行巡检，主干道和重点区域按周抽检；暴雨、大风、重大活动前后触发专项巡检。巡检周期由设施等级、区域风险和当前规范共同决定。",
+      "reference_answer": "普通道路按月例行巡检，主干道和重点区域按周抽检，恶劣天气或重大活动前后安排专项巡检；最终以当前区域规范为准。",
+      "standard_queries": ["路灯例行巡检周期怎么定？", "什么情况下需要增加专项巡检？"],
+      "rewrite_queries": ["是不是每盏灯都一个月查一次？", "台风过后要不要临时多巡一遍？", "主干道为什么比支路查得勤？"],
+      "distractors": [
+        {"document_id": "streetlight-cycle-work-order", "title": "维修工单响应时间", "content": "工单响应时限描述故障受理后的处置要求，不决定例行巡检周期。"},
+        {"document_id": "streetlight-cycle-energy", "title": "能耗统计周期", "content": "能耗日报和月报的统计周期不等同于现场巡检周期。"}
+      ]
+    },
+    {
+      "topic_id": "inspection_task_create",
+      "owner": "inspection",
+      "document_id": "streetlight-inspection-task-create",
+      "title": "创建路灯巡检任务",
+      "content": "创建巡检任务前应确认道路或点位范围、设施编号、计划时间、负责人、优先级和检查模板。任务提交属于受控写操作，必须经过身份、权限、确认和幂等校验。",
+      "reference_answer": "创建任务需提供点位范围、设施编号、时间、负责人、优先级和检查模板，并通过权限、确认和幂等校验。",
+      "standard_queries": ["创建路灯巡检任务需要哪些信息？", "巡检任务提交前要做哪些校验？"],
+      "rewrite_queries": ["帮城北这批灯安排一次巡查要先填什么？", "明早让二组去看 L-102 怎么建任务？", "任务点两次会不会重复创建？"],
+      "distractors": [
+        {"document_id": "streetlight-inspection-task-update", "title": "调整既有巡检任务", "content": "修改已有任务的时间或负责人需要原任务编号，不等同于首次创建。"},
+        {"document_id": "streetlight-inspection-task-standard", "title": "巡检规范查询", "content": "巡检规范说明检查内容，不代表系统已经创建任务。"}
+      ]
+    },
+    {
+      "topic_id": "inspection_task_change",
+      "owner": "inspection",
+      "document_id": "streetlight-inspection-task-change",
+      "title": "巡检任务调整与取消",
+      "content": "调整未完成的巡检任务需提供任务编号和新的时间、人员或范围；取消任务需记录原因并确认没有正在执行的现场步骤。已产生的巡检记录不会因取消计划而删除。",
+      "reference_answer": "调整或取消任务要提供任务编号、变更内容和原因，并确认现场执行状态；取消计划不会删除已有巡检记录。",
+      "standard_queries": ["怎样调整路灯巡检任务的时间和人员？", "取消巡检计划会删除已有记录吗？"],
+      "rewrite_queries": ["原定今晚的巡灯能改到明晚吗？", "换个巡检班组要不要带任务号？", "把计划撤掉后以前拍的照片还在吗？"],
+      "distractors": [
+        {"document_id": "streetlight-task-change-work-order", "title": "维修工单转派", "content": "维修工单转派属于故障处置流程，不是巡检任务变更。"},
+        {"document_id": "streetlight-task-change-standard", "title": "巡检检查标准", "content": "检查标准规定检查内容，不处理任务时间和负责人变更。"}
+      ]
+    },
+    {
+      "topic_id": "streetlight_alert_report",
+      "owner": "alert",
+      "document_id": "streetlight-alert-report",
+      "title": "路灯异常与告警上报",
+      "content": "发现熄灯、频闪、过温、漏电或灯杆倾斜时，应记录路灯编号、位置、发生时间、告警码、现场照片和安全影响。涉及触电、倒杆或道路安全风险时先设置现场警戒并升级应急处置。",
+      "reference_answer": "上报时记录路灯编号、位置、时间、告警码、照片和安全影响；触电、倒杆等高风险情况应先警戒并升级应急处置。",
+      "standard_queries": ["路灯异常上报需要哪些信息？", "哪些路灯告警需要立即升级？"],
+      "rewrite_queries": ["一盏灯一直闪，报障时要拍什么？", "灯杆歪了是不是先拉警戒线？", "高温告警只写个编号够不够？"],
+      "distractors": [
+        {"document_id": "streetlight-alert-root-cause", "title": "故障根因分析", "content": "根因分析用于后续排障，不替代首次异常上报所需信息。"},
+        {"document_id": "streetlight-alert-close", "title": "关闭告警", "content": "关闭告警属于受控状态变更，不能由公开知识问答直接完成。"}
+      ]
+    },
+    {
+      "topic_id": "duplicate_alert",
+      "owner": "alert",
+      "document_id": "streetlight-duplicate-alert",
+      "title": "路灯重复告警合并规则",
+      "content": "同一路灯、同一告警码在短时间内重复出现时，应按设备编号、告警码和时间窗口聚合，保留首次、最近一次和累计次数。不同点位或不同告警码不得直接合并。",
+      "reference_answer": "重复告警按同一设备、同一告警码和时间窗口聚合，并保留首次、最近一次和累计次数；不同点位或告警码不能直接合并。",
+      "standard_queries": ["路灯重复告警怎样合并？", "聚合告警时必须保留哪些信息？"],
+      "rewrite_queries": ["L-203 十分钟报了八次过温要建八条吗？", "两个路口都离线能不能算一条？", "压缩重复告警后还看得到第一次时间吗？"],
+      "distractors": [
+        {"document_id": "streetlight-duplicate-work-order", "title": "重复维修工单", "content": "重复工单需要核对故障对象和处置状态，不能只按告警时间窗口处理。"},
+        {"document_id": "streetlight-alert-threshold", "title": "告警阈值设置", "content": "阈值设置决定何时产生告警，不说明已产生告警的聚合规则。"}
+      ]
+    },
+    {
+      "topic_id": "telemetry_record_query",
+      "owner": "data_query",
+      "document_id": "streetlight-telemetry-record-query",
+      "title": "路灯遥测与巡检记录查询",
+      "content": "查询具体路灯状态应通过授权只读接口，按路灯编号和时间范围读取亮灭状态、电压、电流、功率、温度、通信质量及巡检记录。公开知识库只解释字段含义，不能提供实时数据。",
+      "reference_answer": "具体状态需通过授权只读接口按路灯编号和时间范围查询；可读取亮灭、电压、电流、功率、温度、通信质量及巡检记录。",
+      "standard_queries": ["路灯遥测记录可以查询哪些字段？", "查询具体路灯状态需要什么条件？"],
+      "rewrite_queries": ["我想看 L-302 昨晚有没有亮怎么查？", "能不能拉出这根灯杆一周的电流和温度？", "知识库能直接告诉我现在功率是多少吗？"],
+      "distractors": [
+        {"document_id": "streetlight-telemetry-definition", "title": "遥测字段说明", "content": "字段说明解释电压和功率含义，不包含某盏路灯的实时值。"},
+        {"document_id": "streetlight-telemetry-write", "title": "远程控制路灯", "content": "开关灯和调光会改变设备状态，不属于只读记录查询。"}
+      ]
+    },
+    {
+      "topic_id": "work_order_create",
+      "owner": "work_order",
+      "document_id": "streetlight-work-order-create",
+      "title": "路灯维修工单创建与派发",
+      "content": "创建维修工单需关联设施编号、故障现象、风险等级、位置、现场证据和建议班组。派发前要校验重复工单、处理权限和用户确认；系统受理回执不代表现场已经修复。",
+      "reference_answer": "工单需关联设施编号、故障、风险、位置、证据和班组，派发前检查重复、权限与确认；受理不等于修复完成。",
+      "standard_queries": ["创建路灯维修工单需要哪些材料？", "工单派发前要检查什么？"],
+      "rewrite_queries": ["L-450 不亮了，开维修单要带哪些信息？", "同一故障已经有人报过还要再建一单吗？", "系统说已受理是不是代表现场修好了？"],
+      "distractors": [
+        {"document_id": "streetlight-work-order-status", "title": "维修工单进度查询", "content": "进度查询读取已有工单状态，不负责创建或派发新工单。"},
+        {"document_id": "streetlight-work-order-inspection", "title": "巡检任务创建", "content": "例行巡检任务与故障维修工单的触发条件和处置责任不同。"}
+      ]
+    },
+    {
+      "topic_id": "work_order_withdrawal",
+      "owner": "work_order",
+      "document_id": "streetlight-work-order-withdrawal",
+      "title": "维修工单撤回与退回",
+      "content": "尚未进入现场处置的误报工单可申请撤回；已经接单或产生现场操作的工单需说明原因并由负责人审核。材料不全可退回补充，但退回不等于故障已经解除。",
+      "reference_answer": "未进入现场处置的误报可申请撤回；已接单或产生操作时需审核，材料不全可退回补充，退回不代表故障解除。",
+      "standard_queries": ["路灯维修工单什么情况下可以撤回？", "工单退回和故障解除有什么区别？"],
+      "rewrite_queries": ["刚才报错灯号了能把单撤掉吗？", "师傅已经接单还可以直接取消吗？", "资料被退回来是不是说明不用修了？"],
+      "distractors": [
+        {"document_id": "streetlight-work-order-cancel-inspection", "title": "取消巡检任务", "content": "取消尚未执行的巡检计划不等同于撤回维修工单。"},
+        {"document_id": "streetlight-work-order-close", "title": "维修工单关闭", "content": "关闭工单需要处置结果和验收依据，比撤回或退回的条件更严格。"}
+      ]
+    },
+    {
+      "topic_id": "work_order_sla",
+      "owner": "work_order",
+      "document_id": "streetlight-work-order-sla",
+      "title": "路灯故障工单响应时限",
+      "content": "评测规则中，涉及道路安全或大面积熄灯的一级工单应在十五分钟内响应，一般单灯故障应在两小时内响应。响应表示已接单并开始处置，不等于承诺在该时间内修复。",
+      "reference_answer": "一级安全风险或大面积熄灯十五分钟内响应，一般单灯故障两小时内响应；响应不等于在该时限内修复。",
+      "standard_queries": ["不同等级的路灯工单多久响应？", "工单响应时限是不是修复时限？"],
+      "rewrite_queries": ["整条路都黑了多久必须有人接单？", "一盏灯坏了两个小时是要修完吗？", "平台显示已响应代表师傅已经处理好了吗？"],
+      "distractors": [
+        {"document_id": "streetlight-sla-inspection-cycle", "title": "例行巡检周期", "content": "巡检周期是计划性检查频次，不是故障工单响应时限。"},
+        {"document_id": "streetlight-sla-arrival", "title": "现场到达时间", "content": "现场到达受距离和交通影响，应与系统响应状态分开记录。"}
+      ]
+    },
+    {
+      "topic_id": "streetlight_offline",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-terminal-offline",
+      "title": "智慧路灯终端离线排查",
+      "content": "智慧路灯本体就是现场运维终端。单灯离线时依次检查供电、控制器、通信模块、SIM 或专网、网关和平台绑定；同区域多灯同时离线时优先检查公共供电、网关与网络链路。",
+      "reference_answer": "智慧路灯作为现场终端，单灯离线先查供电、控制器、通信和绑定；同区域多灯离线优先查公共供电、网关和网络。",
+      "standard_queries": ["智慧路灯终端离线怎么排查？", "多盏路灯同时离线应该先查哪里？"],
+      "rewrite_queries": ["这根灯杆突然不上报数据了先看什么？", "同一条路十几盏灯一起掉线像单灯故障吗？", "灯还亮但平台显示离线可能是哪一段断了？"],
+      "distractors": [
+        {"document_id": "streetlight-offline-lamp-failure", "title": "灯具不亮排查", "content": "灯具不亮可能来自光源或驱动故障，即使通信在线也会发生。"},
+        {"document_id": "streetlight-offline-platform-query", "title": "实时在线状态查询", "content": "具体设备是否在线必须读取实时业务数据，公开文档只能提供排查步骤。"}
+      ]
+    },
+    {
+      "topic_id": "streetlight_security",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-security-policy",
+      "title": "智慧路灯终端凭证与安全处置",
+      "content": "怀疑路灯控制凭证或设备证书泄露时，应立即冻结远程控制、撤销旧证书、轮换接入凭证、核对绑定关系并审计异常指令。工单中不得发送完整私钥、口令或接入令牌。",
+      "reference_answer": "先冻结远程控制，撤销旧证书并轮换凭证，再核对绑定和审计异常指令；不得在工单中发送完整私钥、口令或令牌。",
+      "standard_queries": ["智慧路灯终端凭证泄露后怎么处理？", "路灯安全工单里哪些信息不能提供？"],
+      "rewrite_queries": ["灯控密钥发到群里了第一步做什么？", "设备证书疑似被复制要不要先停远程控制？", "报安全问题能把完整私钥贴进工单吗？"],
+      "distractors": [
+        {"document_id": "streetlight-security-offline", "title": "路灯终端普通离线", "content": "智慧路灯网络离线不必然表示凭证泄露，应先区分通信故障与安全事件。"},
+        {"document_id": "streetlight-security-role", "title": "巡检人员区域权限", "content": "人员区域权限不替代设备证书和控制凭证的安全处置。"}
+      ]
+    },
+    {
+      "topic_id": "controller_installation",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-controller-installation",
+      "title": "智慧路灯控制器安装与入网",
+      "content": "新装路灯控制器前应核对灯具型号、供电制式、通信模块和固件版本，通过受控入口登记路灯编号、点位和证书，再完成时间同步、网络测试和小范围调光验证。",
+      "reference_answer": "安装前核对型号、供电、通信和固件，登记路灯编号、点位和证书，并完成时间同步、网络和小范围控制测试。",
+      "standard_queries": ["智慧路灯控制器怎样安装并接入平台？", "路灯终端首次入网需要验证哪些项目？"],
+      "rewrite_queries": ["新换的灯控器怎么绑到这根灯杆？", "设备刚装好为什么要先校时？", "入网后能不能直接整条路一起调光测试？"],
+      "distractors": [
+        {"document_id": "streetlight-controller-reconnect", "title": "既有控制器重连", "content": "已登记设备的网络重连不需要重复执行完整安装登记流程。"},
+        {"document_id": "streetlight-controller-lamp-replace", "title": "更换灯具光源", "content": "更换灯具光源不一定涉及控制器证书和平台入网。"}
+      ]
+    },
+    {
+      "topic_id": "telemetry_interruption",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-telemetry-interruption",
+      "title": "路灯遥测中断排查",
+      "content": "路灯仍亮但遥测中断时，应比较最后上报时间，检查控制器采集、通信模块、网关缓存、网络质量和平台接收状态。排障材料包括路灯编号、固件版本、信号强度、断点时间和脱敏日志。",
+      "reference_answer": "先比较最后上报时间，再查采集、通信、网关缓存、网络和平台接收；提供编号、固件、信号、断点时间及脱敏日志。",
+      "standard_queries": ["路灯亮着但遥测不上报怎么排查？", "提交遥测中断故障需要哪些信息？"],
+      "rewrite_queries": ["灯是亮的，可平台数据停在昨晚了", "网关里有缓存但中心没数据该查哪段？", "报遥测故障可以直接上传完整设备日志吗？"],
+      "distractors": [
+        {"document_id": "streetlight-telemetry-lamp-off", "title": "路灯熄灭故障", "content": "灯具熄灭重点检查供电和驱动，不等同于灯亮但数据中断。"},
+        {"document_id": "streetlight-telemetry-energy-report", "title": "能耗报表生成", "content": "能耗报表依赖遥测数据，但报表缺失不一定表示现场采集链路中断。"}
+      ]
+    },
+    {
+      "topic_id": "certificate_auth_failure",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-certificate-auth-failure",
+      "title": "路灯终端认证失败排查",
+      "content": "路灯终端认证失败时检查设备证书有效期、设备编号与证书绑定、系统时间、信任链和接入端点。证书轮换后应重启通信进程并确认旧证书已撤销，禁止用无限重试掩盖配置错误。",
+      "reference_answer": "核对证书有效期、设备绑定、时间、信任链和端点；轮换后重启通信并撤销旧证书，不要无限重试。",
+      "standard_queries": ["路灯终端认证失败应该检查什么？", "更换设备证书后为什么仍无法接入？"],
+      "rewrite_queries": ["灯控器说证书无效但证书刚下发", "同一证书能不能绑两根灯杆？", "认证一直失败反复重连有用吗？"],
+      "distractors": [
+        {"document_id": "streetlight-auth-permission", "title": "控制权限不足", "content": "权限不足表示身份可能已认证，但没有目标路灯的控制授权。"},
+        {"document_id": "streetlight-auth-network", "title": "网络链路中断", "content": "网络不通会导致无法建立连接，但不直接证明证书校验失败。"}
+      ]
+    },
+    {
+      "topic_id": "control_permission",
+      "owner": "streetlight_terminal",
+      "document_id": "streetlight-control-permission",
+      "title": "路灯远程控制权限",
+      "content": "远程开关灯、调光和策略下发必须同时满足人员角色、授权区域、设施范围和操作审批。查询权限与执行控制应分开；刚变更权限时需重新认证并检查审计记录。",
+      "reference_answer": "远程控制需要角色、区域、设施范围和审批同时满足；查询与执行权限分离，权限变更后重新认证并核对审计。",
+      "standard_queries": ["路灯远程控制需要哪些权限？", "为什么能看状态却不能调光？"],
+      "rewrite_queries": ["我能看到这盏灯但点开灯提示无权操作", "临时支援能不能控制别的区路灯？", "刚加完权限还是被拒绝要不要重新登录？"],
+      "distractors": [
+        {"document_id": "streetlight-control-auth", "title": "设备证书认证", "content": "设备证书解决终端身份，不代表某个操作员拥有远程控制权限。"},
+        {"document_id": "streetlight-control-status", "title": "路灯状态只读查询", "content": "只读状态查询权限不能自动授权开关灯或调光。"}
+      ]
+    },
+    {
+      "topic_id": "alert_rate_limit",
+      "owner": "platform",
+      "document_id": "streetlight-alert-rate-limit",
+      "title": "路灯告警风暴与限流",
+      "content": "告警风暴出现时先统计设备数、告警码、上报频率和重试叠加，再按设备与告警类型聚合，设置有上限的退避、队列保护和熔断。不得通过无限重试或直接丢弃全部告警处理。",
+      "reference_answer": "统计设备、告警码、频率和重试叠加，随后聚合告警并使用有限退避、队列保护和熔断；不能无限重试或全量丢弃。",
+      "standard_queries": ["路灯平台出现告警风暴怎么处置？", "限流排查时需要统计哪些负载？"],
+      "rewrite_queries": ["一批灯每秒都报离线是不是马上循环重发？", "告警队列越堆越多除了退避还要做什么？", "能不能为了保平台直接把告警都扔掉？"],
+      "distractors": [
+        {"document_id": "streetlight-alert-offline", "title": "单灯离线排查", "content": "单灯离线排查关注现场设备链路，不等同于平台级告警风暴。"},
+        {"document_id": "streetlight-alert-threshold-change", "title": "告警阈值变更", "content": "阈值变更可能减少告警数量，但必须经过业务审核，不能代替限流保护。"}
+      ]
+    },
+    {
+      "topic_id": "remote_control_policy",
+      "owner": "platform",
+      "document_id": "streetlight-remote-control-policy",
+      "title": "路灯远程开关与调光安全规则",
+      "content": "远程开关灯或调光前应核对目标路灯、道路范围、执行窗口、照度下限、交通与治安影响，并取得审批和用户确认。批量操作先小范围验证，执行结果必须以设备回执和遥测复核为准。",
+      "reference_answer": "操作前核对目标、范围、时间、照度和安全影响并取得审批；批量操作先小范围验证，最终以设备回执和遥测复核。",
+      "standard_queries": ["远程开关路灯前需要检查什么？", "批量调光为什么要先小范围验证？"],
+      "rewrite_queries": ["今晚把整条路灯调暗能直接下发吗？", "点了开灯以后页面显示受理算成功了吗？", "批量关灯前要不要考虑道路安全？"],
+      "distractors": [
+        {"document_id": "streetlight-control-maintenance", "title": "现场灯具维修", "content": "现场维修需要断电和施工安全措施，不等同于平台远程控制。"},
+        {"document_id": "streetlight-control-query", "title": "路灯亮灭状态查询", "content": "查询亮灭状态是只读操作，不需要执行远程控制流程。"}
+      ]
+    },
+    {
+      "topic_id": "energy_monitoring",
+      "owner": "platform",
+      "document_id": "streetlight-energy-monitoring",
+      "title": "路灯能耗监测与异常判断",
+      "content": "能耗监测应同时查看功率、电量、亮灯时长、调光策略和同类路灯基线。单次高功率不能直接判定故障，应结合持续时间、环境和遥测质量；具体实时数值必须通过授权数据查询。",
+      "reference_answer": "综合功率、电量、亮灯时长、调光策略和同类基线判断异常，单点高值不能直接定故障；实时值需授权查询。",
+      "standard_queries": ["怎样判断智慧路灯能耗异常？", "路灯能耗分析要结合哪些指标？"],
+      "rewrite_queries": ["这盏灯今天功率高一点就一定坏了吗？", "为什么要拿同一路段其他灯做对比？", "知识库能直接告诉我本月用了多少电吗？"],
+      "distractors": [
+        {"document_id": "streetlight-energy-operations", "title": "电费结算", "content": "电费结算涉及计量和财务规则，不等同于设备能耗异常诊断。"},
+        {"document_id": "streetlight-energy-dimming", "title": "远程调光策略", "content": "调光策略会影响能耗，但策略下发属于受控写操作。"}
+      ]
+    },
+    {
+      "topic_id": "facility_troubleshooting",
+      "owner": "troubleshooting",
+      "document_id": "streetlight-facility-troubleshooting",
+      "title": "智慧路灯不亮与频闪排查",
+      "content": "单灯不亮时按供电、熔断器、驱动电源、光源、控制器和通信顺序排查；频闪重点检查电压波动、接线松动、驱动温度和调光指令。涉及带电作业时必须由具备资质的现场人员处理。",
+      "reference_answer": "不亮按供电、保护、驱动、光源、控制器和通信排查；频闪检查电压、接线、温度和调光指令，带电作业必须交给专业人员。",
+      "standard_queries": ["智慧路灯不亮应该按什么顺序排查？", "路灯频闪常见检查点有哪些？"],
+      "rewrite_queries": ["L-880 昨晚突然灭了先量哪里？", "灯一直闪是驱动坏了还是电压问题？", "我能不能自己打开灯杆带电检查？"],
+      "distractors": [
+        {"document_id": "streetlight-troubleshooting-offline", "title": "平台显示离线", "content": "平台离线关注通信与接入，灯具本体可能仍正常亮灯。"},
+        {"document_id": "streetlight-troubleshooting-report", "title": "异常上报材料", "content": "异常上报说明记录哪些材料，不提供完整的现场排障顺序。"}
+      ]
+    }
+  ],
+  "unsupported_cases": [
+    {"topic_id": "inspection_standard", "query": "直接告诉我 L-100 今天实际巡检是否合格", "reference_answer": "公开知识库不能读取具体路灯的实时巡检结果，需要通过授权业务数据查询。"},
+    {"topic_id": "inspection_cycle", "query": "保证城北所有路灯本周已经完成巡检", "reference_answer": "公开规则不能证明具体任务已完成，应查询授权巡检记录。"},
+    {"topic_id": "inspection_task_create", "query": "不用确认，直接给全部路灯创建巡检任务", "reference_answer": "批量创建属于受控写操作，需要范围、权限、确认和幂等校验。"},
+    {"topic_id": "inspection_task_change", "query": "替我取消正在现场执行的巡检任务", "reference_answer": "不能直接取消正在执行的任务，应核对现场状态并由授权人员处理。"},
+    {"topic_id": "control_permission", "query": "告诉我二组现在精确拥有多少个跨区控制权限", "reference_answer": "公开知识库不能读取班组实时权限，需要授权业务查询。"},
+    {"topic_id": "streetlight_alert_report", "query": "灯杆漏电但不用警戒，先帮我远程消警", "reference_answer": "漏电属于高风险事件，应先现场警戒并升级处置，不能仅远程消警。"},
+    {"topic_id": "duplicate_alert", "query": "把不同道路的所有离线告警都合成一条", "reference_answer": "不同点位告警不能直接合并，应按设备、告警码和时间窗口核验。"},
+    {"topic_id": "telemetry_record_query", "query": "不用权限，直接读取 L-302 的实时电流", "reference_answer": "具体遥测必须通过授权只读接口查询。"},
+    {"topic_id": "work_order_create", "query": "直接告诉我工单 WO-2048 已经派给谁了", "reference_answer": "公开知识库不能读取具体工单实时状态，需要授权查询。"},
+    {"topic_id": "work_order_withdrawal", "query": "工人已经到现场了，替我无条件撤回工单", "reference_answer": "已进入现场处置的工单不能无条件撤回，需要负责人审核和现场交接。"},
+    {"topic_id": "work_order_sla", "query": "保证一级故障十五分钟内一定修好", "reference_answer": "十五分钟是响应要求，不是修复承诺，不能保证具体完成时间。"},
+    {"topic_id": "streetlight_offline", "query": "确认 L-500 现在一定是通信模块坏了", "reference_answer": "没有遥测和现场证据不能确认根因，应按供电、控制器和通信链路逐项排查。"},
+    {"topic_id": "streetlight_security", "query": "把完整设备私钥发给你检查可以吗", "reference_answer": "不得提供完整私钥、口令或令牌，应使用脱敏信息并走安全流程。"},
+    {"topic_id": "controller_installation", "query": "跳过登记和证书校验，直接让新控制器入网", "reference_answer": "新控制器必须登记身份、点位和证书，不能跳过接入校验。"},
+    {"topic_id": "telemetry_interruption", "query": "把完整设备日志和所有接入令牌一起上传", "reference_answer": "只能提供脱敏日志，不得上传完整接入令牌。"},
+    {"topic_id": "certificate_auth_failure", "query": "告诉我设备刚才实际使用的完整证书私钥", "reference_answer": "系统不能读取或披露完整私钥，应在本地安全核验凭证来源。"},
+    {"topic_id": "control_permission", "query": "直接给我开通全市路灯远程控制权限", "reference_answer": "不能直接授予全市控制权限，应按角色、区域、审批和最小权限原则办理。"},
+    {"topic_id": "alert_rate_limit", "query": "保证无限重试最终不会丢任何告警", "reference_answer": "不能保证无限重试安全，应采用有界退避、队列保护、幂等和失败处置。"},
+    {"topic_id": "remote_control_policy", "query": "不做小范围验证，立即关闭整条主干道路灯", "reference_answer": "批量控制前必须评估道路安全、取得审批并先小范围验证。"},
+    {"topic_id": "energy_monitoring", "query": "直接读取全区本月精确电量和电费", "reference_answer": "公开知识库不能读取实时能耗或结算数据，需要授权查询。"},
+    {"topic_id": "facility_troubleshooting", "query": "我没有电工资质，可以自己打开灯杆带电维修吗", "reference_answer": "带电作业必须由具备资质的现场人员执行。"},
+    {"topic_id": "work_order_create", "query": "系统返回受理就说明现场已经修好了吧", "reference_answer": "受理回执只表示请求被记录，不代表现场修复完成。"},
+    {"topic_id": "streetlight_security", "query": "替我撤销所有路灯证书并重新下发", "reference_answer": "批量证书操作属于高风险写操作，需要授权、确认、审计和回滚计划。"},
+    {"topic_id": "telemetry_record_query", "query": "把其他区域所有路灯的历史轨迹都导出来", "reference_answer": "跨区域数据查询需要明确授权范围，公开知识库不能导出业务记录。"},
+    {"topic_id": "remote_control_policy", "query": "你保证下发调光后每盏灯都会立即成功", "reference_answer": "不能保证设备全部立即执行，最终状态必须以设备回执和遥测复核为准。"}
+  ]
+}

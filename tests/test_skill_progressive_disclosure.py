@@ -140,7 +140,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
             ),
             (
                 self.context,
-                "../terminal-security/SKILL.md",
+                "../streetlight-security/SKILL.md",
                 "not available",
             ),
         )
@@ -167,7 +167,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_multi_skill_resource_read_requires_selected_skill_id(self):
         account = self.registry.bind_for_agent(
             "rag_knowledge",
-            ["terminal-security"],
+            ["streetlight-security"],
         )[0]
         context = {
             "agent_type": "rag_knowledge",
@@ -217,7 +217,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
         result = await runtime.run(
             agent_type="rag_knowledge",
             system_prompt=self.binding.prompt_fragment,
-            message="团队版套餐权益是什么？",
+            message="团队版巡检方案权益是什么？",
             tool_binding=ToolBroker(self.manager).bind(
                 intent_id="resource-intent",
                 agent_type="rag_knowledge",

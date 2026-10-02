@@ -18,19 +18,19 @@ class _StubAgent:
 
 def registry():
     return AgentRegistry(AgentRegistration(name, f"{name} work", _StubAgent(name), name)
-                         for name in ("general", "technical", "billing"))
+                         for name in ("general", "technical", "operations"))
 
 
-def first_analysis(query="插件报401，而且重复扣款"):
+def first_analysis(query="控制器报401，而且重复告警"):
     return {"rewrite": {"status": "not_needed", "effective_query": query,
             "references": [], "extracted_entities": {"error_code": ["401"]},
             "inherited_entities": {}, "ambiguity_candidates": {},
             "clarification_question": "", "reason_code": "self_contained"},
         "intents": [
             {"intent_id": "intent-1-facility_troubleshooting", "label": "facility_troubleshooting",
-             "supporting_text": ["插件报401"], "tree_score": 0.95},
+             "supporting_text": ["控制器报401"], "tree_score": 0.95},
             {"intent_id": "intent-2-alert_report", "label": "alert_report",
-             "supporting_text": ["重复扣款"], "tree_score": 0.96},
+             "supporting_text": ["重复告警"], "tree_score": 0.96},
         ], "scope_status": "in_scope", "reason_code": "two_requests"}
 
 
@@ -48,7 +48,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {"recipient": "technical", "content": "排查401",
                          "intent_ids": ["intent-1-facility_troubleshooting"]},
-                        {"recipient": "billing", "content": "核查重复扣款",
+                        {"recipient": "operations", "content": "核查重复告警",
                          "intent_ids": ["intent-2-alert_report"]}],
                     "reason_code": "dispatch"}
             return {"action": "FINAL", "message": "两个问题均已处理。", "reason_code": "done"}
@@ -59,7 +59,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     for message in messages]
 
         result = await SupervisorLead(self.context(), agent_registry=registry(),
-            decision_provider=decide).run("插件报401，而且重复扣款", dispatch)
+            decision_provider=decide).run("控制器报401，而且重复告警", dispatch)
         self.assertEqual(SupervisorAction.FINAL, result.action)
         self.assertEqual(2, len(result.analysis.intents))
         self.assertIsNone(payloads[0]["frozen_analysis"])
@@ -67,15 +67,15 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], payloads[1]["few_shot_examples"])
 
     async def test_ambiguous_analysis_must_ask_user_without_dispatch(self):
-        query = "这笔订单怎么还没退"
+        query = "这笔工单怎么还没退"
         def decide(_payload):
             return {"action": "ASK_USER", "analysis": {
                 "rewrite": {"status": "ambiguous", "effective_query": query, "references": [],
                     "extracted_entities": {}, "inherited_entities": {},
                     "ambiguity_candidates": {"work_order_id": ["TP-1", "TP-2"]},
-                    "clarification_question": "请问是哪一笔订单？", "reason_code": "multiple"},
+                    "clarification_question": "请问是哪一笔工单？", "reason_code": "multiple"},
                 "intents": [], "scope_status": "uncertain", "reason_code": "ambiguous"},
-                "message": "请问是哪一笔订单？", "reason_code": "ask_order"}
+                "message": "请问是哪一笔工单？", "reason_code": "ask_order"}
 
         async def dispatch(_messages, _analysis):
             self.fail("ambiguous request must not dispatch")
@@ -89,7 +89,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
         def decide(_payload):
             return {"action": "SEND_MESSAGES", "analysis": first_analysis(),
                 "barrier": "all_settled",
-                "messages": [{"recipient": "billing", "content": "执行",
+                "messages": [{"recipient": "operations", "content": "执行",
                               "intent_ids": ["unknown"]}], "reason_code": "bad"}
         dispatched = False
         async def dispatch(_messages, _analysis):
@@ -97,12 +97,12 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
             dispatched = True
             return []
         result = await SupervisorLead(self.context(), agent_registry=registry(),
-            decision_provider=decide).run("插件报401，而且重复扣款", dispatch)
+            decision_provider=decide).run("控制器报401，而且重复告警", dispatch)
         self.assertEqual(SupervisorAction.HANDOFF, result.action)
         self.assertFalse(dispatched)
 
     async def test_ordered_request_runs_one_all_success_stage_at_a_time(self):
-        query = "先排查插件报401，再核查重复扣款"
+        query = "先排查控制器报401，再核查重复告警"
         payloads = []
 
         def decide(payload):
@@ -114,7 +114,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_success",
                     "messages": [{
                         "recipient": "technical",
-                        "content": "先排查插件报401",
+                        "content": "先排查控制器报401",
                         "intent_ids": ["intent-1-facility_troubleshooting"],
                     }],
                     "reason_code": "technical_prerequisite",
@@ -124,11 +124,11 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                     "action": "SEND_MESSAGES",
                     "barrier": "all_success",
                     "messages": [{
-                        "recipient": "billing",
-                        "content": "根据前序结果核查重复扣款",
+                        "recipient": "operations",
+                        "content": "根据前序结果核查重复告警",
                         "intent_ids": ["intent-2-alert_report"],
                     }],
-                    "reason_code": "billing_after_technical",
+                    "reason_code": "operations_after_technical",
                 }
             return {
                 "action": "FINAL",
@@ -150,7 +150,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
         ).run(query, dispatch)
 
         self.assertEqual(SupervisorAction.FINAL, result.action)
-        self.assertEqual([["technical"], ["billing"]], dispatched)
+        self.assertEqual([["technical"], ["operations"]], dispatched)
         self.assertEqual(2, len(result.stages))
         self.assertTrue(all(stage.barrier_satisfied for stage in result.stages))
         serialized = result.to_dict()
@@ -162,7 +162,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(payloads[1]["observations"]))
 
     async def test_all_success_failure_blocks_the_dependent_stage(self):
-        query = "先排查插件报401，再核查重复扣款"
+        query = "先排查控制器报401，再核查重复告警"
         decision_count = 0
 
         def decide(_payload):
@@ -174,7 +174,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
                 "barrier": "all_success",
                 "messages": [{
                     "recipient": "technical",
-                    "content": "先排查插件报401",
+                    "content": "先排查控制器报401",
                     "intent_ids": ["intent-1-facility_troubleshooting"],
                 }],
                 "reason_code": "technical_prerequisite",
@@ -232,7 +232,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
 
         result = await SupervisorLead(
             self.context(), agent_registry=registry(), decision_provider=decide
-        ).run("插件报401，而且重复扣款", dispatch)
+        ).run("控制器报401，而且重复告警", dispatch)
 
         self.assertEqual(SupervisorAction.FINAL, result.action)
         self.assertEqual(2, decisions)
@@ -260,7 +260,7 @@ class SupervisorLeadTests(unittest.IsolatedAsyncioTestCase):
 
         result = await SupervisorLead(
             self.context(), agent_registry=registry(), decision_provider=decide
-        ).run("插件报401，而且重复扣款", dispatch)
+        ).run("控制器报401，而且重复告警", dispatch)
 
         self.assertEqual(SupervisorAction.HANDOFF, result.action)
         self.assertFalse(dispatched)

@@ -31,7 +31,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         state = merge_case_state(
             state,
             mode="continue",
-            message="查询退款进度",
+            message="查询工单撤回进度",
             intents=["work_order_withdrawal"],
             reason_code="supervisor_final",
         )
@@ -41,7 +41,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         state = merge_case_state(
             OperationsCase.new("u1", "c1"),
             mode="replace",
-            message="订单12345重复扣费，我要申请退款",
+            message="工单12345重复告警，我要申请工单撤回",
             intents=["work_order_withdrawal", "alert_report"],
             explicit_entities={"work_order_id": ["12345"]},
         )
@@ -57,7 +57,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         state = merge_case_state(
             OperationsCase.new("u1", "c1"),
             mode="replace",
-            message="退款处理到哪了？",
+            message="工单撤回处理到哪了？",
             intents=["work_order_withdrawal"],
         )
 
@@ -68,7 +68,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         state = merge_case_state(
             OperationsCase.new("u1", "c1"),
             mode="replace",
-            message="支付截图我已经提交了，现在正在审核中",
+            message="告警截图我已经提交了，现在正在审核中",
             intents=["work_order_withdrawal"],
             explicit_entities={"work_order_id": ["12345"]},
         )
@@ -87,7 +87,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         updated = merge_case_state(
             state,
             mode="continue",
-            message="这个退款已经处理好了",
+            message="这个工单撤回已经处理好了",
             intents=["work_order_withdrawal"],
         )
 
@@ -98,18 +98,18 @@ class ConversationCaseStateTests(unittest.TestCase):
         state = merge_case_state(
             original,
             mode="replace",
-            message="查询退款进度",
+            message="查询工单撤回进度",
             intents=["work_order_withdrawal"],
             explicit_entities={"work_order_id": ["12345"]},
             verified_updates=[CaseUpdatePayload(
                 case_id=original.case_id,
-                source_tool="refund_status",
+                source_tool="withdrawal_status",
                 stage="processing",
-                submitted_materials=["支付截图"],
+                submitted_materials=["告警截图"],
             )],
         )
 
-        self.assertEqual(["支付截图"], state.submitted_materials)
+        self.assertEqual(["告警截图"], state.submitted_materials)
         self.assertEqual("processing", state.stage)
 
     def test_verified_tool_update_for_another_case_is_ignored(self):
@@ -123,11 +123,11 @@ class ConversationCaseStateTests(unittest.TestCase):
         updated = merge_case_state(
             state,
             mode="continue",
-            message="查询退款进度",
+            message="查询工单撤回进度",
             intents=["work_order_withdrawal"],
             verified_updates=[CaseUpdatePayload(
                 case_id="case-2",
-                source_tool="refund_status",
+                source_tool="withdrawal_status",
                 stage="resolved",
             )],
         )
@@ -189,7 +189,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         updated = merge_case_state(
             state,
             mode=mode,
-            message="插件报 500 错误",
+            message="控制器报 500 错误",
             intents=["facility_troubleshooting"],
             explicit_entities={"error_code": ["500"]},
         )
@@ -239,7 +239,7 @@ class ConversationCaseStateTests(unittest.TestCase):
         updated = merge_case_state(
             state,
             mode=mode,
-            message="查询订单67890退款",
+            message="查询工单67890工单撤回",
             intents=["work_order_withdrawal"],
             explicit_entities={"work_order_id": ["67890"]},
         )
@@ -285,7 +285,7 @@ class ConversationCaseStateTests(unittest.TestCase):
             "stage": "collecting_info",
             "last_intents": ["work_order_withdrawal"],
             "pending_slots": ["work_order_id"],
-            "unresolved_question": "请补充 UrbanOps 订单号",
+            "unresolved_question": "请补充 UrbanOps 工单号",
         }, user_id="u1", conv_id="c1")
         mode = decide_case_update(state, request_control_action="handoff")
 

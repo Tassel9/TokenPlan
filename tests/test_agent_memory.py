@@ -25,11 +25,11 @@ class AgentMemoryPolicyTests(unittest.TestCase):
     def test_related_memory_is_explicit_and_entity_projection_is_narrow(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
         technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
-        billing = self.invocation("billing-1", "alert_report", "billing")
+        operations = self.invocation("operations-1", "alert_report", "operations")
         store.write(technical, self.result(technical, "401 caused by plugin configuration"),
                     request_id="req-1", case_id="case-1")
 
-        view = store.context_for(billing, request_id="req-1", case_id="case-1")
+        view = store.context_for(operations, request_id="req-1", case_id="case-1")
         payload = view.to_runtime_payload()
         self.assertEqual(
             {"facility_id", "alert_code"},
@@ -49,23 +49,23 @@ class AgentMemoryPolicyTests(unittest.TestCase):
 
     def test_related_projection_filters_other_intents_owned_by_source_agent(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
-        invoice = self.invocation("invoice-1", "work_order_handling", "billing")
-        refund = self.invocation("refund-1", "work_order_withdrawal", "billing")
+        work_order = self.invocation("work_order-1", "work_order_handling", "operations")
+        withdrawal = self.invocation("withdrawal-1", "work_order_withdrawal", "operations")
         complaint = self.invocation("complaint-1", "operations_complaint", "general")
-        store.write(invoice, self.result(invoice, "unrelated invoice"),
+        store.write(work_order, self.result(work_order, "unrelated work_order"),
                     request_id="req-1", case_id="case-1")
-        store.write(refund, self.result(refund, "refund finding"),
+        store.write(withdrawal, self.result(withdrawal, "withdrawal finding"),
                     request_id="req-2", case_id="case-1")
         view = store.context_for(complaint, request_id="req-3", case_id="case-1")
-        self.assertEqual(["refund-1"], [item["task_id"] for item in view.related_memory])
+        self.assertEqual(["withdrawal-1"], [item["task_id"] for item in view.related_memory])
 
     def test_case_isolation_wins_over_business_relation(self):
         store = AgentMemoryStore(user_id="u", conv_id="c")
         technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
-        billing = self.invocation("billing-1", "alert_report", "billing")
+        operations = self.invocation("operations-1", "alert_report", "operations")
         store.write(technical, self.result(technical, "other case"),
                     request_id="req-1", case_id="case-a")
-        view = store.context_for(billing, request_id="req-2", case_id="case-b")
+        view = store.context_for(operations, request_id="req-2", case_id="case-b")
         self.assertEqual([], list(view.related_memory))
 
     def test_store_reads_relationship_memory_across_request_instances(self):
@@ -74,11 +74,11 @@ class AgentMemoryPolicyTests(unittest.TestCase):
             try:
                 first = AgentMemoryStore(backend=backend, user_id="u", conv_id="c")
                 technical = self.invocation("technical-1", "facility_troubleshooting", "technical")
-                billing = self.invocation("billing-1", "alert_report", "billing")
+                operations = self.invocation("operations-1", "alert_report", "operations")
                 first.write(technical, self.result(technical, "persisted technical result"),
                             request_id="req-1", case_id="case-1")
                 second = AgentMemoryStore(backend=backend, user_id="u", conv_id="c")
-                view = second.context_for(billing, request_id="req-2", case_id="case-1")
+                view = second.context_for(operations, request_id="req-2", case_id="case-1")
                 self.assertEqual(["persisted technical result"],
                                  [item["summary"] for item in view.related_memory])
             finally:

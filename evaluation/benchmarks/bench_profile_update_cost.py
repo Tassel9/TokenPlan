@@ -43,8 +43,8 @@ from memory.conversation_memory import MemoryManager  # noqa: E402
 MESSAGES = [
     ("u-bench", "以后回答我都希望简洁一点，别长篇大论。", "命中 style.response_length"),
     ("u-bench", "我平时用 macOS，开发用 PyCharm。", "命中 environment.*"),
-    ("u-bench", "账单我希望改成按年付，以后就按年付吧。", "命中 preference.billing_cycle"),
-    ("u-bench", "我这张订单的退款到底什么时候到账？", "无长期事实（应落空）"),
+    ("u-bench", "巡检班次我希望改成夜班，以后就选夜班吧。", "命中 preference.inspection_shift"),
+    ("u-bench", "我这张工单的工单撤回到底什么时候到账？", "无长期事实（应落空）"),
     ("u-bench", "回答简洁一点，不要长篇大论。", "与第 1 条重复（验幂等）"),
     ("u-bench", "我的验证码是 8848，帮我记一下。", "敏感信息（应被拒）"),
 ]
@@ -57,7 +57,7 @@ async def main() -> int:
         return 1
     model = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash").strip()
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-profile-bench-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-profile-bench-"))
     embedding = BGEEmbeddingProvider(
         model_name="BAAI/bge-small-zh-v1.5",
         revision=None,

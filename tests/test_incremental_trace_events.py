@@ -158,8 +158,8 @@ class IncrementalTraceHookTests(unittest.IsolatedAsyncioTestCase):
                 intent_id="intent-1",
                 intent="inspection_standard_query",
                 agent="general",
-                query="套餐区别",
-                focus="解释套餐区别",
+                query="巡检方案区别",
+                focus="解释巡检方案区别",
             )],
         )
 

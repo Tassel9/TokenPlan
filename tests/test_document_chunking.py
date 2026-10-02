@@ -11,16 +11,16 @@ from mcp.lexical_index import LexicalRecord, SQLiteFTS5Index
 
 class StructureAwareParserTests(unittest.TestCase):
     def test_markdown_preserves_headings_lists_tables_and_code(self):
-        payload = """# 套餐
-个人套餐说明。
+        payload = """# 巡检方案
+个人巡检方案说明。
 
-- 每月额度
-- 团队席位
+- 每月能耗阈值
+- 团队巡检权限
 
 ## 计费
 | 项目 | 说明 |
 |---|---|
-| 额度 | 控制台为准 |
+| 能耗阈值 | 控制台为准 |
 
 ```text
 401 AUTH_EXPIRED
@@ -34,14 +34,14 @@ class StructureAwareParserTests(unittest.TestCase):
             ["heading", "paragraph", "list", "heading", "table", "code"],
             types,
         )
-        self.assertEqual("套餐 > 计费", document["blocks"][4]["heading_path"])
+        self.assertEqual("巡检方案 > 计费", document["blocks"][4]["heading_path"])
 
     def test_docx_preserves_heading_and_table_blocks(self):
         xml = """<?xml version="1.0" encoding="UTF-8"?>
         <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
           <w:body>
             <w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>故障排查</w:t></w:r></w:p>
-            <w:p><w:r><w:t>先记录插件版本。</w:t></w:r></w:p>
+            <w:p><w:r><w:t>先记录控制器版本。</w:t></w:r></w:p>
             <w:tbl>
               <w:tr><w:tc><w:p><w:r><w:t>错误码</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>动作</w:t></w:r></w:p></w:tc></w:tr>
               <w:tr><w:tc><w:p><w:r><w:t>401</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>重新登录</w:t></w:r></w:p></w:tc></w:tr>
@@ -62,9 +62,9 @@ class StructureAwareParserTests(unittest.TestCase):
 
     def test_json_upload_preserves_version_governance_metadata(self):
         payload = json.dumps([{
-            "title": "团队套餐价格通知",
-            "content": "团队套餐月费为 99 元。",
-            "knowledge_key": "subscription.plan.team_price",
+            "title": "团队巡检方案价格通知",
+            "content": "团队巡检方案月费为 99 元。",
+            "knowledge_key": "streetlight.plan.team_price",
             "fact_value": "99-cny",
             "knowledge_version": "2026-q3",
             "authority": "official",
@@ -75,10 +75,10 @@ class StructureAwareParserTests(unittest.TestCase):
             "audience": ["individual", "team"],
         }], ensure_ascii=False).encode("utf-8")
 
-        document = parse_uploaded_document("subscription-rules.json", payload)[0]
+        document = parse_uploaded_document("streetlight-rules.json", payload)[0]
 
         self.assertEqual(
-            "subscription.plan.team_price", document["knowledge_key"]
+            "streetlight.plan.team_price", document["knowledge_key"]
         )
         self.assertEqual("99-cny", document["fact_value"])
         self.assertEqual(
@@ -95,27 +95,27 @@ class TwoStageChunkerTests(unittest.TestCase):
         document = {
             "blocks": [
                 {
-                    "text": "套餐说明",
+                    "text": "巡检方案说明",
                     "block_type": "heading",
-                    "heading_path": "套餐说明",
+                    "heading_path": "巡检方案说明",
                     "block_index": 0,
                 },
                 {
-                    "text": "套餐权益说明。" * 35,
+                    "text": "巡检方案权益说明。" * 35,
                     "block_type": "paragraph",
-                    "heading_path": "套餐说明",
+                    "heading_path": "巡检方案说明",
                     "block_index": 1,
                 },
                 {
-                    "text": "退款说明",
+                    "text": "工单撤回说明",
                     "block_type": "heading",
-                    "heading_path": "退款说明",
+                    "heading_path": "工单撤回说明",
                     "block_index": 2,
                 },
                 {
-                    "text": "退款资格以渠道规则为准。" * 25,
+                    "text": "工单撤回资格以渠道规则为准。" * 25,
                     "block_type": "paragraph",
-                    "heading_path": "退款说明",
+                    "heading_path": "工单撤回说明",
                     "block_index": 3,
                 },
             ]
@@ -123,10 +123,10 @@ class TwoStageChunkerTests(unittest.TestCase):
 
         chunks = self.chunker.split(document)
 
-        self.assertTrue(any(chunk.heading_path == "套餐说明" for chunk in chunks))
-        self.assertTrue(any(chunk.heading_path == "退款说明" for chunk in chunks))
+        self.assertTrue(any(chunk.heading_path == "巡检方案说明" for chunk in chunks))
+        self.assertTrue(any(chunk.heading_path == "工单撤回说明" for chunk in chunks))
         self.assertFalse(any(
-            "套餐权益" in chunk.content and "退款资格" in chunk.content
+            "巡检方案权益" in chunk.content and "工单撤回资格" in chunk.content
             for chunk in chunks
         ))
 
@@ -152,7 +152,7 @@ class TwoStageChunkerTests(unittest.TestCase):
         chunks = chunker.split({"blocks": [{
             "text": "\n".join(rows),
             "block_type": "table",
-            "heading_path": "套餐",
+            "heading_path": "巡检方案",
             "block_index": 0,
         }]})
 
@@ -226,11 +226,11 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
         self.kb._vector_candidate_multiplier = 4
         self.kb._vector_candidate_min = 20
         self.document = {
-            "title": "额度说明",
-            "content": "额度异常时保留模型名称和页面截图。",
+            "title": "能耗阈值说明",
+            "content": "能耗阈值异常时保留模型名称和页面截图。",
             "source_uri": "support.md",
             "parser_version": "coding-plan-structure-v2",
-            "knowledge_key": "coding_plan.quota_troubleshooting",
+            "knowledge_key": "urbanops_streetlight.quota_troubleshooting",
             "fact_value": "collect-diagnostics",
             "knowledge_version": "2026.08",
             "authority": "official",
@@ -238,9 +238,9 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
             "reviewed_at": "2026-08-20T00:00:00Z",
             "freshness_ttl_days": 90,
             "blocks": [{
-                "text": "额度异常时保留模型名称和页面截图。",
+                "text": "能耗阈值异常时保留模型名称和页面截图。",
                 "block_type": "paragraph",
-                "heading_path": "额度与用量",
+                "heading_path": "能耗阈值与用量",
                 "page_number": 2,
                 "block_index": 0,
                 "source_start": 0,
@@ -263,11 +263,11 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
         self.assertEqual(first_ids, second_ids)
         self.assertEqual(2, len(self.kb._collection.delete_calls))
         self.assertEqual(2, metadata["page_start"])
-        self.assertEqual("额度与用量", metadata["heading_path"])
+        self.assertEqual("能耗阈值与用量", metadata["heading_path"])
         self.assertEqual("urbanops-structure-v1", metadata["splitter_version"])
         self.assertTrue(metadata["content_sha256"])
         self.assertEqual(
-            "coding_plan.quota_troubleshooting", metadata["knowledge_key"]
+            "urbanops_streetlight.quota_troubleshooting", metadata["knowledge_key"]
         )
         self.assertEqual("2026.08", metadata["knowledge_version"])
         self.assertEqual("official", metadata["authority"])
@@ -296,7 +296,7 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
         self.assertEqual(chunk_id, result[0]["chunk_id"])
         self.assertEqual(2, result[0]["page_start"])
         self.assertEqual(
-            "coding_plan.quota_troubleshooting", result[0]["knowledge_key"]
+            "urbanops_streetlight.quota_troubleshooting", result[0]["knowledge_key"]
         )
 
     def test_chinese_fts_can_correct_misleading_vector_rank(self):
@@ -306,7 +306,7 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
                     "ids": [["login", "quota"]],
                     "documents": [[
                         "登录异常时检查系统时间。",
-                        "额度异常时保留模型名称、时间和页面截图。",
+                        "能耗阈值异常时保留模型名称、时间和页面截图。",
                     ]],
                     "metadatas": [[
                         {
@@ -318,7 +318,7 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
                         {
                             "document_id": "d2",
                             "chunk_id": "quota",
-                            "heading_path": "额度异常",
+                            "heading_path": "能耗阈值异常",
                             "chunk_index": 0,
                         },
                     ]],
@@ -340,16 +340,16 @@ class KnowledgeBaseHybridTests(unittest.TestCase):
             LexicalRecord(
                 "quota",
                 "d2",
-                "额度异常时保留模型名称、时间和页面截图。",
+                "能耗阈值异常时保留模型名称、时间和页面截图。",
                 {
                     "document_id": "d2",
                     "chunk_id": "quota",
-                    "heading_path": "额度异常",
+                    "heading_path": "能耗阈值异常",
                 },
             ),
         ])
 
-        result = self.kb.search("额度异常需要保留什么截图", top_k=2)
+        result = self.kb.search("能耗阈值异常需要保留什么截图", top_k=2)
 
         self.assertEqual("quota", result[0]["chunk_id"])
         self.assertEqual("hybrid", result[0]["retrieval_mode"])
@@ -366,8 +366,8 @@ class SQLiteLexicalIndexTests(unittest.TestCase):
             record = LexicalRecord(
                 "quota",
                 "d1",
-                "额度异常需要保留页面截图。",
-                {"title": "额度说明", "heading_path": "额度异常"},
+                "能耗阈值异常需要保留页面截图。",
+                {"title": "能耗阈值说明", "heading_path": "能耗阈值异常"},
             )
             index.replace_document("d1", [record])
             index.replace_document("d1", [record])
@@ -378,7 +378,7 @@ class SQLiteLexicalIndexTests(unittest.TestCase):
                 [
                     item.chunk_id
                     for item in index.search(
-                        "额度异常截图",
+                        "能耗阈值异常截图",
                         document_ids=["d1"],
                         limit=5,
                         heading_weight=0.5,

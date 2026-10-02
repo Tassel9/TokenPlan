@@ -13,7 +13,7 @@ from runtime.agent_health import AgentHealthTracker
 from runtime.intent_execution import IntentResult
 
 
-QUERY = "套餐和免费试用有什么区别"
+QUERY = "巡检方案和免费试用有什么区别"
 
 
 def _retrieval():
@@ -170,7 +170,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "查询套餐差异并排查登录问题",
+                            "content": "查询巡检方案差异并排查登录问题",
                             "intent_ids": [
                                 "intent-1-inspection_standard_query",
                                 "intent-2-terminal_access_issue",
@@ -203,7 +203,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_non_knowledge_intent_keeps_supervisor_planning(self):
         plan_calls = []
-        query = "退款怎么办理"
+        query = "工单撤回怎么办理"
 
         def plan(payload):
             plan_calls.append(payload)
@@ -214,7 +214,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "退款办理说明",
+                            "content": "工单撤回办理说明",
                             "intent_ids": ["intent-1-work_order_withdrawal"],
                         },
                     ],
@@ -222,7 +222,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                 }
             return {
                 "action": "FINAL",
-                "message": "退款问题已答复。",
+                "message": "工单撤回问题已答复。",
                 "reason_code": "done",
             }
 
@@ -287,7 +287,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "查询套餐差异",
+                            "content": "查询巡检方案差异",
                             "intent_ids": ["intent-1-inspection_standard_query"],
                         },
                     ],
@@ -295,7 +295,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                 }
             return {
                 "action": "FINAL",
-                "message": "套餐问题已答复。",
+                "message": "巡检方案问题已答复。",
                 "reason_code": "done",
             }
 

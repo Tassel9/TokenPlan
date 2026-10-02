@@ -499,7 +499,7 @@ class AgenticRagRagasJudgeTests(unittest.TestCase):
 
     def test_judge_accepts_uniform_final_topk_pipeline_schema(self) -> None:
         payload = {
-            "schema_version": "tokenplan-agentic-rag-ragas-pipeline-report-v1",
+            "schema_version": "urbanops-agentic-rag-ragas-pipeline-report-v1",
             "production_evidence": False,
             "rows": {"fixed_rag": []},
         }

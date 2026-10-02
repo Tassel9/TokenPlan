@@ -19,9 +19,7 @@ venv/
 data/
 logs/
 evaluation/reports/*
-!evaluation/reports/supervisor_intent_latest_manifest.json
-!evaluation/reports/supervisor_intent_final_live_top6.json
-!evaluation/reports/supervisor_intent_jev_ab_manifest.json
+!evaluation/reports/README.md
 
 # IDE
 .idea/
@@ -46,8 +44,10 @@ build-image*.sh
 *.bak
 docker-compose(1).yml
 
-# 旧品牌截图（本地保留，不跟踪）
-docs/assets/tokenplan-*.png
+# 本地 README 截图（不跟踪）
+docs/assets/*-agent-result.png
+docs/assets/*-multi-turn.png
+docs/assets/*-workbench.png
 docs/assets/urbanops-*.png
 
 # 本地工具临时目录

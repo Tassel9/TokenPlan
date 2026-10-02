@@ -174,7 +174,7 @@ class LiveEvalScenarioTests(unittest.TestCase):
 
     def test_live_eval_judge_uses_urbanops_identity(self):
         self.assertIn("UrbanOps", URBANOPS_JUDGE_SYSTEM)
-        self.assertNotIn("TokenPlan", URBANOPS_JUDGE_SYSTEM)
+        self.assertIn("智慧路灯", URBANOPS_JUDGE_SYSTEM)
 
 
 class LiveEvalAssertionTests(unittest.TestCase):

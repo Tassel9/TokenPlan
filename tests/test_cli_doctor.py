@@ -112,7 +112,7 @@ class DoctorCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             catalog = Path(tmp) / "catalog"
             catalog.mkdir()
-            (catalog / "billing.yaml").write_text("id: billing\n", encoding="utf-8")
+            (catalog / "operations.yaml").write_text("id: operations\n", encoding="utf-8")
             trace_dir = Path(tmp) / "data"
             env = dict(
                 BASE_ENV,

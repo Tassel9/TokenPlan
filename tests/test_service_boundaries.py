@@ -37,7 +37,7 @@ class RuntimeToolBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "refund"},
+                    "arguments": {"query": "withdrawal"},
                     "reason_code": "need_evidence",
                 })
             return json.dumps({
@@ -56,7 +56,7 @@ class RuntimeToolBoundaryTests(unittest.IsolatedAsyncioTestCase):
         result = await runtime.run(
             agent_type="general",
             system_prompt="test",
-            message="refund",
+            message="withdrawal",
             tool_binding=ToolBinding(
                 binding_id="tb-service-boundary",
                 intent_id="boundary-intent",
@@ -166,14 +166,14 @@ class KnowledgeServiceBoundaryTests(unittest.IsolatedAsyncioTestCase):
             reranker_config=RerankerConfig(backend="disabled"),
         )
         try:
-            first = await service.search_with_rewrite("refund", top_k=2)
-            second = await service.search_with_rewrite("refund", top_k=2)
+            first = await service.search_with_rewrite("withdrawal", top_k=2)
+            second = await service.search_with_rewrite("withdrawal", top_k=2)
             self.assertEqual("fast_path_rrf", first.metadata["retrieval_strategy"])
             self.assertEqual("pipeline_cache", second.metadata["retrieval_strategy"])
             self.assertEqual(1, kb.search_calls)
 
             await service.add_documents_async([{"content": "new"}])
-            third = await service.search_with_rewrite("refund", top_k=2)
+            third = await service.search_with_rewrite("withdrawal", top_k=2)
             self.assertEqual("fast_path_rrf", third.metadata["retrieval_strategy"])
             self.assertEqual(2, kb.search_calls)
         finally:

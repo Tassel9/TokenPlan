@@ -1,4 +1,4 @@
-"""Run comparable TokenPlan RAG pipelines and persist RAGAS-ready samples.
+"""Run comparable UrbanOps smart-streetlight RAG pipelines and persist RAGAS-ready samples.
 
 The evaluator holds the corpus, ``top_k`` and answer prompt constant.  Only the
 retrieval policy changes:
@@ -66,20 +66,20 @@ from skills.registry import SkillRegistry
 
 
 DEFAULT_FIXTURE = (
-    _ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
+    _ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 )
 DEFAULT_MANIFEST = (
     _ROOT
     / "evaluation"
     / "fixtures"
-    / "tokenplan_agentic_rag_ragas_latest_manifest.json"
+    / "urbanops_agentic_rag_ragas_latest_manifest.json"
 )
 DEFAULT_REPORT = (
     _ROOT / "evaluation" / "reports" / "agentic_rag_ragas_pipeline_report.json"
 )
-DATASET_SCHEMA = "tokenplan-agentic-rag-ragas-dataset-v1"
-MANIFEST_SCHEMA = "tokenplan-agentic-rag-ragas-manifest-v1"
-REPORT_SCHEMA = "tokenplan-agentic-rag-ragas-pipeline-report-v1"
+DATASET_SCHEMA = "urbanops-agentic-rag-ragas-dataset-v1"
+MANIFEST_SCHEMA = "urbanops-agentic-rag-ragas-manifest-v1"
+REPORT_SCHEMA = "urbanops-agentic-rag-ragas-pipeline-report-v1"
 ARMS = ("fixed_rag", "fixed_rewrite_rag", "agentic_rag", "rag_agent")
 
 
@@ -107,9 +107,9 @@ def load_dataset(path: pathlib.Path = DEFAULT_FIXTURE) -> Dict[str, Any]:
     metadata = payload.get("metadata")
     if not isinstance(metadata, dict) or metadata.get("production_evidence") is not False:
         raise AgenticRagPipelineError("dataset must declare production_evidence=false")
-    if metadata.get("business_domain") != "token_plan_subscription":
+    if metadata.get("business_domain") != "urbanops_streetlight_operations":
         raise AgenticRagPipelineError(
-            "dataset business_domain must be token_plan_subscription"
+            "dataset business_domain must be urbanops_streetlight_operations"
         )
     if payload.get("metadata_sha256") != _canonical_sha256(metadata):
         raise AgenticRagPipelineError("dataset metadata sha256 mismatch")
@@ -144,7 +144,7 @@ def load_manifest(path: pathlib.Path = DEFAULT_MANIFEST) -> Dict[str, Any]:
         raise AgenticRagPipelineError(
             "dataset manifest must declare production_evidence=false"
         )
-    if payload.get("business_domain") != "token_plan_subscription":
+    if payload.get("business_domain") != "urbanops_streetlight_operations":
         raise AgenticRagPipelineError("dataset manifest has the wrong business domain")
     return payload
 
@@ -273,7 +273,7 @@ async def _answer(
         f"[证据 {index}] {context}"
         for index, context in enumerate(contexts, start=1)
     ) or "（没有检索到可用证据）"
-    prompt = f"""你是 TokenPlan 订阅服务助手。请只依据给定证据回答用户问题。
+    prompt = f"""你是 UrbanOps 智慧路灯运维助手。请只依据给定证据回答用户问题。
 
 规则：
 1. 不得补充证据中没有的制度、时间、金额、入口或个人状态。
@@ -424,7 +424,7 @@ async def _run_arm(
                     run_id=run_id,
                     agent_type="rag_knowledge",
                     system_prompt=(
-                        "你是 TokenPlan 订阅服务子 Agent。套餐、账单、账户和技术规则"
+                        "你是 UrbanOps 智慧路灯运维子 Agent。路灯巡检、告警、工单和终端安全规则"
                         "必须先检索知识库，并只依据工具证据回答。若当前 Observation 没有覆盖"
                         "用户问题，生成不同且更具体的检索目标继续搜索。"
                     ),
@@ -892,7 +892,7 @@ async def evaluate(
 
     load_dotenv(_ROOT / ".env")
     config = load_deepseek_config()
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-agentic-ragas-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-agentic-ragas-"))
     knowledge_base: Optional[KnowledgeBase] = None
     services: Dict[str, KnowledgeSearchService] = {}
     model_client: Optional[AsyncAnthropic] = None
@@ -1043,7 +1043,7 @@ async def evaluate(
             registry.register(Tool(
                 name="knowledge_search",
                 description=(
-                    "检索公开 TokenPlan 订阅服务知识；每次调用只执行当前 query 的一次"
+                    "检索公开 UrbanOps 智慧路灯运维知识；每次调用只执行当前 query 的一次"
                     "混合检索。"
                 ),
                 handler=recorded_search,
@@ -1097,7 +1097,7 @@ async def evaluate(
             rag_registry.register(Tool(
                 name="knowledge_search",
                 description=(
-                    "检索公开 TokenPlan 订阅服务知识；每次调用只执行当前 query 的一次"
+                    "检索公开 UrbanOps 智慧路灯运维知识；每次调用只执行当前 query 的一次"
                     "混合检索。"
                 ),
                 handler=recorded_rag_search,
@@ -1110,7 +1110,7 @@ async def evaluate(
                     "required": ["query"],
                 },
                 side_effect="read",
-                allowed_agents=["rag_knowledge", "general", "technical", "billing"],
+                allowed_agents=["rag_knowledge", "business_data_query", "business_operation"],
                 capabilities=[KNOWLEDGE_RETRIEVE],
                 evidence_type="knowledge_retrieval",
                 max_retries=1,
@@ -1215,7 +1215,7 @@ async def evaluate(
             "status": "completed",
             "production_evidence": False,
             "boundary": (
-                "Curated synthetic TokenPlan subscription evaluation. It compares the "
+                "Curated synthetic UrbanOps streetlight operations evaluation. It compares the "
                 "fixed retrieval baselines with the production ReAct worker on "
                 "the same corpus; it is not production traffic or an independently "
                 "collected user benchmark."

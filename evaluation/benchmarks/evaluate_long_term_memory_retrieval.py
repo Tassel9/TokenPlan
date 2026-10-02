@@ -112,7 +112,7 @@ async def main() -> int:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     cases = list(fixture.get("cases") or [])
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-retrieval-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-retrieval-"))
     manager = _build_manager(temp_root)
     default_threshold = manager.FACT_MAX_DISTANCE
 

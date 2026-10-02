@@ -98,12 +98,12 @@ ARM_DEFINITIONS: Dict[str, Dict[str, str]] = {
 
 
 SINGLE_AGENT_BASE_PROMPT = (
-    "你是 TokenPlan 通用客服执行单元，由单一 Agent 直接负责套餐权益、模型与 Token "
-    "额度规则、账号说明、账单购买/退款政策与技术支持排障的全部咨询。"
-    "你可以检索知识库回答公开规则，但当前没有真实订阅、额度、工作区、支付或退款后台。"
-    "涉及具体订阅状态、剩余额度、工作区配置、账号修改或实际写操作（退款、开票、改套餐）"
+    "你是 UrbanOps 通用智慧路灯运维执行单元，由单一 Agent 直接负责巡检规范、路灯状态、"
+    "告警处置、终端安全、维修工单与故障排查。"
+    "你可以检索知识库回答公开规则，但必须通过结构化查询或业务工具获取实时状态并办理写操作。"
+    "涉及具体巡检任务状态、路灯遥测、区域权限、终端绑定或实际写操作（告警登记、工单撤回、巡检计划变更）"
     "时必须HANDOFF，不能猜测或声称已查询、已操作。"
-    "与 TokenPlan / Coding Plan 订阅服务无关的问题不属于服务范围：礼貌说明边界并给出"
+    "与 UrbanOps 智慧路灯市政运维无关的问题不属于服务范围：礼貌说明边界并给出"
     "下一步（换一个与本产品相关的问题或转人工），不要编造答案。"
     "先检索知识库获得依据；若证据不足可以补搜或向用户澄清（ASK_USER）。"
     "只返回结构化动作，不输出内部推理。"
@@ -278,7 +278,7 @@ class SingleAgentOrchestrator:
                 response=(
                     "已记录您的人工服务请求，请提供问题摘要、发生时间和已尝试步骤，方便人工客服接手。"
                     if is_handoff
-                    else "你好，我是 TokenPlan 助手。你可以直接告诉我套餐、账号、账单或技术问题。"
+                    else "你好，我是 UrbanOps 助手。你可以直接告诉我巡检方案、路灯终端、巡检记录或技术问题。"
                 ),
                 status=(
                     AgentRunStatus.HANDOFF.value
@@ -725,7 +725,7 @@ async def run_arm(
     calls_start: Optional[int] = None
 
     if pending:
-        temp_root = pathlib.Path(tempfile.mkdtemp(prefix=f"tokenplan-{arm}-"))
+        temp_root = pathlib.Path(tempfile.mkdtemp(prefix=f"urbanops-{arm}-"))
         harness.prepare_isolated_env(temp_root)
         # 熔断/健康门是运维层，不属于编排架构本身；默认关闭以消除级联干扰。
         os.environ["AGENT_HEALTH_ENABLED"] = (

@@ -180,7 +180,7 @@ def main() -> int:
     fixture = json.loads(FIXTURE_PATH.read_text(encoding="utf-8"))
     scenarios = list(fixture.get("scenarios") or [])
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-matrix-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-matrix-"))
     manager = _build_manager(temp_root)
 
     scenario_results: List[Dict[str, Any]] = []

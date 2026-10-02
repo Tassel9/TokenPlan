@@ -1,4 +1,4 @@
-"""Materialize the TokenPlan subscription Agentic RAG RAGAS dataset.
+"""Materialize the UrbanOps smart-streetlight Agentic RAG RAGAS dataset.
 
 The compact blueprint keeps human-authored topic facts and query variants easy
 to review.  This module expands it deterministically into 50 calibration cases
@@ -19,21 +19,21 @@ DEFAULT_BLUEPRINT = (
     _ROOT
     / "evaluation"
     / "fixtures"
-    / "tokenplan_agentic_rag_ragas_blueprint_v1.json"
+    / "urbanops_agentic_rag_ragas_blueprint_v1.json"
 )
 DEFAULT_OUTPUT = (
-    _ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
+    _ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 )
 DEFAULT_MANIFEST = (
     _ROOT
     / "evaluation"
     / "fixtures"
-    / "tokenplan_agentic_rag_ragas_latest_manifest.json"
+    / "urbanops_agentic_rag_ragas_latest_manifest.json"
 )
-BLUEPRINT_SCHEMA = "tokenplan-agentic-rag-ragas-blueprint-v1"
-DATASET_SCHEMA = "tokenplan-agentic-rag-ragas-dataset-v1"
-MANIFEST_SCHEMA = "tokenplan-agentic-rag-ragas-manifest-v1"
-BUSINESS_DOMAIN = "token_plan_subscription"
+BLUEPRINT_SCHEMA = "urbanops-agentic-rag-ragas-blueprint-v1"
+DATASET_SCHEMA = "urbanops-agentic-rag-ragas-dataset-v1"
+MANIFEST_SCHEMA = "urbanops-agentic-rag-ragas-manifest-v1"
+BUSINESS_DOMAIN = "urbanops_streetlight_operations"
 
 
 class AgenticRagDatasetError(ValueError):
@@ -372,7 +372,7 @@ def materialize_dataset(blueprint: Mapping[str, Any]) -> Dict[str, Any]:
         "metadata_sha256": _canonical_sha256(metadata),
         "source_blueprint": (
             "evaluation/fixtures/"
-            "tokenplan_agentic_rag_ragas_blueprint_v1.json"
+            "urbanops_agentic_rag_ragas_blueprint_v1.json"
         ),
         "sha256": _canonical_sha256(frozen_payload),
         "base_contract_sha256": _canonical_sha256({
@@ -415,7 +415,7 @@ def materialize_manifest(
     blueprint: Mapping[str, Any],
     dataset: Mapping[str, Any],
 ) -> Dict[str, Any]:
-    """Build the auditable pointer for the active TokenPlan evaluation set."""
+    """Build the auditable pointer for the active UrbanOps evaluation set."""
 
     metadata = dict(dataset["metadata"])
     review = dict(metadata["independent_review"])
@@ -429,7 +429,7 @@ def materialize_manifest(
         "dataset": {
             "path": (
                 "evaluation/fixtures/"
-                "tokenplan_agentic_rag_ragas_cases_v1.json"
+                "urbanops_agentic_rag_ragas_cases_v1.json"
             ),
             "schema_version": DATASET_SCHEMA,
             "sha256": str(dataset["sha256"]),

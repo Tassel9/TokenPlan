@@ -24,14 +24,14 @@ class SupervisorIntentDataAuditTests(unittest.TestCase):
             few = root / "few.json"
             fixture = root / "fixture.json"
             few.write_text(json.dumps({"examples": [{
-                "id": "one", "query": "我要退款", "tags": ["negative"],
+                "id": "one", "query": "我要工单撤回", "tags": ["negative"],
                 "expected": {"intents": ["work_order_withdrawal"], "negative_labels": []},
             }]}, ensure_ascii=False), encoding="utf-8")
             fixture.write_text(json.dumps({
                 "metadata": {"dataset_id": "test", "dataset_role": "holdout", "frozen": True,
                              "frozen_before_first_live_run": True,
                              "independent_review": {"status": "pending"}},
-                "cases": [{"id": "case", "message": "我要退款",
+                "cases": [{"id": "case", "message": "我要工单撤回",
                            "expected_intents": ["work_order_withdrawal"], "dimensions": ["single_intent"]}],
             }, ensure_ascii=False), encoding="utf-8")
 

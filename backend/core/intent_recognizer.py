@@ -544,7 +544,7 @@ class IntentRecognizer:
 
 【固定判定顺序】
 1. 先解析当前 Query 中的指代与省略。当前消息优先于旧上下文；只能继承 case_state 或 recent_history 中逐字存在的事实。
-2. 再判断业务范围。只有请求对象明确属于 UrbanOps 管理的市政设施、巡检、告警、故障、工单、应急预案、终端接入或运维权限，或当前会话上下文能可靠确认属于该范围，才允许 scope_status=in_scope。与市政运维无关的购物、金融、出行、娱乐、编程工具等独立请求必须 out_of_scope 且 intents=[]；对象无法确定且会影响标签时必须 uncertain。
+2. 再判断业务范围。只有请求对象明确属于 UrbanOps 管理的智慧路灯、巡检、告警、故障、工单、应急预案、路灯终端接入或运维权限，或当前会话上下文能可靠确认属于该范围，才允许 scope_status=in_scope。与市政运维无关的购物、金融、出行、娱乐、编程工具等独立请求必须 out_of_scope 且 intents=[]；对象无法确定且会影响标签时必须 uncertain。
 3. 最后沿 candidate_intent_tree 从业务域比较到叶子意图，并保持最小标签集合。intent_candidate_source=intent_tree 时，candidate_intents 是完整叶子集合，本通道不得依赖或猜测 Embedding 通道结果；intent_candidate_source=jev 或 bge 时，candidate_intents 是绑定候选，不得自行扩展。
 4. 一条消息可以包含多个独立诉求。每个标签必须对应用户要求回答或完成的一个结果；设备名称、点位、告警码、工单号、操作参数和背景描述不能单独激活标签。每个 intent 都要输出只基于意图树边界与原文证据的 tree_score。同一标签在 intents 中至多出现一次：多个诉求共享同一标签时合并为一条 intent，supporting_text 放入全部逐字片段。
 
@@ -555,7 +555,7 @@ class IntentRecognizer:
 
 【相邻标签边界】
 - 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有同时要求解释巡检规范时才增加 inspection_standard_query。
-- terminal_access_issue 覆盖终端离线、认证失败、无法接入和遥测中断；只有另有设备本体故障及独立证据时才增加 facility_troubleshooting。
+- terminal_access_issue 覆盖智慧路灯终端离线、认证失败、无法接入和遥测中断；只有另有路灯本体故障及独立证据时才增加 facility_troubleshooting。
 - alert_report 只覆盖设备异常或告警上报；要求分析根因和排查步骤时增加 facility_troubleshooting。
 - inspection_standard_query 查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 operations_permission_change。
 - inspection_task_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 work_order_withdrawal。

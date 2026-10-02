@@ -18,14 +18,14 @@ def mutable_fact(
     value: str,
     effective_at: str = "2026-01-01T00:00:00Z",
     audience: str = "individual",
-    scope: str = "billing",
+    scope: str = "operations",
     score: float = 0.95,
-    knowledge_key: str = "subscription.plan.team_price",
+    knowledge_key: str = "streetlight.plan.team_price",
 ) -> dict:
     return {
         "document_id": document_id,
         "chunk_id": f"{document_id}-chunk-0",
-        "content": f"团队套餐价格：{value}",
+        "content": f"团队巡检方案价格：{value}",
         "knowledge_key": knowledge_key,
         "fact_value": value,
         "authority": "official",
@@ -98,14 +98,14 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         service = self.build_service(knowledge_base)
 
         resolved, summary, added = await service._apply_version_governance(
-            "团队套餐价格是多少？",
+            "团队巡检方案价格是多少？",
             [old],
             limit=5,
             context={
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -114,7 +114,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("resolved", summary["status"])
         self.assertEqual(["fee-2026"], [item["document_id"] for item in resolved])
         self.assertEqual(
-            [(["subscription.plan.team_price"], None)],
+            [(["streetlight.plan.team_price"], None)],
             knowledge_base.lookup_calls,
         )
 
@@ -128,13 +128,13 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await service.search_with_rewrite(
-            "团队套餐价格",
+            "团队巡检方案价格",
             top_k=2,
             context={
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -164,7 +164,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         }
 
         resolved, summary, _ = await service._apply_version_governance(
-            "团队套餐价格",
+            "团队巡检方案价格",
             [early],
             limit=5,
             context=merged,
@@ -189,7 +189,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
             "knowledge_scope": {
                 "as_of": "2026-08-30T00:00:00Z",
                 "audience": "individual",
-                "scope": "billing",
+                "scope": "operations",
             }
         }
 
@@ -197,7 +197,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
             {
                 "as_of": "2026-08-30T00:00:00Z",
                 "audience": "individual",
-                "scope": "billing",
+                "scope": "operations",
             },
             KnowledgeSearchService._governance_scope(merged),
         )
@@ -210,11 +210,11 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
 
         result = await service.search(
             {
-                "query": "团队套餐价格",
+                "query": "团队巡检方案价格",
                 "top_k": 1,
                 "as_of": "2026-08-30T00:00:00Z",
                 "audience": "individual",
-                "scope": "billing",
+                "scope": "operations",
             },
             context={},
         )
@@ -229,14 +229,14 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         service = self.build_service(VersionLookupKnowledgeBase([old]))
 
         results, summary, _ = await service._apply_version_governance(
-            "团队套餐价格",
+            "团队巡检方案价格",
             [old],
             limit=5,
             context={
                 "allowed_document_ids": [],
                 "knowledge_scope": {
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 },
             },
         )
@@ -249,14 +249,14 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         static = {
             "document_id": "plugin-guide",
             "chunk_id": "plugin-guide-0",
-            "content": "插件安装入口位于 UrbanOps 官方控制台。",
+            "content": "控制器安装入口位于 UrbanOps 官方控制台。",
             "score": 0.9,
         }
         knowledge_base = VersionLookupKnowledgeBase([])
         service = self.build_service(knowledge_base)
 
         result, summary, added = await service._apply_version_governance(
-            "插件在哪里下载？", [static], limit=5, context={}
+            "控制器在哪里下载？", [static], limit=5, context={}
         )
 
         self.assertEqual([static], result)
@@ -268,10 +268,10 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         service = self.build_service(VersionLookupKnowledgeBase([]))
 
         individual_scope = service._cache_scope({
-            "knowledge_scope": {"audience": "individual", "scope": "billing"}
+            "knowledge_scope": {"audience": "individual", "scope": "operations"}
         })
         team_scope = service._cache_scope({
-            "knowledge_scope": {"audience": "team", "scope": "billing"}
+            "knowledge_scope": {"audience": "team", "scope": "operations"}
         })
 
         self.assertNotEqual(individual_scope, team_scope)
@@ -296,14 +296,14 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
     def test_tool_registry_cache_scope_keeps_nested_scope_structured(self):
         first = ToolRegistry._cache_scope({
             "knowledge_scope": {
-                "scope": "billing",
+                "scope": "operations",
                 "audience": "individual",
             }
         })
         second = ToolRegistry._cache_scope({
             "knowledge_scope": {
                 "audience": "team",
-                "scope": "billing",
+                "scope": "operations",
             }
         })
 
@@ -315,7 +315,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         deadline = mutable_fact(
             "deadline",
             value="2026-09-20",
-            knowledge_key="subscription.billing.refund_deadline",
+            knowledge_key="streetlight.operations.withdrawal_deadline",
         )
         service = self.build_service(
             VersionLookupKnowledgeBase([fee, deadline])
@@ -329,7 +329,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -347,7 +347,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
             "deadline",
             value="2026-09-20",
             score=0.50,
-            knowledge_key="subscription.billing.refund_deadline",
+            knowledge_key="streetlight.operations.withdrawal_deadline",
         )
         service = self.build_service(
             VersionLookupKnowledgeBase(
@@ -356,13 +356,13 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await service.search_with_rewrite(
-            "套餐价格和退款期限规则",
+            "巡检方案价格和工单撤回期限规则",
             top_k=1,
             context={
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -392,12 +392,12 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         self._services = getattr(self, "_services", []) + [service]
 
         result = await service.search_with_rewrite(
-            "团队套餐价格",
+            "团队巡检方案价格",
             context={
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -445,13 +445,13 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
 
         tool_result = await registry.call(
             "knowledge_search",
-            {"query": "团队套餐价格"},
+            {"query": "团队巡检方案价格"},
             context={
                 "agent_type": "general",
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 },
             },
         )
@@ -465,7 +465,7 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
             "knowledge_version_lookup_unavailable", guarded.reason_code
         )
         self.assertEqual(
-            ["subscription.plan.team_price"],
+            ["streetlight.plan.team_price"],
             guarded.findings[0]["knowledge_keys"],
         )
 
@@ -476,14 +476,14 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         )
 
         results, summary, _ = await service._apply_version_governance(
-            "团队套餐价格",
+            "团队巡检方案价格",
             [old],
             limit=5,
             context={
                 "knowledge_scope": {
                     "as_of": "2026-08-30T00:00:00Z",
                     "audience": "individual",
-                    "scope": "billing",
+                    "scope": "operations",
                 }
             },
         )
@@ -534,11 +534,11 @@ class VersionAwareRagServiceTests(unittest.IsolatedAsyncioTestCase):
         scope = _explicit_search_knowledge_scope(
             as_of=" 2025-09-01 ",
             audience="individual",
-            scope="billing",
+            scope="operations",
         )
 
         self.assertEqual({
             "as_of": "2025-09-01",
             "audience": "individual",
-            "scope": "billing",
+            "scope": "operations",
         }, scope)

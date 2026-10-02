@@ -46,7 +46,7 @@ def analysis(query):
             "inherited_entities": {}, "ambiguity_candidates": {},
             "clarification_question": "", "reason_code": "self_contained"},
         "intents": [{"intent_id": "intent-1-facility_troubleshooting",
-            "label": "facility_troubleshooting", "supporting_text": ["插件报401"],
+            "label": "facility_troubleshooting", "supporting_text": ["控制器报401"],
             "tree_score": 0.95}],
         "scope_status": "in_scope", "reason_code": "technical"}
 
@@ -55,24 +55,24 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
     def test_case_update_requires_matching_successful_tool_evidence(self):
         payload = CaseUpdatePayload(
             case_id="case-1",
-            source_tool="refund_status",
+            source_tool="withdrawal_status",
             stage="processing",
-            submitted_materials=["支付截图"],
+            submitted_materials=["告警截图"],
         )
         result = IntentResult(
-            "intent-1-refund",
+            "intent-1-withdrawal",
             "work_order_withdrawal",
             "COMPLETED",
-            "退款仍在处理",
+            "工单撤回仍在处理",
             payload=payload,
             evidence_ids=["evidence-1"],
         )
         admitted = IntentOrchestrator._verified_case_updates(
             [result],
-            {"intent-1-refund": IntentExecutionMeta(
+            {"intent-1-withdrawal": IntentExecutionMeta(
                 agent_type="business_data_query",
                 tool_events=[{
-                    "tool_name": "refund_status",
+                    "tool_name": "withdrawal_status",
                     "success": True,
                     "fallback_used": False,
                     "evidence_id": "evidence-1",
@@ -85,23 +85,23 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
     def test_case_update_without_matching_evidence_is_rejected(self):
         payload = CaseUpdatePayload(
             case_id="case-1",
-            source_tool="refund_status",
+            source_tool="withdrawal_status",
             stage="resolved",
         )
         result = IntentResult(
-            "intent-1-refund",
+            "intent-1-withdrawal",
             "work_order_withdrawal",
             "COMPLETED",
-            "退款完成",
+            "工单撤回完成",
             payload=payload,
             evidence_ids=["evidence-1"],
         )
         admitted = IntentOrchestrator._verified_case_updates(
             [result],
-            {"intent-1-refund": IntentExecutionMeta(
+            {"intent-1-withdrawal": IntentExecutionMeta(
                 agent_type="business_data_query",
                 tool_events=[{
-                    "tool_name": "refund_status",
+                    "tool_name": "withdrawal_status",
                     "success": False,
                     "fallback_used": False,
                     "evidence_id": "evidence-1",
@@ -112,12 +112,12 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], admitted)
 
     async def test_supervisor_analysis_is_the_only_semantic_result(self):
-        query = "插件报401"
+        query = "控制器报401"
         def decide(payload):
             if payload["round_index"] == 1:
                 return {"action": "SEND_MESSAGES", "analysis": analysis(query),
                     "barrier": "all_settled",
-                    "messages": [{"recipient": "rag_knowledge", "content": "排查插件401",
+                    "messages": [{"recipient": "rag_knowledge", "content": "排查控制器401",
                         "intent_ids": ["intent-1-facility_troubleshooting"]}],
                     "reason_code": "dispatch"}
             return {"action": "FINAL", "message": "技术问题已处理。", "reason_code": "done"}
@@ -143,13 +143,13 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], result.intent_result_summary["missing_task_ids"])
 
     async def test_missing_request_result_stops_final_synthesis(self):
-        query = "插件报401"
+        query = "控制器报401"
 
         def decide(payload):
             if payload["round_index"] == 1:
                 return {"action": "SEND_MESSAGES", "analysis": analysis(query),
                     "barrier": "all_settled", "messages": [
-                        {"recipient": "rag_knowledge", "content": "排查插件401",
+                        {"recipient": "rag_knowledge", "content": "排查控制器401",
                          "intent_ids": ["intent-1-facility_troubleshooting"]},
                     ], "reason_code": "dispatch"}
             return {"action": "FINAL", "message": "技术问题已解决", "reason_code": "done"}
@@ -170,7 +170,7 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("技术问题已解决", result.response)
 
     async def test_parallel_results_fill_task_slots_in_both_completion_orders(self):
-        query = "插件报401，而且重复扣款"
+        query = "控制器报401，而且重复告警"
         started = set()
         both_started = asyncio.Event()
 
@@ -201,9 +201,9 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
                 "intents": [
                     {"intent_id": "intent-1-facility_troubleshooting",
                      "label": "facility_troubleshooting",
-                     "supporting_text": ["插件报401"], "tree_score": 0.95},
+                     "supporting_text": ["控制器报401"], "tree_score": 0.95},
                     {"intent_id": "intent-2-alert_report", "label": "alert_report",
-                     "supporting_text": ["重复扣款"], "tree_score": 0.96},
+                     "supporting_text": ["重复告警"], "tree_score": 0.96},
                 ], "scope_status": "in_scope", "reason_code": "two_requests"}
 
         def decide(payload):
@@ -212,18 +212,18 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled", "messages": [
                         {"recipient": "rag_knowledge", "content": "排查401",
                          "intent_ids": ["intent-1-facility_troubleshooting"]},
-                        {"recipient": "business_data_query", "content": "核查重复扣款",
+                        {"recipient": "business_data_query", "content": "核查重复告警",
                          "intent_ids": ["intent-2-alert_report"]},
                     ], "reason_code": "parallel"}
             return {"action": "FINAL", "message": "两个问题均已解决", "reason_code": "done"}
 
         # Run the same two Agent responses in both completion orders.
-        for technical_delay, billing_delay in ((0.02, 0), (0, 0.02)):
+        for technical_delay, operations_delay in ((0.02, 0), (0, 0.02)):
             started = set()
             both_started = asyncio.Event()
             agents = {
                 "rag_knowledge": DelayedAgent("rag_knowledge", technical_delay),
-                "business_data_query": DelayedAgent("business_data_query", billing_delay),
+                "business_data_query": DelayedAgent("business_data_query", operations_delay),
             }
             result = await build_orchestrator(decide, agents).run(Request(
                 query, "u1", "c1",
@@ -275,7 +275,7 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {"recipient": "business_data_query", "content": "仅核查FAC-9的告警ALM-99",
                          "intent_ids": ["intent-2-alert_report"]},
-                    ], "reason_code": "billing_after_technical"}
+                    ], "reason_code": "operations_after_technical"}
             return {"action": "FINAL", "message": "两个问题均已处理", "reason_code": "done"}
 
         agents = {
@@ -325,15 +325,15 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
 
 
     async def test_ambiguous_request_waits_without_agent_execution(self):
-        query = "这笔订单怎么还没退"
+        query = "这笔工单怎么还没退"
         def decide(_payload):
             return {"action": "ASK_USER", "analysis": {
                 "rewrite": {"status": "ambiguous", "effective_query": query,
                     "references": [], "extracted_entities": {}, "inherited_entities": {},
                     "ambiguity_candidates": {"work_order_id": ["TP-1", "TP-2"]},
-                    "clarification_question": "请问是哪一笔订单？", "reason_code": "multiple"},
+                    "clarification_question": "请问是哪一笔工单？", "reason_code": "multiple"},
                 "intents": [], "scope_status": "uncertain", "reason_code": "ambiguous"},
-                "message": "请问是哪一笔订单？", "reason_code": "ask_order"}
+                "message": "请问是哪一笔工单？", "reason_code": "ask_order"}
         result = await build_orchestrator(decide).run(Request(query, "u1", "c1"))
         self.assertEqual("WAITING_USER", result.status)
         self.assertEqual([], result.intent_executions)

@@ -35,7 +35,7 @@ from runtime.retrieval_context import RetrievalContextState  # noqa: E402
 
 # The fair report was produced on the frozen CampusCare dataset (2026-09-01);
 # use the matching fixture so the case ids line up.
-FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
 FAIR = ROOT / "evaluation" / "reports" / "retrieval_optimization" / "fair_rrf_bge_full.json"
 
 
@@ -65,7 +65,7 @@ async def main() -> int:
     fair_rows = {str(r["case_id"]): r for r in fair["rows"]["fixed_rag"]}
     cases = [c for c in fixture["cases"] if c["split"] == "holdout"]
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-verify-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-verify-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,

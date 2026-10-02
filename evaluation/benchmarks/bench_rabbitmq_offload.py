@@ -13,7 +13,7 @@ Chroma 写入）；改造后同一份工作经 RabbitMQ 交给独立 worker 进�
   D 持久化验证   ：无消费者时消息驻留 broker（进程重启不丢），消费者启动后清空
 
 用法：.venv-win\\Scripts\\python.exe evaluation/benchmarks/bench_rabbitmq_offload.py
-依赖：RabbitMQ(默认 amqp://tokenplan:tokenplan123@127.0.0.1:5672/)、DeepSeek API。
+依赖：RabbitMQ(默认 amqp://urbanops:urbanops123@127.0.0.1:5672/)、DeepSeek API。
 
 口径边界（必读，避免误引）：
   * A 臂「同步内联」是**实现对照**（主链路全程 await），不是改造前历史实现——
@@ -62,8 +62,8 @@ BENCH_USER = "u-bench"
 MESSAGES: List[Tuple[str, str, str]] = [
     (BENCH_USER, "以后回答我都希望简洁一点，别长篇大论。", "命中 style.response_length"),
     (BENCH_USER, "我平时用 macOS，开发用 PyCharm。", "命中 environment.*"),
-    (BENCH_USER, "账单我希望改成按年付，以后就按年付吧。", "命中 preference.billing_cycle（触发 staging）"),
-    (BENCH_USER, "我这张订单的退款到底什么时候到账？", "无长期事实（应落空）"),
+    (BENCH_USER, "巡检班次我希望改成夜班，以后就选夜班吧。", "命中 preference.inspection_shift（触发 staging）"),
+    (BENCH_USER, "我这张工单的工单撤回到底什么时候到账？", "无长期事实（应落空）"),
     (BENCH_USER, "回答简洁一点，不要长篇大论。", "与第 1 条重复（验幂等）"),
     (BENCH_USER, "我的验证码是 8848，帮我记一下。", "敏感信息（应被拒）"),
 ]
@@ -99,7 +99,7 @@ def _fmt(value: float) -> str:
 def _resolve_rabbit_url() -> str:
     return os.getenv(
         "BENCH_RABBITMQ_URL",
-        "amqp://tokenplan:tokenplan123@127.0.0.1:5672/",
+        "amqp://urbanops:urbanops123@127.0.0.1:5672/",
     )
 
 
@@ -216,7 +216,7 @@ async def main() -> int:
     rabbit_url = _resolve_rabbit_url()
     print(f"RabbitMQ : {rabbit_url}")
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-rabbit-bench-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-rabbit-bench-"))
     embedding = BGEEmbeddingProvider(
         model_name="BAAI/bge-small-zh-v1.5",
         revision=None,

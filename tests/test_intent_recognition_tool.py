@@ -52,7 +52,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             result = await JevIntentRecognitionTool(
                 api_key="test-secret",
                 base_url="https://typesafe.example/",
-            ).recognize("帮我退掉这笔订单")
+            ).recognize("帮我退掉这笔工单")
 
         self.assertEqual("ok", result.status)
         request = client.post.await_args
@@ -85,7 +85,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             request_provider=provide,
         )
         result = await tool.recognize(
-            "插件报401，而且重复扣款",
+            "控制器报401，而且重复告警",
             history=[{"role": "user", "content": "这是 UrbanOps 的问题"}],
             case_state={"last_intents": ["facility_troubleshooting"]},
         )
@@ -105,7 +105,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             for question in captured["questions"].values()
         ))
         self.assertEqual(
-            "插件报401，而且重复扣款",
+            "控制器报401，而且重复告警",
             captured["state"]["current_message"],
         )
 
@@ -116,7 +116,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
         result = await JevIntentRecognitionTool(
             api_key="",
             request_provider=provide,
-        ).recognize("插件报401")
+        ).recognize("控制器报401")
 
         self.assertEqual("failed", result.status)
         self.assertEqual("ValueError", result.error_code)
@@ -175,7 +175,7 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 api_key="",
                 request_provider=provide,
             ),
-        ).run("插件报401，而且重复扣款", dispatch)
+        ).run("控制器报401，而且重复告警", dispatch)
 
         self.assertEqual("FINAL", result.action.value)
         self.assertEqual("ok", result.intent_recognition["status"])
@@ -230,7 +230,7 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 api_key="",
                 request_provider=provide,
             ),
-        ).run("插件报401，而且重复扣款", dispatch)
+        ).run("控制器报401，而且重复告警", dispatch)
 
         self.assertEqual("HANDOFF", result.action.value)
         self.assertTrue(any(

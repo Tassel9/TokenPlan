@@ -1,24 +1,25 @@
 import {
-  Activity,
   AlertCircle,
-  ArrowRight,
   BadgeHelp,
-  Bot,
+  Bell,
   BrainCircuit,
   Building2,
   ChevronRight,
-  CircleCheckBig,
+  CheckCircle2,
+  CircleAlert,
   ClipboardList,
   Database,
   FileSearch,
+  Gauge,
   Layers3,
+  LayoutDashboard,
+  ListChecks,
   LoaderCircle,
   Menu,
   MessageSquarePlus,
-  Network,
   PanelLeftClose,
-  Radar,
   Route,
+  Search,
   Send,
   ShieldCheck,
   Wrench,
@@ -53,39 +54,34 @@ const quickActions = [
     description: '查询设施档案、巡检记录与维护规范',
     prompt: '请查询泵站 P-102 的设备档案、最近巡检记录和日常维护要求。',
     icon: Layers3,
-    tone: 'violet',
   },
   {
     label: '工单跟进',
     description: '衔接异常记录、维修申请与处理进度',
     prompt: '路灯 LT-208 连续离线，请查询最近巡检记录并说明如何创建维修工单。',
     icon: ClipboardList,
-    tone: 'amber',
   },
   {
     label: '应急处置',
     description: '检索预案、升级条件与协同流程',
     prompt: '主干道出现大面积积水时，应按什么预案处置并通知哪些岗位？',
     icon: ShieldCheck,
-    tone: 'emerald',
   },
   {
     label: '故障排查',
     description: '结合告警现象与知识规范生成排查路径',
     prompt: '泵站 P-102 持续高温告警，应该按什么顺序排查？',
     icon: Wrench,
-    tone: 'blue',
   },
   {
     label: '复合问题示例',
     description: '一次触发多个运维任务协作',
     prompt: '泵站 P-102 高温告警，请先查询最近巡检记录，再给出排查步骤并生成维修工单。',
     icon: BrainCircuit,
-    tone: 'rose',
   },
 ]
 
-const processingSteps = ['识别完整 Query 中的多个意图', 'Supervisor 正在委派能力 Agent', '按需加载运维 Skill 与检索知识', '汇总各任务处理结果']
+const processingSteps = ['识别设备、告警与处置诉求', '查询设施记录与关联工单', '检索维护规范与历史案例', '整理处置建议与后续动作']
 
 function buildDemoConversation(): Conversation {
   const result: ChatResponse = {
@@ -344,6 +340,12 @@ function App() {
     setSidebarOpen(false)
   }
 
+  function openDashboard() {
+    setCurrentId(undefined)
+    setNotice('')
+    setSidebarOpen(false)
+  }
+
   async function submitMessage(rawMessage: string) {
     const message = rawMessage.trim()
     if (!message || isSending) return
@@ -417,7 +419,8 @@ function App() {
     }
   }
 
-  const statusCopy = demoMode ? '演示数据' : backendStatus === 'online' ? '服务在线' : backendStatus === 'offline' ? '后端未连接' : '正在连接'
+  const statusCopy = demoMode ? '演示环境' : backendStatus === 'online' ? '服务在线' : backendStatus === 'offline' ? '后端未连接' : '正在连接'
+  const hasMessages = messages.length > 0
 
   return (
     <div className="app-shell">
@@ -436,11 +439,16 @@ function App() {
 
         <button type="button" className="new-chat-button" onClick={startNewConversation}>
           <MessageSquarePlus aria-hidden="true" />
-          新建对话
+          发起智能处置
         </button>
 
         <section className="sidebar-section quick-prompts">
-          <div className="sidebar-heading">常用场景</div>
+          <div className="sidebar-heading">业务入口</div>
+          <button type="button" className={!hasMessages ? 'active' : ''} onClick={openDashboard}>
+            <LayoutDashboard aria-hidden="true" />
+            <span>运维总览</span>
+            <ChevronRight aria-hidden="true" />
+          </button>
           {quickActions.slice(0, 4).map((action) => {
             const Icon = action.icon
             return (
@@ -454,7 +462,7 @@ function App() {
         </section>
 
         <section className="sidebar-section history-section">
-          <div className="sidebar-heading">对话历史</div>
+          <div className="sidebar-heading">处置记录</div>
           <div className="history-scroll">
             <ConversationList
               conversations={conversations}
@@ -466,7 +474,7 @@ function App() {
         </section>
 
         <div className="sidebar-footer">
-          <label htmlFor="user-id">运维人员标识</label>
+          <label htmlFor="user-id">当前操作人</label>
           <input id="user-id" value={userId} maxLength={128} onChange={(event) => setUserId(event.target.value)} />
           <p><Database aria-hidden="true" />用于区分会话记忆与运维上下文</p>
         </div>
@@ -479,8 +487,8 @@ function App() {
               <Menu aria-hidden="true" />
             </button>
             <div>
-              <h1>{currentConversation?.title || 'UrbanOps 市政运维工作台'}</h1>
-              <p>设备巡检 · 故障排查 · 工单协同</p>
+              <h1>{hasMessages ? currentConversation?.title : '运维总览'}</h1>
+              <p>{hasMessages ? '智能辅助处置 · 执行过程可追踪' : '告警、巡检与工单处理概况'}</p>
             </div>
           </div>
           <div className={`service-status ${backendStatus}`}>
@@ -498,7 +506,27 @@ function App() {
         ) : null}
 
         <div className="conversation-stage">
-          <section className="chat-stage">
+          <section className={`chat-stage ${hasMessages ? '' : 'dashboard-mode'}`}>
+            {!hasMessages ? (
+              <form className="dashboard-query-wrap" onSubmit={handleSubmit}>
+                <div className="dashboard-query">
+                  <Search aria-hidden="true" />
+                  <textarea
+                    value={input}
+                    onChange={(event) => setInput(event.target.value)}
+                    onKeyDown={handleKeyDown}
+                    maxLength={8000}
+                    rows={1}
+                    placeholder="查询设备状态、告警原因、巡检记录或工单进度"
+                    aria-label="输入运维问题"
+                  />
+                  <button type="submit" disabled={!input.trim() || isSending}>
+                    {isSending ? <LoaderCircle className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />}
+                    分析问题
+                  </button>
+                </div>
+              </form>
+            ) : null}
             <div className="messages-viewport">
               {messages.length === 0 ? (
                 <Welcome onPick={(prompt) => setInput(prompt)} />
@@ -511,7 +539,7 @@ function App() {
               )}
             </div>
 
-            <form className="composer-wrap" onSubmit={handleSubmit}>
+            {hasMessages ? <form className="composer-wrap" onSubmit={handleSubmit}>
               <div className="composer">
                 <textarea
                   value={input}
@@ -523,14 +551,14 @@ function App() {
                   aria-label="输入运维问题"
                 />
                 <div className="composer-footer">
-                  <span><BrainCircuit aria-hidden="true" />支持在一条消息中提出多个问题</span>
+                  <span><Search aria-hidden="true" />输入设备编号、告警现象或工单问题</span>
                   <button type="submit" disabled={!input.trim() || isSending} aria-label="发送消息">
                     {isSending ? <LoaderCircle className="spin" aria-hidden="true" /> : <Send aria-hidden="true" />}
                   </button>
                 </div>
               </div>
               <p className="composer-hint">Enter 发送 · Shift + Enter 换行 · 重要操作需人工确认 · 全流程可追踪</p>
-            </form>
+            </form> : null}
           </section>
 
         </div>
@@ -540,55 +568,127 @@ function App() {
 }
 
 function Welcome({ onPick }: { onPick: (prompt: string) => void }) {
+  const priorityTasks = [
+    {
+      level: '紧急',
+      tone: 'critical',
+      title: 'P-102 泵体温度持续升高',
+      location: '城北排水泵站',
+      source: '在线监测',
+      owner: '待分派',
+      deadline: '剩余 28 分钟',
+      prompt: '泵站 P-102 出现高温告警，请查询最近巡检记录，给出排查步骤并准备维修工单。',
+    },
+    {
+      level: '待处理',
+      tone: 'warning',
+      title: 'LT-208 连续离线超过 2 小时',
+      location: '滨河路东段',
+      source: '巡检上报',
+      owner: '张工',
+      deadline: '今日 11:30',
+      prompt: '路灯 LT-208 连续离线，请查询最近巡检记录并说明如何创建维修工单。',
+    },
+    {
+      level: '进行中',
+      tone: 'progress',
+      title: '雨水井 YS-044 异物清理复核',
+      location: '解放大道与新民路口',
+      source: '工单 WO-1842',
+      owner: '李工',
+      deadline: '今日 14:00',
+      prompt: '请查询工单 WO-1842 的处理进度，并说明雨水井清理后的复核要求。',
+    },
+  ]
+
   return (
-    <div className="welcome">
-      <section className="operations-hero">
-        <div className="hero-copy">
-          <div className="hero-eyebrow"><Radar aria-hidden="true" />Municipal Operations Copilot</div>
-          <h2>市政设施运维协同中枢</h2>
-          <p>围绕设备巡检、故障排查和工单跟进，将知识检索、多轮上下文与任务编排整合到同一条可追踪链路。</p>
-          <div className="capability-row" aria-label="支持能力">
-            <span><Route aria-hidden="true" />多意图识别</span>
-            <span><BrainCircuit aria-hidden="true" />Supervisor 编排</span>
-            <span><Database aria-hidden="true" />知识与会话记忆</span>
-          </div>
+    <div className="welcome operations-dashboard">
+      <div className="dashboard-titlebar">
+        <div>
+          <div className="dashboard-kicker">工作台</div>
+          <h2>今日运维概况</h2>
+          <p>集中查看待处理告警、巡检任务与工单进度。</p>
         </div>
-        <div className="workflow-card" aria-label="Agent 处理链">
-          <div className="workflow-card-header">
-            <span><Activity aria-hidden="true" />Agent 处理链</span>
-            <small><CircleCheckBig aria-hidden="true" />全程可追踪</small>
-          </div>
-          <ol>
-            <li><span>01</span><div><strong>问题识别</strong><small>识别设备、告警与任务意图</small></div></li>
-            <li><span>02</span><div><strong>知识检索</strong><small>匹配规范、手册与历史记录</small></div></li>
-            <li><span>03</span><div><strong>任务编排</strong><small>协调查询、排障与工单 Agent</small></div></li>
-            <li><span>04</span><div><strong>统一处置</strong><small>汇总证据、建议与后续动作</small></div></li>
-          </ol>
+        <div className="dashboard-actions">
+          <span className="demo-label">本地演示数据</span>
+          <button type="button" onClick={() => onPick(quickActions[0].prompt)}><Search aria-hidden="true" />查询设备</button>
+          <button type="button" className="primary" onClick={() => onPick(quickActions[1].prompt)}><ClipboardList aria-hidden="true" />处理工单</button>
         </div>
-      </section>
-
-      <section className="operations-strip" aria-label="运维场景">
-        <div><Layers3 aria-hidden="true" /><span><strong>设备巡检</strong><small>档案、记录与维护规范</small></span></div>
-        <div><Wrench aria-hidden="true" /><span><strong>故障排查</strong><small>告警归因与处置路径</small></span></div>
-        <div><Network aria-hidden="true" /><span><strong>工单协同</strong><small>申请、跟进与状态衔接</small></span></div>
-        <div><FileSearch aria-hidden="true" /><span><strong>规范检索</strong><small>版本、范围与证据校验</small></span></div>
-      </section>
-
-      <div className="prompt-heading">
-        <strong>开始一个运维任务</strong>
-        <span>选择场景，或直接在下方描述问题</span>
       </div>
-      <section className="quick-grid">
-        {quickActions.map((action) => {
-          const Icon = action.icon
-          return (
-            <button type="button" key={action.label} className={`quick-card ${action.tone}`} onClick={() => onPick(action.prompt)}>
-              <span className="quick-icon"><Icon aria-hidden="true" /></span>
-              <span className="quick-copy"><strong>{action.label}</strong><small>{action.description}</small></span>
-              <ArrowRight className="quick-arrow" aria-hidden="true" />
-            </button>
-          )
-        })}
+
+      <section className="metric-grid" aria-label="运行概览">
+        <article>
+          <span className="metric-icon alert"><Bell aria-hidden="true" /></span>
+          <div><small>待处理告警</small><strong>7</strong><p><em>2 项紧急</em>，需优先处理</p></div>
+        </article>
+        <article>
+          <span className="metric-icon inspection"><ListChecks aria-hidden="true" /></span>
+          <div><small>今日巡检</small><strong>18 / 24</strong><p>完成率 75%，6 项待执行</p></div>
+        </article>
+        <article>
+          <span className="metric-icon order"><ClipboardList aria-hidden="true" /></span>
+          <div><small>处理中工单</small><strong>12</strong><p>3 项将在 2 小时内到期</p></div>
+        </article>
+        <article>
+          <span className="metric-icon online"><Gauge aria-hidden="true" /></span>
+          <div><small>设施在线率</small><strong>98.4%</strong><p>126 / 128 个设施在线</p></div>
+        </article>
+      </section>
+
+      <div className="dashboard-main-grid">
+        <section className="business-panel task-panel">
+          <header className="panel-header">
+            <div><h3>优先处理事项</h3><p>按风险和时限排序</p></div>
+            <span>3 项</span>
+          </header>
+          <div className="task-table" role="table" aria-label="优先处理事项">
+            <div className="task-table-head" role="row">
+              <span>状态</span><span>事项</span><span>来源</span><span>负责人</span><span>时限</span><span />
+            </div>
+            {priorityTasks.map((task) => (
+              <div className="task-table-row" role="row" key={task.title}>
+                <span><i className={`task-level ${task.tone}`}>{task.level}</i></span>
+                <span className="task-name"><strong>{task.title}</strong><small>{task.location}</small></span>
+                <span>{task.source}</span>
+                <span>{task.owner}</span>
+                <span className={task.tone === 'critical' ? 'deadline-critical' : ''}>{task.deadline}</span>
+                <button type="button" onClick={() => onPick(task.prompt)}>辅助处置</button>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="business-panel facility-panel">
+          <header className="panel-header">
+            <div><h3>设施运行状态</h3><p>按设施类型统计</p></div>
+            <CheckCircle2 aria-label="状态正常" />
+          </header>
+          <div className="facility-list">
+            <div><span><strong>排水泵站</strong><small>25 / 26 在线</small></span><span className="facility-warning"><CircleAlert aria-hidden="true" />1 告警</span></div>
+            <div><span><strong>道路照明</strong><small>67 / 68 在线</small></span><span className="facility-offline">1 离线</span></div>
+            <div><span><strong>地下管网</strong><small>34 / 34 在线</small></span><span className="facility-normal">正常</span></div>
+          </div>
+          <div className="facility-summary"><span>异常设施</span><strong>2</strong><small>占全部设施 1.6%</small></div>
+        </section>
+      </div>
+
+      <section className="business-panel assistant-shortcuts">
+        <header className="panel-header">
+          <div><h3>辅助查询与处置</h3><p>选择业务场景后可继续补充设备编号或现场情况</p></div>
+          <FileSearch aria-hidden="true" />
+        </header>
+        <div className="shortcut-list">
+          {quickActions.slice(0, 4).map((action) => {
+            const Icon = action.icon
+            return (
+              <button type="button" key={action.label} onClick={() => onPick(action.prompt)}>
+                <Icon aria-hidden="true" />
+                <span><strong>{action.label}</strong><small>{action.description}</small></span>
+                <ChevronRight aria-hidden="true" />
+              </button>
+            )
+          })}
+        </div>
       </section>
     </div>
   )
@@ -601,9 +701,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
   return (
     <article className={`message-row ${user ? 'user' : 'assistant'}`}>
-      {!user ? <div className="message-avatar"><Bot aria-hidden="true" /></div> : null}
+      {!user ? <div className="message-avatar"><Wrench aria-hidden="true" /></div> : null}
       <div className="message-column">
-        <div className="message-author">{user ? '你' : 'UrbanOps'}</div>
+        <div className="message-author">{user ? '处置请求' : '处置建议'}</div>
         <div className="message-bubble">
           {user ? (
             <p>{message.content}</p>
@@ -615,7 +715,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           <>
             <div className="message-meta">
               {supervisorIntentLabels(result).map((intent) => <span key={intent}><Route aria-hidden="true" />{labelIntent(intent)}</span>)}
-              {agents.map((agent) => <span key={agent}><BrainCircuit aria-hidden="true" />{labelAgent(agent)}</span>)}
+              {agents.map((agent) => <span key={agent}><Layers3 aria-hidden="true" />{labelAgent(agent)}</span>)}
               {result.knowledge_used ? <span><Database aria-hidden="true" />已检索知识</span> : null}
               {result.escalated ? <span className="warning"><BadgeHelp aria-hidden="true" />需要人工</span> : null}
             </div>
@@ -630,9 +730,9 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 function ProcessingMessage({ step }: { step: number }) {
   return (
     <article className="message-row assistant processing-row" aria-live="polite">
-      <div className="message-avatar"><Bot aria-hidden="true" /></div>
+      <div className="message-avatar"><Wrench aria-hidden="true" /></div>
       <div className="message-column">
-        <div className="message-author">UrbanOps</div>
+        <div className="message-author">处置分析</div>
         <div className="processing-card">
           <LoaderCircle className="spin" aria-hidden="true" />
           <div>

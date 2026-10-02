@@ -20,11 +20,11 @@
 
 ![UrbanOps 市政运维工作台](docs/images/urbanops-workbench.png)
 
-**多意图协同与执行追踪**
+**处置建议与执行追踪**
 
-![UrbanOps 多意图协同与执行追踪](docs/images/urbanops-agent-trace.png)
+![UrbanOps 处置建议与执行追踪](docs/images/urbanops-agent-trace.png)
 
-工作台围绕设备巡检、故障排查和工单跟进组织任务入口；处置结果同步展示参与处理的 Agent、已加载 Skill、知识证据、阶段耗时与 Trace 标识。
+工作台优先展示告警、巡检、工单和设施状态，运维助手作为嵌入式查询与处置入口；处理结果保留任务模块、维护规程、知识证据、阶段耗时与 Trace 标识。
 
 ## 使用示例
 

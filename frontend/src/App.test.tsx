@@ -90,7 +90,7 @@ describe('UrbanOps workspace', () => {
     window.history.replaceState({}, '', '/?demo')
     render(<App />)
 
-    expect(screen.getByText('演示数据')).toBeInTheDocument()
+    expect(screen.getByText('演示环境')).toBeInTheDocument()
     expect(screen.getByText('P-102 高温告警处置建议')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /查看本次处理过程/ })).toBeInTheDocument()
     expect(mockedGetHealth).not.toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('UrbanOps workspace', () => {
     expect(await screen.findByText('服务在线')).toBeInTheDocument()
     const textbox = screen.getByRole('textbox', { name: '输入运维问题' })
     await user.type(textbox, '泵站 P-102 高温告警，请排查并创建维修工单')
-    await user.click(screen.getByRole('button', { name: '发送消息' }))
+    await user.click(screen.getByRole('button', { name: '分析问题' }))
 
     expect(await screen.findByText('我会先排查泵站高温告警，再处理维修工单。')).toBeInTheDocument()
     expect(screen.queryByRole('complementary', { name: '本轮执行详情' })).not.toBeInTheDocument()
@@ -115,7 +115,7 @@ describe('UrbanOps workspace', () => {
 
     await user.click(screen.getByRole('button', { name: /查看本次处理过程/ }))
     expect(screen.getAllByText('设备故障排查').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('工单操作 Agent').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('工单服务').length).toBeGreaterThan(0)
     expect(screen.getAllByText('设备故障排查、巡检工单流程').length).toBeGreaterThan(0)
     expect(screen.getAllByText('trace-local-001').length).toBeGreaterThan(0)
   })

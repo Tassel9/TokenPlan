@@ -5,11 +5,11 @@ import type { ChatResponse, IntentExecution } from '../api/urbanops'
 import { labelAgent, labelIntent, labelSkill } from '../utils/labels'
 
 const stageLabels: Record<string, string> = {
-  few_shot_retrieval_ms: 'Few-shot 检索',
-  supervisor_ms: 'Supervisor',
+  few_shot_retrieval_ms: '案例匹配',
+  supervisor_ms: '任务分析',
   binding_ms: '能力绑定',
-  intent_queue_wait_ms: '委派排队',
-  agent_decision_ms: 'Agent 决策',
+  intent_queue_wait_ms: '任务排队',
+  agent_decision_ms: '模块处理',
   tool_execution_ms: '工具执行',
   worker_execution_ms: '能力执行',
   response_guard_ms: '回答校验',
@@ -45,7 +45,7 @@ export function ExecutionPanel({ result }: { result: ChatResponse }) {
           查看本次处理过程
         </span>
         <span className="execution-summary">
-          {intents.length} 个意图 · {result.agent_types.length || (result.agent_type ? 1 : 0)} 个 Agent · {compactDuration(result.latency_ms)}
+          {intents.length} 项任务 · {result.agent_types.length || (result.agent_type ? 1 : 0)} 个处理模块 · {compactDuration(result.latency_ms)}
           <ChevronDown className={open ? 'rotate' : ''} aria-hidden="true" />
         </span>
       </button>
@@ -53,7 +53,7 @@ export function ExecutionPanel({ result }: { result: ChatResponse }) {
       {open ? (
         <div className="execution-body">
           <section className="execution-section">
-            <div className="execution-section-title"><Route aria-hidden="true" />意图与委派</div>
+            <div className="execution-section-title"><Route aria-hidden="true" />任务与处理模块</div>
             <div className="chip-row">
               {intents.map((intent) => <span className="meta-chip intent" key={intent}>{labelIntent(intent)}</span>)}
               {unique(result.agent_types.length ? result.agent_types : [result.agent_type]).map((agent) => (
@@ -80,10 +80,10 @@ export function ExecutionPanel({ result }: { result: ChatResponse }) {
           </section>
 
           <section className="execution-section">
-            <div className="execution-section-title"><Puzzle aria-hidden="true" />Skill 与知识</div>
+            <div className="execution-section-title"><Puzzle aria-hidden="true" />规程与依据</div>
             <div className="fact-grid">
               <div>
-                <span>已加载 Skill</span>
+                <span>已加载规程</span>
                 <strong>{skills.length ? skills.map(labelSkill).join('、') : '本次未加载'}</strong>
               </div>
               <div>
@@ -99,10 +99,10 @@ export function ExecutionPanel({ result }: { result: ChatResponse }) {
 
           {rewritten || stageTimings.length ? (
             <section className="execution-section">
-              <div className="execution-section-title"><Database aria-hidden="true" />Query 与耗时</div>
+              <div className="execution-section-title"><Database aria-hidden="true" />请求与耗时</div>
               {rewritten ? (
                 <div className="rewrite-box">
-                  <span>Supervisor 补全后</span><p>{String(rewrite.effective_query)}</p>
+                  <span>系统整理后</span><p>{String(rewrite.effective_query)}</p>
                 </div>
               ) : null}
               {stageTimings.length ? (
@@ -117,7 +117,7 @@ export function ExecutionPanel({ result }: { result: ChatResponse }) {
 
           <div className="trace-footer">
             <CheckCircle2 aria-hidden="true" />
-            <span>{result.escalated ? '已转人工处理' : 'Supervisor 已完成统一汇总'}</span>
+            <span>{result.escalated ? '已转人工处理' : '系统已完成结果汇总'}</span>
             {result.trace_id ? <code>{result.trace_id}</code> : null}
           </div>
         </div>

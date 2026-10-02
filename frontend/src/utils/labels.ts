@@ -15,9 +15,9 @@ const intentLabels: Record<string, string> = {
 }
 
 const agentLabels: Record<string, string> = {
-  rag_knowledge: '知识检索 Agent',
-  business_data_query: '设施数据查询 Agent',
-  business_operation: '工单操作 Agent',
+  rag_knowledge: '知识检索',
+  business_data_query: '设施数据',
+  business_operation: '工单服务',
 }
 
 const skillLabels: Record<string, string> = {

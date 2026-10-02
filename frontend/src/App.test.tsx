@@ -67,6 +67,7 @@ const mockedGetHealth = vi.mocked(getHealth)
 const mockedSendChat = vi.mocked(sendChat)
 
 beforeEach(() => {
+  window.history.replaceState({}, '', '/')
   vi.clearAllMocks()
   mockedGetHealth.mockResolvedValue({ status: 'ok' })
   mockedSendChat.mockResolvedValue(responseFixture)
@@ -78,11 +79,21 @@ describe('UrbanOps workspace', () => {
     render(<App />)
 
     expect(await screen.findByText('服务在线')).toBeInTheDocument()
-    await user.click(screen.getAllByRole('button', { name: /设备与点位/ })[1])
+    await user.click(screen.getAllByRole('button', { name: /设备巡检/ })[1])
 
     expect(screen.getByRole('textbox', { name: '输入运维问题' })).toHaveValue(
-      '请查询泵站 P-102 的设备类型、所在点位和日常维护要求。',
+      '请查询泵站 P-102 的设备档案、最近巡检记录和日常维护要求。',
     )
+  })
+
+  it('renders the deterministic project demo without calling the backend', async () => {
+    window.history.replaceState({}, '', '/?demo')
+    render(<App />)
+
+    expect(screen.getByText('演示数据')).toBeInTheDocument()
+    expect(screen.getByText('P-102 高温告警处置建议')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /查看本次处理过程/ })).toBeInTheDocument()
+    expect(mockedGetHealth).not.toHaveBeenCalled()
   })
 
   it('renders the answer and exposes a readable execution trace', async () => {

@@ -1,20 +1,22 @@
 :root {
   font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #1d1b2f;
-  background: #f5f5f8;
+  color: #10243f;
+  background: #f2f6f8;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  --ink: #1d1b2f;
-  --muted: #6f6c80;
-  --soft: #9491a2;
-  --line: #e6e4ec;
+  --ink: #10243f;
+  --muted: #587083;
+  --soft: #8597a5;
+  --line: #dce6eb;
   --panel: #ffffff;
-  --canvas: #f7f7fa;
-  --accent: #6658d9;
-  --accent-dark: #5145bd;
-  --accent-soft: #efedff;
-  --shadow: 0 16px 45px rgba(38, 32, 80, 0.08);
+  --canvas: #f3f7f9;
+  --accent: #147690;
+  --accent-dark: #0d5b72;
+  --accent-soft: #e5f4f7;
+  --navy: #102d4f;
+  --teal: #15967f;
+  --shadow: 0 16px 45px rgba(21, 57, 82, 0.09);
 }
 
 * {
@@ -47,7 +49,7 @@ button {
 button:focus-visible,
 textarea:focus-visible,
 input:focus-visible {
-  outline: 2px solid rgba(102, 88, 217, 0.55);
+  outline: 2px solid rgba(20, 118, 144, 0.48);
   outline-offset: 2px;
 }
 
@@ -86,8 +88,8 @@ input:focus-visible {
   place-items: center;
   border-radius: 12px;
   color: #fff;
-  background: #1c1a2d;
-  box-shadow: 0 8px 18px rgba(29, 27, 47, 0.18);
+  background: linear-gradient(145deg, #123a62, #0b6c7f);
+  box-shadow: 0 8px 18px rgba(15, 69, 96, 0.2);
 }
 
 .brand-mark svg {
@@ -110,7 +112,6 @@ input:focus-visible {
   color: var(--soft);
   font-size: 10px;
   letter-spacing: 0.045em;
-  text-transform: uppercase;
 }
 
 .mobile-close {
@@ -138,15 +139,15 @@ input:focus-visible {
   padding: 10px 14px;
   border-radius: 11px;
   color: #fff;
-  background: #1d1b2f;
-  box-shadow: 0 10px 22px rgba(29, 27, 47, 0.12);
+  background: var(--navy);
+  box-shadow: 0 10px 22px rgba(16, 45, 79, 0.15);
   cursor: pointer;
   transition: transform 160ms ease, background 160ms ease;
 }
 
 .new-chat-button:hover {
   transform: translateY(-1px);
-  background: #2a2742;
+  background: #17446f;
 }
 
 .new-chat-button svg {
@@ -197,7 +198,7 @@ input:focus-visible {
 .quick-prompts > button svg:first-child {
   width: 16px;
   height: 16px;
-  color: #827aa8;
+  color: #3c8097;
 }
 
 .quick-prompts > button svg:last-child {
@@ -411,7 +412,8 @@ input:focus-visible {
   flex-direction: column;
   overflow: hidden;
   background:
-    radial-gradient(circle at 83% 9%, rgba(112, 94, 226, 0.07), transparent 23rem),
+    radial-gradient(circle at 82% 8%, rgba(27, 145, 156, 0.09), transparent 24rem),
+    radial-gradient(circle at 42% 30%, rgba(39, 104, 158, 0.045), transparent 30rem),
     var(--canvas);
 }
 
@@ -572,9 +574,235 @@ input:focus-visible {
 }
 
 .welcome {
-  width: min(820px, calc(100% - 40px));
+  width: min(1040px, calc(100% - 48px));
   margin: 0 auto;
-  padding: clamp(42px, 9vh, 96px) 0 38px;
+  padding: clamp(28px, 5.5vh, 58px) 0 34px;
+}
+
+.operations-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(310px, 0.7fr);
+  gap: 18px;
+}
+
+.hero-copy,
+.workflow-card {
+  border: 1px solid rgba(198, 216, 225, 0.88);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 16px 40px rgba(18, 62, 88, 0.07);
+}
+
+.hero-copy {
+  position: relative;
+  overflow: hidden;
+  padding: 31px 34px 28px;
+}
+
+.hero-copy::after {
+  position: absolute;
+  top: -72px;
+  right: -48px;
+  width: 220px;
+  height: 220px;
+  border: 30px solid rgba(28, 147, 151, 0.055);
+  border-radius: 50%;
+  content: "";
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #19748a;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.hero-eyebrow svg {
+  width: 15px;
+  height: 15px;
+}
+
+.hero-copy h2 {
+  position: relative;
+  z-index: 1;
+  margin: 14px 0 10px;
+  color: var(--navy);
+  font-size: clamp(25px, 2.4vw, 36px);
+  letter-spacing: -0.045em;
+}
+
+.hero-copy > p {
+  position: relative;
+  z-index: 1;
+  max-width: 620px;
+  margin: 0;
+  color: #61798a;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.hero-copy .capability-row {
+  position: relative;
+  z-index: 1;
+  justify-content: flex-start;
+  margin-top: 21px;
+}
+
+.hero-copy .capability-row > span {
+  border-color: #d6e7eb;
+  color: #456b7a;
+  background: #f5fbfc;
+}
+
+.hero-copy .capability-row svg {
+  color: var(--accent);
+}
+
+.workflow-card {
+  padding: 20px;
+}
+
+.workflow-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid #e5edef;
+}
+
+.workflow-card-header > span,
+.workflow-card-header > small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-card-header > span {
+  color: #173a58;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.workflow-card-header > span svg {
+  width: 15px;
+  height: 15px;
+  color: var(--accent);
+}
+
+.workflow-card-header > small {
+  color: #33836e;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.workflow-card-header > small svg {
+  width: 12px;
+  height: 12px;
+}
+
+.workflow-card ol {
+  display: grid;
+  gap: 0;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-card li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  min-height: 45px;
+}
+
+.workflow-card li:not(:last-child)::after {
+  position: absolute;
+  top: 27px;
+  bottom: 2px;
+  left: 14px;
+  width: 1px;
+  background: #cfe0e5;
+  content: "";
+}
+
+.workflow-card li > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: #19768b;
+  background: #e8f5f7;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.workflow-card li strong,
+.workflow-card li small {
+  display: block;
+}
+
+.workflow-card li strong {
+  color: #304e63;
+  font-size: 11px;
+}
+
+.workflow-card li small {
+  margin-top: 3px;
+  color: #8a9ba5;
+  font-size: 9px;
+}
+
+.operations-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.operations-strip > div {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 13px;
+  border: 1px solid #dce7eb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.operations-strip > div > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: #2d8192;
+}
+
+.operations-strip span,
+.operations-strip strong,
+.operations-strip small {
+  display: block;
+  min-width: 0;
+}
+
+.operations-strip strong {
+  color: #29495f;
+  font-size: 10px;
+}
+
+.operations-strip small {
+  margin-top: 3px;
+  overflow: hidden;
+  color: #8a9aa4;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .empty-welcome {
@@ -646,7 +874,7 @@ input:focus-visible {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 38px;
+  margin-top: 24px;
   padding: 0 2px;
 }
 
@@ -668,15 +896,15 @@ input:focus-visible {
 }
 
 .quick-card {
-  --quick-color: #6658d9;
-  --quick-bg: #efedff;
+  --quick-color: #167990;
+  --quick-bg: #e7f5f7;
   display: grid;
   grid-template-columns: 39px minmax(0, 1fr) 18px;
   align-items: center;
   gap: 12px;
-  min-height: 74px;
-  padding: 13px 14px;
-  border: 1px solid #e4e1e9;
+  min-height: 68px;
+  padding: 11px 13px;
+  border: 1px solid #dce7eb;
   border-radius: 14px;
   color: var(--ink);
   background: rgba(255, 255, 255, 0.9);
@@ -696,9 +924,9 @@ input:focus-visible {
   grid-column: 1 / -1;
 }
 
-.quick-card.amber { --quick-color: #b27620; --quick-bg: #fff3dc; }
+.quick-card.amber { --quick-color: #ae741d; --quick-bg: #fff4df; }
 .quick-card.emerald { --quick-color: #218463; --quick-bg: #e5f8f0; }
-.quick-card.blue { --quick-color: #3770b5; --quick-bg: #e8f2ff; }
+.quick-card.blue { --quick-color: #2b6f9c; --quick-bg: #e8f3f9; }
 .quick-card.rose { --quick-color: #b34b69; --quick-bg: #ffedf2; }
 
 .quick-icon {
@@ -1360,6 +1588,16 @@ input:focus-visible {
   }
 }
 
+@media (max-width: 820px) {
+  .operations-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .operations-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 680px) {
   .workspace-header {
     min-height: 68px;
@@ -1382,7 +1620,27 @@ input:focus-visible {
 
   .welcome {
     width: calc(100% - 24px);
-    padding: 35px 0 28px;
+    padding: 22px 0 28px;
+  }
+
+  .hero-copy {
+    padding: 24px 21px;
+  }
+
+  .hero-copy h2 {
+    font-size: 25px;
+  }
+
+  .workflow-card {
+    padding: 17px;
+  }
+
+  .operations-strip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .operations-strip > div {
+    padding: 10px;
   }
 
   .empty-welcome-icon {

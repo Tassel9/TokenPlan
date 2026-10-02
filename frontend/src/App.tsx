@@ -1,21 +1,26 @@
 import {
+  Activity,
   AlertCircle,
   ArrowRight,
   BadgeHelp,
   Bot,
   BrainCircuit,
+  Building2,
   ChevronRight,
+  CircleCheckBig,
   ClipboardList,
   Database,
+  FileSearch,
   Layers3,
   LoaderCircle,
   Menu,
   MessageSquarePlus,
+  Network,
   PanelLeftClose,
+  Radar,
   Route,
   Send,
   ShieldCheck,
-  Sparkles,
   Wrench,
 } from 'lucide-react'
 import { type FormEvent, type KeyboardEvent, useEffect, useMemo, useRef, useState } from 'react'
@@ -44,15 +49,15 @@ const USER_ID_KEY = 'urbanops_user_id'
 
 const quickActions = [
   {
-    label: '设备与点位',
-    description: '查询设施档案、位置与维护要求',
-    prompt: '请查询泵站 P-102 的设备类型、所在点位和日常维护要求。',
+    label: '设备巡检',
+    description: '查询设施档案、巡检记录与维护规范',
+    prompt: '请查询泵站 P-102 的设备档案、最近巡检记录和日常维护要求。',
     icon: Layers3,
     tone: 'violet',
   },
   {
-    label: '巡检与工单',
-    description: '跟进巡检记录与维修工单',
+    label: '工单跟进',
+    description: '衔接异常记录、维修申请与处理进度',
     prompt: '路灯 LT-208 连续离线，请查询最近巡检记录并说明如何创建维修工单。',
     icon: ClipboardList,
     tone: 'amber',
@@ -65,8 +70,8 @@ const quickActions = [
     tone: 'emerald',
   },
   {
-    label: '设备故障排查',
-    description: '根据告警与现象检索排查步骤',
+    label: '故障排查',
+    description: '结合告警现象与知识规范生成排查路径',
     prompt: '泵站 P-102 持续高温告警，应该按什么顺序排查？',
     icon: Wrench,
     tone: 'blue',
@@ -81,6 +86,108 @@ const quickActions = [
 ]
 
 const processingSteps = ['识别完整 Query 中的多个意图', 'Supervisor 正在委派能力 Agent', '按需加载运维 Skill 与检索知识', '汇总各任务处理结果']
+
+function buildDemoConversation(): Conversation {
+  const result: ChatResponse = {
+    conv_id: 'urbanops-demo',
+    trace_id: 'trace-demo-p102-001',
+    response: [
+      '### P-102 高温告警处置建议',
+      '',
+      '1. **先核验巡检记录**：最近一次巡检记录显示冷却风道存在积尘，建议优先检查通风口与风机状态。',
+      '2. **按顺序排查**：确认温度传感器读数 → 检查润滑与负载 → 检查冷却系统 → 复核控制柜散热。',
+      '3. **工单衔接**：已生成维修申请草稿，需由值班人员确认设备编号、风险等级和停机窗口后提交。',
+      '',
+      '> 当前结论来自巡检记录与维护规范，现场操作仍需遵循安全规程。',
+    ].join('\n'),
+    supervisor: {
+      analysis: {
+        rewrite: {
+          status: 'resolved',
+          effective_query: '查询泵站 P-102 最近巡检记录，检索高温故障排查规范，并准备维修工单申请',
+        },
+        intents: [
+          { intent_id: 'demo-1', label: 'inspection_standard_query' },
+          { intent_id: 'demo-2', label: 'facility_troubleshooting' },
+          { intent_id: 'demo-3', label: 'work_order_handling' },
+        ],
+      },
+    },
+    agent_type: 'rag_knowledge',
+    escalated: false,
+    latency_ms: 1280,
+    knowledge_used: true,
+    agent_types: ['business_data_query', 'rag_knowledge', 'business_operation'],
+    status: 'COMPLETED',
+    overall_status: 'COMPLETED',
+    response_action: 'ANSWER',
+    reason_code: 'OK',
+    evidence_ids: ['inspection-p102-20261001', 'manual-pump-cooling-v3'],
+    tool_events: [
+      { tool_name: 'business_data_query', success: true, latency_ms: 190 },
+      { tool_name: 'knowledge_search', success: true, latency_ms: 260 },
+      { tool_name: 'business_operation', success: true, latency_ms: 210 },
+    ],
+    intent_dispatch: {},
+    intent_executions: [
+      {
+        intent_id: 'demo-1',
+        intent: 'inspection_standard_query',
+        status: 'COMPLETED',
+        agent_type: 'business_data_query',
+        latency_ms: 320,
+        selected_skill_ids: ['inspection-standards'],
+      },
+      {
+        intent_id: 'demo-2',
+        intent: 'facility_troubleshooting',
+        status: 'COMPLETED',
+        agent_type: 'rag_knowledge',
+        latency_ms: 410,
+        selected_skill_ids: ['facility-troubleshooting'],
+      },
+      {
+        intent_id: 'demo-3',
+        intent: 'work_order_handling',
+        status: 'COMPLETED',
+        agent_type: 'business_operation',
+        latency_ms: 360,
+        selected_skill_ids: ['work-order-process'],
+      },
+    ],
+    intent_result_summary: {},
+    request_control: {},
+    stage_timings_ms: {
+      few_shot_retrieval_ms: 45,
+      supervisor_ms: 170,
+      tool_execution_ms: 660,
+      response_guard_ms: 82,
+      total_ms: 1280,
+    },
+    memory_persisted: true,
+    memory_error_code: '',
+  }
+
+  return {
+    id: 'urbanops-demo',
+    title: 'P-102 高温告警协同处置',
+    updatedAt: new Date().toISOString(),
+    messageCount: 2,
+    messages: [
+      {
+        id: 'urbanops-demo-user',
+        role: 'user',
+        content: '泵站 P-102 出现高温告警，请查询最近巡检记录，给出排查步骤并准备维修工单。',
+      },
+      {
+        id: 'urbanops-demo-assistant',
+        role: 'assistant',
+        content: result.response,
+        result,
+      },
+    ],
+  }
+}
 
 function loadConversations(): Conversation[] {
   try {
@@ -146,7 +253,8 @@ function readableError(error: unknown): string {
 }
 
 function App() {
-  const [initialConversations] = useState(loadConversations)
+  const [demoMode] = useState(() => new URLSearchParams(window.location.search).has('demo'))
+  const [initialConversations] = useState(() => (demoMode ? [buildDemoConversation()] : loadConversations()))
   const [conversations, setConversations] = useState<Conversation[]>(initialConversations)
   const [currentId, setCurrentId] = useState<string | undefined>(initialConversations[0]?.id)
   const [input, setInput] = useState('')
@@ -154,7 +262,7 @@ function App() {
   const [isSending, setIsSending] = useState(false)
   const [processingStep, setProcessingStep] = useState(0)
   const [notice, setNotice] = useState('')
-  const [backendStatus, setBackendStatus] = useState<BackendStatus>('checking')
+  const [backendStatus, setBackendStatus] = useState<BackendStatus>(demoMode ? 'online' : 'checking')
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -165,8 +273,8 @@ function App() {
   const messages = currentConversation?.messages ?? []
 
   useEffect(() => {
-    saveConversations(conversations)
-  }, [conversations])
+    if (!demoMode) saveConversations(conversations)
+  }, [conversations, demoMode])
 
   useEffect(() => {
     try {
@@ -181,6 +289,7 @@ function App() {
   }, [messages.length, isSending])
 
   useEffect(() => {
+    if (demoMode) return
     let active = true
     const controller = new AbortController()
 
@@ -200,7 +309,7 @@ function App() {
       controller.abort()
       window.clearInterval(timer)
     }
-  }, [])
+  }, [demoMode])
 
   useEffect(() => {
     if (!isSending) return
@@ -308,17 +417,17 @@ function App() {
     }
   }
 
-  const statusCopy = backendStatus === 'online' ? '服务在线' : backendStatus === 'offline' ? '后端未连接' : '正在连接'
+  const statusCopy = demoMode ? '演示数据' : backendStatus === 'online' ? '服务在线' : backendStatus === 'offline' ? '后端未连接' : '正在连接'
 
   return (
     <div className="app-shell">
       {sidebarOpen ? <button type="button" aria-label="关闭侧边栏" className="sidebar-scrim" onClick={() => setSidebarOpen(false)} /> : null}
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="brand-row">
-          <div className="brand-mark"><Sparkles aria-hidden="true" /></div>
+          <div className="brand-mark"><Building2 aria-hidden="true" /></div>
           <div>
             <strong>UrbanOps</strong>
-            <span>Municipal Operations Agent</span>
+            <span>市政运维智能体</span>
           </div>
           <button type="button" className="mobile-close" onClick={() => setSidebarOpen(false)} aria-label="关闭侧边栏">
             <PanelLeftClose aria-hidden="true" />
@@ -371,7 +480,7 @@ function App() {
             </button>
             <div>
               <h1>{currentConversation?.title || 'UrbanOps 市政运维工作台'}</h1>
-              <p>多意图识别 · Supervisor 调度 · Agentic RAG</p>
+              <p>设备巡检 · 故障排查 · 工单协同</p>
             </div>
           </div>
           <div className={`service-status ${backendStatus}`}>
@@ -420,7 +529,7 @@ function App() {
                   </button>
                 </div>
               </div>
-              <p className="composer-hint">Enter 发送 · Shift + Enter 换行 · 当前项目未接入真实设备与工单平台</p>
+              <p className="composer-hint">Enter 发送 · Shift + Enter 换行 · 重要操作需人工确认 · 全流程可追踪</p>
             </form>
           </section>
 
@@ -433,20 +542,41 @@ function App() {
 function Welcome({ onPick }: { onPick: (prompt: string) => void }) {
   return (
     <div className="welcome">
-      <section className="empty-welcome">
-        <div className="empty-welcome-icon"><Bot aria-hidden="true" /></div>
-        <h2>你好，我是 UrbanOps</h2>
-        <p>直接描述设备、巡检、工单或应急处置问题，也可以在一条消息里同时提出多个诉求。</p>
-        <div className="capability-row" aria-label="支持能力">
-          <span><Route aria-hidden="true" />13 类业务意图</span>
-          <span><BrainCircuit aria-hidden="true" />3 个能力 Agent</span>
-          <span><Database aria-hidden="true" />知识与会话记忆</span>
+      <section className="operations-hero">
+        <div className="hero-copy">
+          <div className="hero-eyebrow"><Radar aria-hidden="true" />Municipal Operations Copilot</div>
+          <h2>市政设施运维协同中枢</h2>
+          <p>围绕设备巡检、故障排查和工单跟进，将知识检索、多轮上下文与任务编排整合到同一条可追踪链路。</p>
+          <div className="capability-row" aria-label="支持能力">
+            <span><Route aria-hidden="true" />多意图识别</span>
+            <span><BrainCircuit aria-hidden="true" />Supervisor 编排</span>
+            <span><Database aria-hidden="true" />知识与会话记忆</span>
+          </div>
+        </div>
+        <div className="workflow-card" aria-label="Agent 处理链">
+          <div className="workflow-card-header">
+            <span><Activity aria-hidden="true" />Agent 处理链</span>
+            <small><CircleCheckBig aria-hidden="true" />全程可追踪</small>
+          </div>
+          <ol>
+            <li><span>01</span><div><strong>问题识别</strong><small>识别设备、告警与任务意图</small></div></li>
+            <li><span>02</span><div><strong>知识检索</strong><small>匹配规范、手册与历史记录</small></div></li>
+            <li><span>03</span><div><strong>任务编排</strong><small>协调查询、排障与工单 Agent</small></div></li>
+            <li><span>04</span><div><strong>统一处置</strong><small>汇总证据、建议与后续动作</small></div></li>
+          </ol>
         </div>
       </section>
 
+      <section className="operations-strip" aria-label="运维场景">
+        <div><Layers3 aria-hidden="true" /><span><strong>设备巡检</strong><small>档案、记录与维护规范</small></span></div>
+        <div><Wrench aria-hidden="true" /><span><strong>故障排查</strong><small>告警归因与处置路径</small></span></div>
+        <div><Network aria-hidden="true" /><span><strong>工单协同</strong><small>申请、跟进与状态衔接</small></span></div>
+        <div><FileSearch aria-hidden="true" /><span><strong>规范检索</strong><small>版本、范围与证据校验</small></span></div>
+      </section>
+
       <div className="prompt-heading">
-        <strong>试试这些问题</strong>
-        <span>点击后可以继续编辑</span>
+        <strong>开始一个运维任务</strong>
+        <span>选择场景，或直接在下方描述问题</span>
       </div>
       <section className="quick-grid">
         {quickActions.map((action) => {

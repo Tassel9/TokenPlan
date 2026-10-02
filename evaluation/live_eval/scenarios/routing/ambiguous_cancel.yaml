@@ -1,0 +1,20 @@
+schema_version: 1
+id: urbanops-ambiguous-cancel-005
+name: 无上下文取消请求应澄清
+group: routing
+tier: regression
+tags: [ambiguity, ask_user, no_dispatch]
+turns:
+  - 帮我把它取消掉。
+expect:
+  answer:
+    contains_any: [请问, 哪个, 巡检任务, 工单, 补充]
+  route:
+    intents_exact: []
+    agents_exact: []
+    response_action_any: [ASK_USER]
+    escalated: false
+  tools:
+    max_total: 0
+judge:
+  goal: 在对象无法确定时提出最少且明确的澄清问题，不得擅自取消巡检任务、工单或其他对象。

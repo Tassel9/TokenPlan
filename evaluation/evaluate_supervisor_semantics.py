@@ -18,6 +18,9 @@ from dotenv import load_dotenv
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+BACKEND_ROOT = ROOT / "backend"
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from core.deepseek_client import load_deepseek_config
 from core.embedding_provider import BGE_DEFAULT_MODEL, BGE_DEFAULT_REVISION, BGEEmbeddingProvider

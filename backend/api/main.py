@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional, Union
 
-# 将项目根目录加入 sys.path，确保无论从哪里执行都能找到 agents/core/memory 等模块
+# 将后端源码根目录加入 sys.path，确保无论从哪里执行都能找到 agents/core/memory 等模块
 # 这一行必须在所有项目内部 import 之前执行
 _ROOT = str(pathlib.Path(__file__).parent.parent.resolve())
 if _ROOT not in sys.path:

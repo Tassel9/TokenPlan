@@ -90,7 +90,7 @@ services:
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - CHROMA_PERSIST_DIRECTORY=/app/data/chroma
-      - SKILL_CATALOG_PATH=/app/skills/catalog
+      - SKILL_CATALOG_PATH=/app/backend/skills/catalog
       - EVAL_BASELINE_PATH=/app/data/eval/baseline.json
     volumes:
       - ./data/chroma:/app/data/chroma

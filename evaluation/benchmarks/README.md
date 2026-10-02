@@ -1,5 +1,9 @@
 # 检索链路基准脚本
 
+> 当前统一端到端回归入口已迁移到 `evaluation/live_eval/run_suite.py`。本目录保留检索、记忆、
+> 性能等局部机制基准，以及迁移前端到端 v1 的复现脚本；局部指标和历史题集结果不能当作
+> 当前 UrbanOps 的端到端任务成功率。新口径见 `evaluation/live_eval/README.md`。
+
 本目录是 `docs/rag-retrieval-performance.md` 中全部数字的**可执行证据**。
 所有脚本：离线运行（`HF_HUB_OFFLINE=1` / `TRANSFORMERS_OFFLINE=1`），使用
 `evaluation/fixtures/agentic_rag_ragas_cases_campuscare_v1.json` 的 **holdout 150 例**，
@@ -137,4 +141,3 @@ $py = ".\.venv-win\Scripts\python.exe"
   （`invalid_agent_action`）；③ 用户粘贴完整 Key 时未提醒密钥安全（安全缺口，3/3 复现）；
   ④ 域外请求拒绝话术生硬（"无可委派意图"，无礼貌引导）。
 - 任务级失败明细与归因见 `deliverables/端到端评测方案.md` §9。
-

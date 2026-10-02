@@ -144,6 +144,12 @@ Response Guard 检查最终回复，避免把未执行的设备控制或工单�
 
 `tests/` 与 `evaluation/` 用于代码回归和冻结用例上的离线验证。当前仓库中的历史评测数据不能直接代表市政运维场景的效果；完成市政数据集、真实接口和同配置评测后，才能发布 UrbanOps 的意图识别、检索质量、告警准确率或端到端处理指标。
 
+当前统一端到端入口是 `evaluation/live_eval/run_suite.py`：以版本化 YAML 场景驱动真实
+`ChatService`，每个样本隔离存储，联合检查答案、路由、工具、证据、Trace 与安全边界，并同时
+报告样本通过率和多次重复的稳定通过率。详细口径与命令见
+[`evaluation/live_eval/README.md`](evaluation/live_eval/README.md)。历史 `evaluation/benchmarks/`
+脚本继续用于局部机制实验与旧报告复现，不能与当前 Live Eval 指标混用。
+
 ## 技术栈
 
 | 层次 | 技术 | 用途 |
@@ -197,13 +203,13 @@ docker compose up -d rabbitmq chromadb
 python -m venv .venv-win
 .\.venv-win\Scripts\Activate.ps1
 pip install -r requirements/base.txt
-python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+python -m uvicorn --app-dir backend api.main:app --host 0.0.0.0 --port 8000
 ```
 
 另开终端发送一条复合运维请求：
 
 ```powershell
-.\.venv-win\Scripts\python.exe -m cli "泵站 P-102 出现高温告警，请查询巡检记录并给出排查步骤"
+.\.venv-win\Scripts\python.exe backend/cli.py "泵站 P-102 出现高温告警，请查询巡检记录并给出排查步骤"
 ```
 
 ### 4. 启动前端
@@ -219,17 +225,20 @@ npm run dev
 ## 目录结构
 
 ```text
-├── application/  # 对话应用服务
-├── agents/       # Supervisor 与能力 Agent
-├── core/         # 意图识别与基础组件
-├── runtime/      # Agent 执行、能力绑定与请求控制
-├── skills/       # 运维 Skill 与 SOP 目录
-├── mcp/          # 知识检索和工具注册
-├── memory/       # 会话状态、事件状态与长期事实
-├── response/     # 最终回复检查
-├── monitor/      # 指标与执行记录
-├── evaluation/   # 离线评测工具与冻结用例
-├── tests/        # 自动化测试
-├── api/          # FastAPI 入口
-└── frontend/     # React 运维工作台
+├── backend/       # Python 后端源码
+│   ├── api/       # FastAPI 入口
+│   ├── application/、agents/、core/   # 应用编排与 Agent 决策
+│   ├── runtime/、response/、skills/   # 受控执行、回复治理与 SOP
+│   ├── mcp/、memory/                  # 工具/知识集成与记忆
+│   └── monitor/、tools/               # 可观测性与通用扩展
+├── frontend/      # React 运维工作台
+├── evaluation/    # 统一评测、基准脚本、冻结用例与报告
+├── tests/         # 自动化测试
+├── docs/          # 架构、配置和性能文档
+├── config/        # Nginx、Prometheus 等部署配置
+├── requirements/  # 分层 Python 依赖
+└── scripts/       # 构建与部署脚本
 ```
+
+后端子模块的职责边界见 [`backend/README.md`](backend/README.md)。本地缓存、虚拟环境、
+运行数据和日志仍保留在原位置，但通过仓库的 VS Code 配置默认隐藏，避免干扰源码浏览。

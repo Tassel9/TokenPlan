@@ -5,8 +5,8 @@
 先跑自检，它会告诉你缺什么、能否降级：
 
 ```bash
-python -m cli doctor          # 人类可读
-python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked）
+python backend/cli.py doctor          # 人类可读
+python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / blocked）
 ```
 
 ## 1. 三层配置模型
@@ -104,7 +104,7 @@ python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked�
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `SKILL_CATALOG_PATH` | `<仓库>/skills/catalog` | 相对 `core/doctor.py` 解析，与工作目录无关；容器内为 `/app/skills/catalog` |
+| `SKILL_CATALOG_PATH` | `<仓库>/backend/skills/catalog` | 相对 `backend/core/doctor.py` 解析，与工作目录无关；容器内为 `/app/backend/skills/catalog` |
 | `KNOWLEDGE_API_INGEST_AUTHORITY` | `unknown` | 知识入库接口的调用方标识白名单 |
 
 ## 10. Supervisor 意图识别
@@ -203,8 +203,8 @@ python -m cli doctor --json   # 机器可读（verdict: ok / degraded / blocked�
 ```bash
 cp .env.example .env          # 填 DEEPSEEK_API_KEY 即可
 docker compose up -d chromadb rabbitmq
-python -m cli doctor          # 应输出 ok / degraded
-python -m cli "泵站 3 号泵出现高温告警，应该怎么排查"
+python backend/cli.py doctor          # 应输出 ok / degraded
+python backend/cli.py "泵站 3 号泵出现高温告警，应该怎么排查"
 ```
 
 **B. 全容器**

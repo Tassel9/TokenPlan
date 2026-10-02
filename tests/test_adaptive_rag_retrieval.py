@@ -674,7 +674,9 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         root = pathlib.Path(__file__).resolve().parents[1]
         agent = RAGKnowledgeAgent(
             RecordingRuntime(),
-            skill_registry=SkillRegistry(str(root / "skills" / "catalog")),
+            skill_registry=SkillRegistry(
+                str(root / "backend" / "skills" / "catalog")
+            ),
             tool_broker=ToolBroker(registry),
             initial_retrieval_enabled=True,
         )

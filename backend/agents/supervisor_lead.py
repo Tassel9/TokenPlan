@@ -23,7 +23,7 @@ from core.intent_recognition_tool import (
 )
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
-    INTENT_DEFINITIONS, INTENT_SPECS, SUPERVISOR_ANALYSIS_SCHEMA, RewriteStatus, ScopeStatus, SupervisorAnalysis,
+    INTENT_DEFINITIONS, INTENT_SPECS, SUPERVISOR_ANALYSIS_TOOL_SCHEMA, RewriteStatus, ScopeStatus, SupervisorAnalysis,
     SupervisorDecisionValidator,
 )
 from core.supervisor_few_shot_retriever import FewShotRetrieval, SupervisorFewShotRetriever
@@ -101,7 +101,7 @@ SUPERVISOR_DECISION_TOOL = {
         "type": "object",
         "properties": {
             "action": {"type": "string", "enum": ["SEND_MESSAGES", "FINAL", "ASK_USER", "HANDOFF"]},
-            "analysis": SUPERVISOR_ANALYSIS_SCHEMA,
+            "analysis": SUPERVISOR_ANALYSIS_TOOL_SCHEMA,
             "barrier": {"type": "string", "enum": ["all_success", "all_settled"],
                         "description": "SEND_MESSAGES 时必填；控制本阶段是否释放后续阶段。"},
             "messages": {"type": "array", "items": {"type": "object", "properties": {

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 JUDGE_CRITERIA: List[Dict[str, str]] = [
     {
@@ -112,12 +112,14 @@ def _render_metadata(session: Dict[str, Any]) -> str:
 def build_judge_messages(
     task: Dict[str, Any],
     session: Dict[str, Any],
+    *,
+    system_prompt: Optional[str] = None,
 ) -> Tuple[str, str]:
     criteria_block = "\n".join(
         f"- {item['id']}（{item['weight']}）：{item['description']}"
         for item in JUDGE_CRITERIA
     )
-    system = JUDGE_SYSTEM.format(criteria_block=criteria_block)
+    system = (system_prompt or JUDGE_SYSTEM).format(criteria_block=criteria_block)
     goal = str((task.get("judge") or {}).get("goal") or "").strip() or "（未提供，按客服常规标准判定）"
     user = (
         f"【任务目标】\n{goal}\n\n"
@@ -193,10 +195,15 @@ async def judge_session(
     *,
     request_options: Dict[str, Any],
     max_tokens: int = 1200,
+    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """调用 judge 模型并返回归一化判定；失败时重试一次。"""
 
-    system, user = build_judge_messages(task, session)
+    system, user = build_judge_messages(
+        task,
+        session,
+        system_prompt=system_prompt,
+    )
     last_error = ""
     for attempt in range(2):
         instructions = system if attempt == 0 else (

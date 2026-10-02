@@ -23,6 +23,7 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 
 from dataclasses import replace  # noqa: E402
 

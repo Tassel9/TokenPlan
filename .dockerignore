@@ -1,5 +1,9 @@
 .git
 .gitignore
+.codex-tmp
+.idea
+.lark-tmp
+.vscode
 .env
 .env.*
 !.env.example
@@ -12,5 +16,5 @@ __pycache__
 .mypy_cache
 .ruff_cache
 logs
-data/chroma
-data/eval/*.json
+data
+output

@@ -10,7 +10,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PYTHONPATH=/app
+    PYTHONPATH=/app/backend
 
 # curl 用于健康检查；预构建的 Python wheels 不需要 gcc/g++。
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -37,6 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 
 from dotenv import load_dotenv  # noqa: E402
 

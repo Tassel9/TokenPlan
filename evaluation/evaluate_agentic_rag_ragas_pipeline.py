@@ -39,6 +39,9 @@ from dotenv import load_dotenv
 _ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
+_BACKEND_ROOT = _ROOT / "backend"
+if str(_BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(_BACKEND_ROOT))
 
 from agents.specialist_agents import AgentInput, RAGKnowledgeAgent
 from core.deepseek_client import (

@@ -14,21 +14,21 @@
 
 **要学的是减法习惯，要保的是证据体系。**
 
-改造后（2026-09-23 实测）：`.env.example` 从 **83 项 / 145 行**收到 **1 项必填 + 6 项本地地址 + 7 项注释可选**（53 行，含校准与权限说明注记）；新增 `python -m cli doctor`；测试 **498 例全绿**（64 个测试文件，含 `tests/test_cli_doctor.py` 16 例）。〔2026-09-26 复核〕
+改造后（2026-09-23 实测）：`.env.example` 从 **83 项 / 145 行**收到 **1 项必填 + 6 项本地地址 + 7 项注释可选**（53 行，含校准与权限说明注记）；新增 `python backend/cli.py doctor`；测试 **498 例全绿**（64 个测试文件，含 `tests/test_cli_doctor.py` 16 例）。〔2026-09-26 复核〕
 
 ## 2. 借鉴清单（9 条）
 
 | # | 做法 | 落点 | 状态 |
 |---|---|---|---|
 | 1 | 配置分层：示例只留必填，其余回落代码默认值 | `.env.example`、`docs/configuration.md` | ✅ 已完成 |
-| 2 | 队列与 Chroma 降级配置 | `app_services.py`（已支持 `LONG_TERM_MEMORY_QUEUE_ENABLED` 等） | 部分具备，文档化 |
-| 3 | 提示词外置 + 版本化 + 热重载 | `prompts/`、`agents/supervisor_lead.py`（已有 `POLICY_VERSION`） | 待做 |
-| 4 | 离线可跑：纯函数/假依赖跑通端到端 | `cli.py`、`app_services.py` | 待做（见第 4 节验收） |
-| 5 | 启动自检：缺什么、怎么补、能否降级 | `core/doctor.py`、`python -m cli doctor` | ✅ 已完成 |
-| 6 | 接管状态机：接管期间只记录 + 超时交还 | `agents/intent_router.py` 附近（已有 `HandoffPolicy`） | 待做 |
-| 7 | 入口卫生清单化（哪些输入不进 LLM） | `core/request_control.py` | 待做 |
-| 8 | 输出安全分两层：合规黑名单（硬替换）+ 真实性质疑（证据不足转人工） | `response/guard.py` | 待做 |
-| 9 | 模型接入与代码解耦（换模型只改环境变量） | `core/deepseek_client.py`（已配置化） | 已完成 |
+| 2 | 队列与 Chroma 降级配置 | `backend/app_services.py`（已支持 `LONG_TERM_MEMORY_QUEUE_ENABLED` 等） | 部分具备，文档化 |
+| 3 | 提示词外置 + 版本化 + 热重载 | `prompts/`、`backend/agents/supervisor_lead.py`（已有 `POLICY_VERSION`） | 待做 |
+| 4 | 离线可跑：纯函数/假依赖跑通端到端 | `backend/cli.py`、`backend/app_services.py` | 待做（见第 4 节验收） |
+| 5 | 启动自检：缺什么、怎么补、能否降级 | `backend/core/doctor.py`、`python backend/cli.py doctor` | ✅ 已完成 |
+| 6 | 接管状态机：接管期间只记录 + 超时交还 | `backend/agents/intent_router.py` 附近（已有 `HandoffPolicy`） | 待做 |
+| 7 | 入口卫生清单化（哪些输入不进 LLM） | `backend/core/request_control.py` | 待做 |
+| 8 | 输出安全分两层：合规黑名单（硬替换）+ 真实性质疑（证据不足转人工） | `backend/response/guard.py` | 待做 |
+| 9 | 模型接入与代码解耦（换模型只改环境变量） | `backend/core/deepseek_client.py`（已配置化） | 已完成 |
 
 ## 3. 数据审计（先审计再下刀，不要拍脑袋删）
 
@@ -39,15 +39,15 @@
 | ③ 队列价值 | MQ 当前同进程部署，价值是否只剩"持久化 + 重试"？ | 是否用 SQLite 表 + 后台任务替代的结论 |
 | ④ 配置利用率 | 83 个变量里有多少用过非默认值？ | 可删除清单 |
 
-复现方式：① 用 `evaluation/` 现有冻结集统计标签频次；② 用 `monitor/execution_trace.py` 的 trace 统计每会话轮次；③ 检查 `.env` 是否有非默认值。
+复现方式：① 用 `evaluation/` 现有冻结集统计标签频次；② 用 `backend/monitor/execution_trace.py` 的 trace 统计每会话轮次；③ 检查 `.env` 是否有非默认值。
 
 ## 4. 验收标准
 
 - [x] `.env.example` 必填段 ≤ 8 项（现为 1 项必填 + 6 项本地地址）
-- [x] `python -m cli doctor` 可在依赖未启动时给出 blocked / degraded / ok 三种结论
+- [x] `python backend/cli.py doctor` 可在依赖未启动时给出 blocked / degraded / ok 三种结论
 - [x] 删除 `.env` 中的非必填项后，容器路径（compose 注入）与本地路径都能启动
 - [x] 回归：`python -m unittest discover -s tests -t .` → **498 例全绿**（2026-09-26 复核）
-- [ ] `python -m cli "在吗" --offline` 无 Chroma / 无密钥也能出一份 JSON 回执
+- [ ] `python backend/cli.py "在吗" --offline` 无 Chroma / 无密钥也能出一份 JSON 回执
 - [ ] 提示词改动不需要修改 Python 文件
 
 ### 4.1 已交付
@@ -57,8 +57,8 @@
 | `.env.example` | 三层结构：必填 1 项 / 本地地址 5 项 / 注释可选 7 项 |
 | `docs/configuration.md` | 80+ 个可读变量的分组参考（含默认值与来源） |
 | `docs/simplification-plan.md` | 本文 |
-| `core/doctor.py` | 配置自检（只读环境变量 + 探测端口，不构造服务图） |
-| `cli.py` | 新增 `python -m cli doctor [--json]`；原 `python -m cli "消息"` 用法不变 |
+| `backend/core/doctor.py` | 配置自检（只读环境变量 + 探测端口，不构造服务图） |
+| `backend/cli.py` | 新增 `python backend/cli.py doctor [--json]`；原聊天命令改为 `python backend/cli.py "消息"` |
 | `tests/test_cli_doctor.py` | 16 例：必填缺失 / 占位值 / 各依赖降级判定 / JSON 契约 / 命令分发 / 不启动服务图 |
 
 ### 4.2 需要留意的约束

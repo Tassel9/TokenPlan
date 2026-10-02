@@ -18,7 +18,7 @@ from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
     INTENT_DEFINITIONS,
     INTENT_SPECS,
-    SUPERVISOR_ANALYSIS_SCHEMA,
+    SUPERVISOR_ANALYSIS_TOOL_SCHEMA,
     RewriteStatus,
     ScopeStatus,
     SupervisorAnalysis,
@@ -44,7 +44,7 @@ INTENT_ANALYSIS_TOOL = {
     "description": "提交意图识别结果；只包含语义分析，不包含 Agent 委派或执行计划。",
     "input_schema": {
         "type": "object",
-        "properties": {"analysis": SUPERVISOR_ANALYSIS_SCHEMA},
+        "properties": {"analysis": SUPERVISOR_ANALYSIS_TOOL_SCHEMA},
         "required": ["analysis"],
         "additionalProperties": False,
     },

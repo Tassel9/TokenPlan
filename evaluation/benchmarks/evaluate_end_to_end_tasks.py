@@ -36,6 +36,7 @@ from typing import Any, Dict, List, Optional
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "evaluation"))
 
 os.environ.setdefault("HF_HUB_OFFLINE", "1")

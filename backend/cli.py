@@ -1,8 +1,8 @@
 """One-shot CLI backed by the same AppServices graph as FastAPI.
 
 Commands:
-  * chat   (default) - ``python -m cli "消息" [--user-id U] [--conv-id C]``
-  * doctor           - ``python -m cli doctor [--json]`` 配置自检（不启动服务）
+  * chat   (default) - ``python backend/cli.py "消息" [--user-id U] [--conv-id C]``
+  * doctor           - ``python backend/cli.py doctor [--json]`` 配置自检（不启动服务）
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from core.doctor import (
 
 
 async def run_once(message: str, *, user_id: str, conv_id: str) -> dict:
-    # Imported lazily so `python -m cli doctor` still runs when the heavy
+    # Imported lazily so `python backend/cli.py doctor` still runs when the heavy
     # runtime dependencies (ChromaDB / aio_pika / anthropic) are absent.
     from application.chat_service import ChatCommand
     from app_services import build_app_services
@@ -73,7 +73,7 @@ def split_command(argv: Sequence[str]) -> Tuple[str, List[str]]:
 
 def _doctor_main(args: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(
-        prog="python -m cli doctor",
+        prog="python backend/cli.py doctor",
         description="UrbanOps 配置自检（不启动服务，只读取环境变量并探测依赖端口）",
     )
     parser.add_argument("--json", action="store_true", help="以 JSON 输出自检结果")

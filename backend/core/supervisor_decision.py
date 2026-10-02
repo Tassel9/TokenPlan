@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from dataclasses import asdict, dataclass, field
 from enum import Enum
 from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence
@@ -213,7 +214,51 @@ class SupervisorAnalysisContract(BaseModel):
     reason_code: str
 
 
-SUPERVISOR_ANALYSIS_SCHEMA: Dict[str, Any] = SupervisorAnalysisContract.model_json_schema()
+def _inline_local_schema_refs(schema: Dict[str, Any]) -> Dict[str, Any]:
+    """Inline Pydantic ``$defs`` before embedding the schema in a tool.
+
+    Both intent-recognition and Supervisor tools place this schema under an
+    ``analysis`` property.  A nested Pydantic schema otherwise keeps refs such
+    as ``#/$defs/SupervisorRewriteContract`` even though ``$defs`` is no longer
+    at the tool-input root, which strict providers reject as a dangling ref.
+    These contracts are acyclic, so expanding them once is deterministic.
+    """
+
+    definitions = dict(schema.get("$defs") or {})
+
+    def expand(value: Any, stack: tuple[str, ...] = ()) -> Any:
+        if isinstance(value, list):
+            return [expand(item, stack) for item in value]
+        if not isinstance(value, dict):
+            return value
+        reference = value.get("$ref")
+        if isinstance(reference, str) and reference.startswith("#/$defs/"):
+            name = reference.rsplit("/", 1)[-1]
+            if name not in definitions:
+                raise ValueError(f"unknown local schema reference: {reference}")
+            if name in stack:
+                raise ValueError(f"recursive local schema reference: {reference}")
+            merged = deepcopy(definitions[name])
+            merged.update({key: item for key, item in value.items() if key != "$ref"})
+            return expand(merged, stack + (name,))
+        return {
+            key: expand(item, stack)
+            for key, item in value.items()
+            if key != "$defs"
+        }
+
+    expanded = expand(deepcopy(schema))
+    if not isinstance(expanded, dict):
+        raise ValueError("expanded schema must be an object")
+    return expanded
+
+
+SUPERVISOR_ANALYSIS_SCHEMA: Dict[str, Any] = (
+    SupervisorAnalysisContract.model_json_schema()
+)
+SUPERVISOR_ANALYSIS_TOOL_SCHEMA: Dict[str, Any] = _inline_local_schema_refs(
+    SUPERVISOR_ANALYSIS_SCHEMA
+)
 
 
 @dataclass(frozen=True)

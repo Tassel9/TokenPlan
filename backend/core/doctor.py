@@ -1,6 +1,6 @@
 """Pre-flight configuration check shared by CLI operators and docs.
 
-`python -m cli doctor` runs these checks **without** constructing the service
+`python backend/cli.py doctor` runs these checks **without** constructing the service
 graph: it only reads environment variables and probes TCP endpoints, so it is
 safe to run before ChromaDB / RabbitMQ are up.
 
@@ -39,7 +39,7 @@ DEFAULT_RABBITMQ_URL = "amqp://urbanops:urbanops123@rabbitmq:5672/"
 DEFAULT_CHROMA_HOST = "chromadb"
 DEFAULT_CHROMA_PORT = 8000
 DEFAULT_LOCAL_RABBITMQ_HINT = "amqp://urbanops:urbanops123@localhost:5672/"
-DEFAULT_LOCAL_SKILL_CATALOG = "skills/catalog"
+DEFAULT_LOCAL_SKILL_CATALOG = "backend/skills/catalog"
 
 Probe = Callable[[str, int, float], Tuple[bool, str]]
 
@@ -279,7 +279,7 @@ def to_payload(checks: Sequence[Check], verdict_value: str) -> Dict[str, object]
 
 
 _VERDICT_LINE = {
-    "ok": "结论：配置完整，可以直接启动（python -m cli \"你好\" 或 docker compose up -d）。",
+    "ok": "结论：配置完整，可以直接启动（python backend/cli.py \"你好\" 或 docker compose up -d）。",
     "degraded": "结论：可以启动，但存在降级项（见上方 warn）。",
     "blocked": "结论：缺少启动必需的依赖或密钥（见上方 fail），启动会失败。",
 }

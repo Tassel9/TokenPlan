@@ -56,6 +56,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 BENCH_DIR = pathlib.Path(__file__).resolve().parent
 ROOT = BENCH_DIR.parents[1]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 sys.path.insert(0, str(ROOT / "evaluation"))
 sys.path.insert(0, str(BENCH_DIR))
 

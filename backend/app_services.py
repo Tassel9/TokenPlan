@@ -454,7 +454,7 @@ def build_app_services(
 
 
 def _supervisor_semantic_options() -> Dict[str, Any]:
-    root = pathlib.Path(__file__).parent
+    root = pathlib.Path(__file__).parent.parent
     return {
         "few_shot_path": os.getenv(
             "SUPERVISOR_FEW_SHOT_PATH",

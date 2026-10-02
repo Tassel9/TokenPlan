@@ -1,0 +1,25 @@
+schema_version: 1
+id: urbanops-pump-troubleshooting-002
+name: 泵站高温排障
+group: retrieval
+tier: regression
+tags: [single_turn, knowledge, troubleshooting]
+turns:
+  - 泵站 P-102 持续高温告警，远程应该先怎么排查？
+expect:
+  answer:
+    contains_groups:
+      - [设备编号, P-102]
+      - [负载, 环境温度, 告警趋势]
+      - [供电, 传感器, 冷却, 润滑]
+    contains_none: [已经修复, 故障已恢复]
+  route:
+    intents_exact: [facility_troubleshooting]
+    agents_exact: [rag_knowledge]
+  tools:
+    must_call: [knowledge_search]
+    successful: [knowledge_search]
+  evidence:
+    min_count: 1
+judge:
+  goal: 给出有顺序、可执行且保留安全边界的远程排障步骤，不得在没有实时证据时声称故障已修复。

@@ -22,6 +22,7 @@ os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "backend"))
 
 from mcp.knowledge_base import KnowledgeBase  # noqa: E402
 

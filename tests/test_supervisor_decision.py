@@ -28,7 +28,7 @@ class SupervisorDecisionValidatorTests(unittest.TestCase):
     def test_every_intent_has_domain_retrieval_text_and_decision_text(self):
         self.assertEqual(set(FineGrainedIntent), set(INTENT_SPECS))
         self.assertEqual(set(FineGrainedIntent), set(INTENT_DEFINITIONS))
-        self.assertEqual(5, len({spec.domain for spec in INTENT_SPECS.values()}))
+        self.assertEqual(3, len({spec.domain for spec in INTENT_SPECS.values()}))
         for intent, spec in INTENT_SPECS.items():
             self.assertTrue(spec.domain.strip())
             self.assertTrue(spec.retrieval_text.strip())

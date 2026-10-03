@@ -469,7 +469,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         query = "银行卡重复扣款"
         pair = {
             "candidate_intent": "payment_issue",
-            "candidate_domain": "支付与账务",
+            "candidate_domain": "交易与账务",
             "candidate_definition": "支付失败、重复扣款或支付状态异常",
             "positive_few_shot": {
                 "id": "positive-payment",
@@ -502,7 +502,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             )
             self.assertEqual("intent_tree", payload["intent_candidate_source"])
             self.assertEqual([], payload["few_shot_examples"])
-            self.assertEqual(5, len(payload["candidate_intent_tree"]))
+            self.assertEqual(3, len(payload["candidate_intent_tree"]))
             return {
                 "action": "SEND_MESSAGES",
                 "analysis": _analysis(query, [("payment_issue", "重复扣款")]),
@@ -541,8 +541,8 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
     def test_candidate_tree_keeps_cross_domain_leaf_intents(self):
         self.assertEqual(
             [
-                {"domain": "订阅管理", "intents": ["subscription_cancel"]},
-                {"domain": "支付与账务", "intents": ["refund_handling"]},
+                {"domain": "套餐与权益", "intents": ["subscription_cancel"]},
+                {"domain": "交易与账务", "intents": ["refund_handling"]},
             ],
             SupervisorLead._candidate_intent_tree(
                 ["subscription_cancel", "refund_handling"]

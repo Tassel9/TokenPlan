@@ -51,7 +51,7 @@ class AgentRegistryTests(unittest.TestCase):
     def test_disabled_and_degraded_agents_are_removed_from_prompt_team(self):
         registry = AgentRegistry([
             registration("general"),
-            registration("operations", enabled=False),
+            registration("billing", enabled=False),
         ])
         health = AgentHealthTracker(AgentHealthConfig(min_execution_samples=1))
         health.record_execution(
@@ -63,7 +63,7 @@ class AgentRegistryTests(unittest.TestCase):
 
         self.assertEqual([], registry.prompt_team(health))
         with self.assertRaisesRegex(AgentRegistryError, "disabled"):
-            registry.resolve("operations")
+            registry.resolve("billing")
 
     def test_skill_owner_must_match_executable_agent(self):
         agent = _Agent("general", skill_owner="technical")

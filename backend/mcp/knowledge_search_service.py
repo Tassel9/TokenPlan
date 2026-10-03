@@ -842,7 +842,7 @@ class KnowledgeSearchService:
 要求：
 1. 如果问题包含多个信息点，每个子查询只覆盖一个信息点。
 2. 每个子查询必须自包含，不使用“它、这个、那个”等无上下文指代。
-3. 保留原问题里的设施编号、点位、工单号、告警码、设备类型和时间等关键实体。
+3. 保留原问题里的套餐、模型、IDE、错误码、金额等关键实体。
 4. 不扩展用户没有询问的主题；简单问题不需要强行生成多个版本。
 原始查询: "{query}"
 只返回 JSON 数组，例如: ["自包含子查询1", "自包含子查询2"]""")
@@ -1401,7 +1401,7 @@ class KnowledgeSearchService:
         scope: Dict[str, Any] = {}
         for key in (
             "allowed_document_ids", "tenant_id", "project_id",
-            "team_id", "user_id", "knowledge_scope",
+            "workspace_id", "user_id", "knowledge_scope",
             "as_of", "scope", "audience",
         ):
             value = context.get(key)

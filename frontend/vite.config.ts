@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const backendTarget = env.URBANOPS_BACKEND_URL || 'http://127.0.0.1:8000'
+  const backendTarget = env.TOKENPLAN_BACKEND_URL || 'http://127.0.0.1:8000'
 
   return {
     plugins: [react()],

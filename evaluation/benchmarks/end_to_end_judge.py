@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 JUDGE_CRITERIA: List[Dict[str, str]] = [
     {
@@ -54,7 +54,7 @@ JUDGE_CRITERIA: List[Dict[str, str]] = [
     },
 ]
 
-JUDGE_SYSTEM = """你是 UrbanOps（面向智慧路灯巡检、告警与维修工单的市政运维系统）的独立质量评测员。
+JUDGE_SYSTEM = """你是 TokenPlan（面向 AI 编程订阅用户的客服系统）的独立质量评测员。
 你只依据下面提供的【对话记录】与【运行元数据】评分，不得引入任何外部知识或假定。
 评分与回答长度无关：不要因为回答更短或更长而改变分数，也不要以字数、格式作为评分依据。
 
@@ -112,14 +112,12 @@ def _render_metadata(session: Dict[str, Any]) -> str:
 def build_judge_messages(
     task: Dict[str, Any],
     session: Dict[str, Any],
-    *,
-    system_prompt: Optional[str] = None,
 ) -> Tuple[str, str]:
     criteria_block = "\n".join(
         f"- {item['id']}（{item['weight']}）：{item['description']}"
         for item in JUDGE_CRITERIA
     )
-    system = (system_prompt or JUDGE_SYSTEM).format(criteria_block=criteria_block)
+    system = JUDGE_SYSTEM.format(criteria_block=criteria_block)
     goal = str((task.get("judge") or {}).get("goal") or "").strip() or "（未提供，按客服常规标准判定）"
     user = (
         f"【任务目标】\n{goal}\n\n"
@@ -195,15 +193,10 @@ async def judge_session(
     *,
     request_options: Dict[str, Any],
     max_tokens: int = 1200,
-    system_prompt: Optional[str] = None,
 ) -> Dict[str, Any]:
     """调用 judge 模型并返回归一化判定；失败时重试一次。"""
 
-    system, user = build_judge_messages(
-        task,
-        session,
-        system_prompt=system_prompt,
-    )
+    system, user = build_judge_messages(task, session)
     last_error = ""
     for attempt in range(2):
         instructions = system if attempt == 0 else (

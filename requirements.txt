@@ -1,0 +1,25 @@
+# TokenPlan 依赖清单
+
+# ── AI / LLM ──────────────────────────────────────────────────────────────────
+anthropic==0.40.0          # 通过 DeepSeek 官方 Anthropic 兼容接口调用 LLM
+-r requirements-intent-embedding.txt  # 默认任务分析 Embedding 依赖
+
+# ── Web 框架 ──────────────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-multipart==0.0.12    # FastAPI 文件上传支持
+pypdf>=5.0,<7.0             # 文本型 PDF 解析；扫描件 OCR 暂不支持
+cryptography>=3.1,<47       # 读取允许打开的 AES 加密 PDF
+pdfplumber>=0.11,<0.12      # PDF 双栏/碎片文本兜底解析
+
+# ── 数据存储 ──────────────────────────────────────────────────────────────────
+aio-pika==9.5.6           # RabbitMQ 长期记忆更新队列；兼容现有 Python 3.9 开发环境
+chromadb==0.5.23           # 向量数据库（长期记忆）
+
+# ── 监控 ──────────────────────────────────────────────────────────────────────
+prometheus-client==0.21.1
+
+# ── 工具 ──────────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+PyYAML==6.0.3               # 解析 Agent Skills SKILL.md 的 YAML frontmatter

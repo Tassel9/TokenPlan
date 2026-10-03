@@ -46,7 +46,7 @@ def load_deepseek_config(environ: Optional[Mapping[str, str]] = None) -> Dict[st
 
 
 def deepseek_request_options() -> Dict[str, Any]:
-    """Keep structured UrbanOps calls deterministic."""
+    """Keep structured TokenPlan calls deterministic."""
     return {"extra_body": {"thinking": {"type": "disabled"}}}
 
 

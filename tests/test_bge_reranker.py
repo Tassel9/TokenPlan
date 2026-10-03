@@ -64,10 +64,10 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
             {"chunk_id": "c", "content": "third"},
         ]
 
-        result = await manager._rerank("withdrawal", items, 2)
+        result = await manager._rerank("refund", items, 2)
 
         self.assertEqual(["b", "c"], [item["chunk_id"] for item in result])
-        self.assertEqual("withdrawal", scorer.calls[0][0])
+        self.assertEqual("refund", scorer.calls[0][0])
         self.assertIn("H1 > H2\nsecond", scorer.calls[0][1][1])
         manager._llm_rerank.assert_not_awaited()
 
@@ -82,7 +82,7 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
         )
         items = [{"chunk_id": value} for value in "abc"]
 
-        result = await manager._rerank("withdrawal", items, 2)
+        result = await manager._rerank("refund", items, 2)
 
         self.assertEqual(items[:2], result)
         manager._llm_rerank.assert_not_awaited()
@@ -95,7 +95,7 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
         )
         items = [{"chunk_id": "a"}, {"chunk_id": "b"}]
 
-        result = await manager._rerank("withdrawal", items, 2)
+        result = await manager._rerank("refund", items, 2)
 
         self.assertEqual(["b", "a"], [item["chunk_id"] for item in result])
         self.assertEqual(1, len(scorer.calls))
@@ -105,10 +105,10 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
         manager._llm_rerank = AsyncMock(return_value=[{"chunk_id": "b"}])
         items = [{"chunk_id": "a"}, {"chunk_id": "b"}]
 
-        result = await manager._rerank("withdrawal", items, 1)
+        result = await manager._rerank("refund", items, 1)
 
         self.assertEqual([{"chunk_id": "b"}], result)
-        manager._llm_rerank.assert_awaited_once_with("withdrawal", items, 1)
+        manager._llm_rerank.assert_awaited_once_with("refund", items, 1)
 
     async def test_llm_rerank_accepts_string_indices_from_model_json(self):
         manager = self.build_manager(config=RerankerConfig(backend="llm"))
@@ -117,7 +117,7 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
         ))
         items = [{"chunk_id": "a"}, {"chunk_id": "b"}]
 
-        result = await manager._llm_rerank("withdrawal", items, 2)
+        result = await manager._llm_rerank("refund", items, 2)
 
         self.assertEqual(["b", "a"], [item["chunk_id"] for item in result])
 
@@ -134,7 +134,7 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
             reranker=scorer,
         )
 
-        await manager._rerank("withdrawal", [{"content": "a"}, {"content": "b"}], 1)
+        await manager._rerank("refund", [{"content": "a"}, {"content": "b"}], 1)
 
         self.assertNotEqual(loop_thread, scorer.thread_id)
 
@@ -155,11 +155,11 @@ class BGERerankerDispatchTests(unittest.IsolatedAsyncioTestCase):
 class RerankerConfigTests(unittest.TestCase):
     def test_bge_dependencies_share_the_existing_local_ml_runtime(self):
         root = pathlib.Path(__file__).resolve().parents[1]
-        base = (root / "requirements" / "base.txt").read_text(encoding="utf-8")
-        optional = (root / "requirements" / "rag-reranker.txt").read_text(
+        base = (root / "requirements.txt").read_text(encoding="utf-8")
+        optional = (root / "requirements-rag-reranker.txt").read_text(
             encoding="utf-8"
         )
-        self.assertIn("intent-embedding.txt", base)
+        self.assertIn("requirements-intent-embedding.txt", base)
         self.assertIn("torch", optional)
         self.assertIn("transformers", optional)
 
@@ -346,7 +346,7 @@ class RerankerDtypeTests(unittest.TestCase):
         reranker._resolved_device = "cpu"
         reranker._autocast_dtype = "bf16"
 
-        scores = reranker.score("withdrawal", ["a", "b"])
+        scores = reranker.score("refund", ["a", "b"])
 
         self.assertEqual([0.5, -0.5], scores)
         self.assertEqual([("cpu", "bf16")], fake_torch.autocast_calls)
@@ -369,7 +369,7 @@ class RerankerDtypeTests(unittest.TestCase):
         reranker._resolved_device = "cpu"
         reranker._autocast_dtype = None
 
-        self.assertEqual([0.1], reranker.score("withdrawal", ["a"]))
+        self.assertEqual([0.1], reranker.score("refund", ["a"]))
         self.assertEqual([], fake_torch.autocast_calls)
 
 

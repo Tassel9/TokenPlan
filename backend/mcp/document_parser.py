@@ -12,7 +12,7 @@ from xml.etree import ElementTree
 
 
 SUPPORTED_EXTENSIONS = {".txt", ".md", ".json", ".docx", ".pdf"}
-PARSER_VERSION = "urbanops-structure-v1"
+PARSER_VERSION = "coding-plan-structure-v2"
 _WORD_NS_URI = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 _WORD_NS = f"{{{_WORD_NS_URI}}}"
 _WORD_VAL = f"{_WORD_NS}val"
@@ -160,7 +160,7 @@ def _parse_pdf(filename: str, payload: bytes) -> List[Dict[str, Any]]:
         from pypdf import PdfReader
     except ImportError as ex:
         raise DocumentParseError(
-            "PDF 解析需要安装 requirements/base.txt 中的 pypdf 和 pdfplumber"
+            "PDF 解析需要安装 requirements.txt 中的 pypdf 和 pdfplumber"
         ) from ex
     try:
         reader = PdfReader(io.BytesIO(payload))

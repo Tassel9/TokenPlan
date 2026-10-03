@@ -6,7 +6,7 @@ import pathlib
 from typing import Any, Dict, List, Optional
 
 
-SCHEMA_VERSION = "urbanops-knowledge-pack-v1"
+SCHEMA_VERSION = "coding-plan-knowledge-pack-v1"
 DEFAULT_PACK_DIRECTORY = pathlib.Path(__file__).with_name("knowledge_packs")
 
 

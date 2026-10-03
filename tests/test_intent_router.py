@@ -16,12 +16,12 @@ class IntentRoutingContractTests(unittest.TestCase):
             stage_index=1,
             recipient=AgentRoute.RAG_KNOWLEDGE,
             content="排查插件 401，并给出可验证步骤",
-            intent_ids=("intent-1-facility_troubleshooting",),
+            intent_ids=("intent-1-technical_troubleshooting",),
         )
         routing = IntentRouting(
             original_query="插件报 401",
             messages=[message],
-            recognized_intents=[FineGrainedIntent.FACILITY_TROUBLESHOOTING],
+            recognized_intents=[FineGrainedIntent.TECHNICAL_TROUBLESHOOTING],
             handoff_policy=HandoffPolicy.ON_FAILURE,
         )
 

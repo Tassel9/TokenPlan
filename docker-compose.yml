@@ -11,8 +11,8 @@ services:
       - "5672:5672"
       - "15672:15672"
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-urbanops}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-urbanops123}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-tokenplan}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-tokenplan123}
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     restart: unless-stopped
@@ -86,7 +86,7 @@ services:
       # 容器内固定值，覆盖 .env 中的本地路径
       - SESSION_DB_PATH=/app/data/session/conversations.sqlite3
       - LOCAL_BACKEND_DB_PATH=/app/data/local/urbanops_local.sqlite3
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-urbanops}:${RABBITMQ_PASSWORD:-urbanops123}@rabbitmq:5672/
+      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-tokenplan}:${RABBITMQ_PASSWORD:-tokenplan123}@rabbitmq:5672/
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - CHROMA_PERSIST_DIRECTORY=/app/data/chroma

@@ -1,22 +1,17 @@
 schema_version: 1
-id: urbanops-memory-pronoun-004
-name: 多轮设施指代与排障延续
+id: tokenplan-memory-pronoun-004
+name: 多轮订单指代与退款延续
 group: memory
 tier: regression
-tags: [multi_turn, reference_resolution, troubleshooting]
+tags: [multi_turn, reference_resolution, refund]
 turns:
-  - 泵站 P-102 出现高温告警，我要排查它。
-  - 已经记录负载和环境温度了，下一步检查什么？
+  - 我有两笔订单 TP-1001 和 TP-1002，第二笔重复扣款了。
+  - 帮我退第二笔。
 expect:
   answer:
-    contains_any: [供电, 传感器, 冷却, 润滑, 机械部件, 控制柜]
-    contains_none: [重新记录负载和环境温度, 已经修复]
+    contains_any: [TP-1002, 第二笔, 退款, 订单]
+    contains_none: [TP-1001 已退款, 已经到账]
   route:
-    intents_all: [facility_troubleshooting]
-    agents_all: [rag_knowledge]
-  tools:
-    must_call: [knowledge_search]
-  evidence:
-    min_count: 1
+    intents_all: [refund_handling]
 judge:
-  goal: 第二轮应承接 P-102 和已经完成的检查项，给出尚未执行的下一步，不得重复要求用户从头排查或声称已修复。
+  goal: 第二轮应承接 TP-1002，而不是误用第一笔订单；只能说明退款申请或后续核验，不能声称款项已经到账。

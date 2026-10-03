@@ -20,7 +20,7 @@ class ConversationLeaseLostError(RuntimeError):
 
 
 _CURRENT_TURN: contextvars.ContextVar[Optional[Any]] = contextvars.ContextVar(
-    "urbanops_conversation_turn", default=None,
+    "tokenplan_conversation_turn", default=None,
 )
 
 

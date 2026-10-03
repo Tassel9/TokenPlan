@@ -1,4 +1,4 @@
-"""Serializable sample and suite records for UrbanOps live evaluations."""
+"""Serializable sample and suite records for TokenPlan live evaluations."""
 
 from __future__ import annotations
 

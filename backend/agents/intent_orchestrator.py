@@ -51,7 +51,7 @@ from core.supervisor_decision import (
 )
 from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from core.request_control import RequestControlAction, RequestControlPolicy
-from memory.conversation_state import OperationsCase, decide_case_update
+from memory.conversation_state import CustomerServiceCase, decide_case_update
 from memory.agent_memory import AgentMemoryStore
 from monitor.execution_trace import TraceEventType
 from response.intent_composer import IntentResponseComposer
@@ -78,14 +78,14 @@ logger = logging.getLogger(__name__)
 # 意图→能力 Agent 映射直接委派，跳过 Supervisor 的两次 LLM 规划（SEND_MESSAGES
 # 派发 + FINAL 收口）；能力 Agent 内部的检索、生成与护栏链路保持不变。
 _FAST_PATH_INTENT_AGENTS: Dict[FineGrainedIntent, str] = {
-    FineGrainedIntent.INSPECTION_STANDARD_QUERY: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.TERMINAL_ACCESS_ISSUE: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.FACILITY_TROUBLESHOOTING: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.TECHNICAL_TROUBLESHOOTING: AgentType.RAG_KNOWLEDGE.value,
 }
-# 设施数据诉求兜底：即使识别为单知识意图也不走快速通道。
+# 个人数据诉求兜底：即使识别为单知识意图也不走快速通道（如“我的额度还剩多少”）。
 _PERSONAL_DATA_REQUEST = re.compile(
-    r"(?:我的|本人|当前|我负责的|我辖区的)[^。！？!?；;\n]{0,16}"
-    r"(?:设备|设施|点位|巡检|告警|工单|进度|记录|状态|权限)"
+    r"(?:我的|本人|当前账号|本账号|我名下)[^。！？!?；;\n]{0,16}"
+    r"(?:额度|用量|余额|账单|订单|发票|退款|进度|记录|状态|权限)"
 )
 
 
@@ -266,8 +266,8 @@ class IntentOrchestrator:
                 AgentRegistration(
                     name=AgentType.RAG_KNOWLEDGE.value,
                     description=(
-                        "检索知识库，回答巡检规范、设备说明、应急预案和故障排查知识；"
-                        "不查询实时设施数据，不执行状态变更"
+                        "检索知识库，回答公开规则、产品说明和故障排查知识；"
+                        "不查询用户私有业务数据，不执行状态变更"
                     ),
                     instance=rag_knowledge,
                     skill_owner=rag_knowledge.skill_owner,
@@ -275,8 +275,8 @@ class IntentOrchestrator:
                 AgentRegistration(
                     name=AgentType.BUSINESS_DATA_QUERY.value,
                     description=(
-                        "通过受控只读接口查询当前用户的结构化业务数据，"
-                        "用于核验设施、维修工单和操作申请记录"
+                        "通过受控只读接口查询 MySQL 等结构化业务数据，"
+                        "用于核验用户自己的订单、账单、退款和账户状态；当前未接入时转人工"
                     ),
                     instance=business_data_query,
                     skill_owner=business_data_query.skill_owner,
@@ -284,8 +284,8 @@ class IntentOrchestrator:
                 AgentRegistration(
                     name=AgentType.BUSINESS_OPERATION.value,
                     description=(
-                        "通过受控写工具提交巡检、告警、维修工单或权限变更申请，"
-                        "要求身份校验、用户确认、幂等与审计，且只声明申请已受理"
+                        "通过受控写工具办理订阅、退款、发票和账户变更，"
+                        "要求身份校验、用户确认、幂等与审计；当前未接入时转人工"
                     ),
                     instance=business_operation,
                     skill_owner=business_operation.skill_owner,
@@ -456,7 +456,7 @@ class IntentOrchestrator:
             timings["total_ms"] = (time.monotonic() - started) * 1000
             return dict(timings)
 
-        case_state = OperationsCase.from_dict(
+        case_state = CustomerServiceCase.from_dict(
             req.case_state,
             user_id=req.user_id,
             conv_id=req.conv_id,
@@ -525,9 +525,9 @@ class IntentOrchestrator:
             )
             return terminal(
                 response=(
-                    "已记录您的人工运维请求，请提供设施编号、发生时间、告警现象和已尝试步骤，方便值守人员接手。"
+                    "已记录您的人工服务请求，请提供问题摘要、发生时间和已尝试步骤，方便人工客服接手。"
                     if is_handoff
-                    else "你好，我是 UrbanOps 市政运维助手。你可以直接描述设备、巡检、告警、工单或应急处置问题。"
+                    else "你好，我是 TokenPlan 助手。你可以直接告诉我套餐、账号、账单或技术问题。"
                 ),
                 status=(
                     AgentRunStatus.HANDOFF.value
@@ -565,7 +565,7 @@ class IntentOrchestrator:
                 return terminal(
                     response=(
                         "意图识别暂时无法形成可靠的冻结结果，"
-                        "为避免错误执行，请转人工运维人员继续处理。"
+                        "为避免错误执行，请转人工客服继续处理。"
                     ),
                     status=AgentRunStatus.HANDOFF.value,
                     reason_code=recognition.reason_code,
@@ -679,7 +679,7 @@ class IntentOrchestrator:
                         intent=invocation.intent,
                         status=AgentRunStatus.HANDOFF.value,
                         conclusion=(
-                            "目标能力 Agent 当前不可安全接收请求，请转人工运维人员继续处理。"
+                            "目标能力 Agent 当前不可安全接收请求，请转人工客服继续处理。"
                         ),
                         reason_code=admission.reason_code,
                         open_items=[invocation.focus],
@@ -1013,7 +1013,7 @@ class IntentOrchestrator:
         if conditional_handoff:
             response = IntentResponseComposer.compose([
                 response,
-                "自动处理未能完整解决该请求，已按您的要求转人工运维人员继续处理。",
+                "自动处理未能完整解决该请求，已按您的要求转人工客服继续处理。",
             ])
         if (
             missing_task_ids

@@ -1,0 +1,140 @@
+{
+  "schema_version": "coding-plan-knowledge-pack-v1",
+  "pack_id": "official-model-support",
+  "pack_version": "2026-08-24",
+  "source_policy": "Concise Chinese support summaries derived from official vendor documentation; no full-page copies.",
+  "documents": [
+    {
+      "document_id": "deepseek-api-access",
+      "title": "DeepSeek API 接入与认证排查",
+      "section": "DeepSeek > API 接入",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "DeepSeek API 可通过官方兼容接口接入。调用时应从安全的环境变量或密钥管理服务读取 API Key，并在 Authorization 请求头中使用 Bearer 认证；不要把真实密钥写进代码仓库、日志、截图或客服工单。SDK 的 base_url、接口协议和模型名需要与官方当前文档一致。\n\n遇到 401 时先核对密钥是否复制完整、是否已失效、请求头格式是否正确，以及程序是否实际读取了预期环境变量。遇到 402 一类余额问题时应检查账户余额或计费状态。请求参数或 JSON 结构错误通常表现为 400 或 422，应保留脱敏后的请求体、时间和请求标识进行定位。\n\n若同一密钥在命令行可用、在 IDE 中不可用，应重点检查 IDE 进程继承的环境变量、代理、Base URL 与重启后的配置加载情况。客服只能给出排查路径，不能索取用户的完整 API Key。"
+    },
+    {
+      "document_id": "deepseek-rate-limit",
+      "title": "DeepSeek 并发限制、429 与 user_id 隔离",
+      "section": "DeepSeek > 限流与隔离",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/quick_start/rate_limit/",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "DeepSeek 的并发限制按账户和模型统计，一次请求从发出到模型响应完成都占用一个并发连接；同一账户下使用不同 API Key 不会自然拆分账户级并发。超过当前限制时会返回 HTTP 429。排查时应先统计真实并发、长连接数量、重试叠加和不同业务是否共用账户，再采用有上限的指数退避与抖动，避免立即重试形成请求风暴。具体并发数字可能调整，应查看官方当前页面。\n\n业务可以传 user_id 做内容安全、KV Cache 与调度隔离。user_id 只能使用允许的字符并有长度限制，不应包含邮箱、手机号、姓名等隐私信息。它不是新的 API Key，也不代表账户级并发一定被拆开。\n\n非流式请求等待期间可能出现空行，流式请求可能出现 SSE 的 : keep-alive 注释；这些保活内容不是最终 JSON，也不应当作模型输出。自定义 HTTP 客户端必须正确忽略空行或 SSE 注释，并配置合理的读取超时。"
+    },
+    {
+      "document_id": "deepseek-error-handling",
+      "title": "DeepSeek 常见错误码与降级处理",
+      "section": "DeepSeek > 错误码",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/quick_start/error_codes/",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "DeepSeek API 排障应先区分请求侧错误和服务侧错误。400 或 422 通常需要检查 JSON、必填字段、消息格式和参数取值；401 重点检查认证；402 重点检查余额或计费状态；429 表示当前请求触发并发或速率限制。500、503 等服务侧错误适合短暂等待后重试，并结合官方状态信息判断是否扩大故障范围。\n\n重试策略不能对所有错误一视同仁。认证失败和参数错误在配置未改变前重复请求没有意义；429、500、503 可以采用次数受限的指数退避、随机抖动和熔断。对创建资源或带副作用的调用，还要使用幂等标识或业务去重，避免重试造成重复操作。\n\n提交技术支持时，应提供发生时间、HTTP 状态、业务错误码、请求标识、所用接口和脱敏后的最小复现步骤。不要上传 API Key、完整用户对话或包含私有代码的原始日志。"
+    },
+    {
+      "document_id": "deepseek-context-cache",
+      "title": "DeepSeek 上下文缓存命中与费用排查",
+      "section": "DeepSeek > Context Caching",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/guides/kv_cache",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "DeepSeek 的上下文缓存用于复用多次请求中重复的输入前缀，官方接口默认启用，通常不需要额外开关。它匹配的是从输入开头开始的稳定前缀，因此把固定系统提示、工具定义和长期不变的上下文放在前面，把每轮变化内容放在后面，更容易命中。仅仅包含相同词语但前缀顺序不同，并不等于能够复用缓存。\n\n响应 usage 中的 prompt_cache_hit_tokens 与 prompt_cache_miss_tokens 可用于观察命中与未命中的输入 Token。排查缓存效果时应比较同一前缀的连续请求，并同时记录总输入 Token；不能只看单次耗时推断是否命中。\n\n上下文缓存是尽力而为的优化，不是持久存储，也不保证每次命中。缓存未命中不代表业务请求失败。需要长期保存的会话、知识或审计数据仍应由业务自己的数据库管理，不能依赖模型侧缓存。"
+    },
+    {
+      "document_id": "deepseek-thinking-tools",
+      "title": "DeepSeek 思考模式与工具调用 400 排查",
+      "section": "DeepSeek > Thinking Mode",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/guides/thinking_mode/",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "DeepSeek 思考模式会把推理字段 reasoning_content 与最终回答 content 分开返回。思考模式下，temperature、top_p、presence_penalty 和 frequency_penalty 等采样参数可能不生效；业务不应依赖这些参数控制思考结果。流式客户端要分别累计推理字段和最终回答字段，避免把两者混为用户可见内容。\n\n普通多轮对话如果本轮请求没有 tools，历史 reasoning_content 通常不需要继续拼入上下文。只要请求携带 tools，后续交互必须按官方协议完整回传对应 assistant 消息中的 reasoning_content，即使该轮没有实际执行工具；遗漏该字段可能收到 HTTP 400。\n\n排查工具调用 400 时，应检查 assistant 消息、tool_calls、tool_call_id、tool 结果和 reasoning_content 是否按原顺序保留，不要只重放最终 content。推理内容可能包含敏感上下文，日志与客服材料应按最小必要原则脱敏。"
+    },
+    {
+      "document_id": "deepseek-usage-model-discovery",
+      "title": "DeepSeek Token 用量与模型可用性核对",
+      "section": "DeepSeek > 用量与模型",
+      "source_provider": "DeepSeek",
+      "source_uri": "https://api-docs.deepseek.com/quick_start/token_usage/",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "API 响应的 usage 字段用于核对输入、输出和总 Token，用量分析应以实际响应和账户后台为准。流式调用需要确认 SDK 是否在结束事件中返回 usage；如果业务中途断流，仅凭本地拼接文本可能无法得到完整用量。上下文缓存场景还应同时观察缓存命中和未命中的输入 Token。\n\n模型名称、上下文能力、价格和可用状态会随官方发布变化，不应在客服代码中长期硬编码一份静态表。调用失败且提示模型不存在或无权限时，应先访问官方模型列表或模型价格页面核对当前账户可用的精确模型标识，再检查套餐、区域和接口协议。\n\n知识库可以解释核对方法，但不能替代用户账户后台。涉及具体扣费争议时，应记录请求时间、模型标识、usage、账单条目和请求标识，由计费支持核验。"
+    },
+    {
+      "document_id": "glm-coding-plan-access",
+      "title": "GLM Coding Plan API Key 与协议端点",
+      "section": "GLM > Coding Plan 接入",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/coding-plan/quick-start",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "GLM Coding Plan 个人版和团队版的 API Key 获取入口不同，团队套餐 Key 与平台其他 API Key 不通用。要使用团队额度，应确认成员使用的是团队编程套餐页面签发的 Key。密钥必须保存在环境变量或安全密钥服务中，不能硬编码、提交 Git 或发送给客服。\n\nCoding Plan 支持多种协议，Base URL 必须与客户端协议匹配：Anthropic Message 使用 https://open.bigmodel.cn/api/anthropic，OpenAI Chat Completion 使用 https://open.bigmodel.cn/api/coding/paas/v4，OpenAI Responses 使用 https://open.bigmodel.cn/api/v1。\n\n出现认证成功但额度未走 Coding Plan、工具报模型不可用或请求路径 404 时，优先核对 Key 类型、协议、Base URL、模型配置和工具是否在官方支持范围内。不要把不同协议的路径片段混合拼接。"
+    },
+    {
+      "document_id": "glm-auth-request-errors",
+      "title": "GLM 认证、参数与模型错误码",
+      "section": "GLM > API 错误码",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/api/api-code",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "GLM API 的错误响应既可能有 HTTP 状态，也可能包含业务错误码。1000、1001、1003 一类错误应从认证令牌、过期状态和权限方向排查；1210 表示请求参数存在问题，应核对字段类型、必填参数和消息结构；1211 表示指定模型不存在，应核对当前官方模型标识及账户可用范围。\n\n1261 表示提示词或输入超过模型允许长度。处理时应统计真实 Token，而不是只按字符数估算；可以裁剪历史对话、缩短工具描述、分块检索或改用支持更大上下文且账户有权限的模型。不要无限重试相同的超长请求。\n\n错误排查材料应包含 HTTP 状态、业务码、发生时间、接口协议、模型名和脱敏请求摘要。认证类错误不应通过反复重试解决，也不能把真实 API Key 放进日志。"
+    },
+    {
+      "document_id": "glm-rate-limit",
+      "title": "GLM 1302 限流与 1305 平台过载处理",
+      "section": "GLM > 限流与重试",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/api/rate-limit",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "GLM 业务错误码 1302 表示用户侧请求触发速率限制，应检查套餐对应限制、并发池、队列长度和客户端自动重试。适合通过请求排队、限制并发、指数退避和随机抖动缓解；多个进程共用一个 Key 时，要汇总全局请求量，不能只看单个实例。\n\n1305 表示平台当前处理能力紧张，更适合短暂等待后做次数受限的重试，并配合熔断与降级。若大量请求同时立即重试，会进一步放大过载。额度、套餐有效期、周期用量或模型权限错误应转到对应的套餐与额度规则核对，不在限流策略中重复解释。\n\n客服不能承诺固定恢复时间。持续异常时应提供请求标识、发生时间、错误码、模型和区域，并以官方状态与支持回复为准。"
+    },
+    {
+      "document_id": "glm-tool-endpoint",
+      "title": "GLM 编码工具未使用套餐额度排查",
+      "section": "GLM > 编码工具配置",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/coding-plan/tool/others",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "第三方编码工具接入 GLM Coding Plan 时，工具支持的协议必须与配置的 Base URL 对应。使用 Anthropic 兼容客户端时配置 Anthropic 端点，使用 OpenAI Chat Completion 或 Responses 客户端时选择各自端点。端点配置错误可能导致 404、参数格式不兼容、模型识别失败，或者请求没有按预期使用 Coding Plan 权益。\n\n排查顺序建议为：确认工具处于官方支持范围；确认使用个人或团队 Coding Plan 正确签发的 Key；确认环境变量名被工具实际读取；确认 Base URL 没有重复路径或尾部拼接错误；确认模型名来自当前官方列表；最后用最小请求验证。\n\nIDE 截图和诊断日志必须遮盖 Key、Authorization 请求头、私有仓库地址与源代码。若工具本身缓存旧配置，修改环境变量后需要完全退出并重新启动进程。"
+    },
+    {
+      "document_id": "glm-quota-subscription",
+      "title": "GLM Coding Plan 额度、到期与模型权限错误",
+      "section": "GLM > 套餐与额度",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/coding-plan/faq",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "Coding Plan 的额度和使用限制与具体套餐、周期和支持模型有关。1308 通常需要关注当前额度上限及重置，1309 需要检查套餐是否已经到期，1310 需要检查周或月使用上限，1311 需要检查当前订阅是否允许调用所选模型。具体数值和支持范围会变化，应以用户套餐页面及官方文档为准。\n\n个人 Key、团队 Coding Plan Key 和开放平台其他 Key 不能假定共享同一份权益。出现后台显示仍有额度但调用被拒绝时，应核对实际请求使用的 Key 类型、账户、Base URL、模型与错误码，并保留发生时间和脱敏请求标识。\n\n知识库只解释公开错误含义，不能断言用户真实剩余额度，也不能代替后台调整额度。涉及扣费、续费、退款或权益补偿时，应转交有账户与账单权限的支持流程。"
+    },
+    {
+      "document_id": "glm-api-security",
+      "title": "GLM API 安全配置与最小化排障材料",
+      "section": "GLM > API 安全",
+      "source_provider": "智谱 GLM",
+      "source_uri": "https://docs.bigmodel.cn/cn/api/introduction",
+      "authority": "official",
+      "reviewed_at": "2026-08-24T00:00:00Z",
+      "freshness_ttl_days": 90,
+      "content": "GLM API 使用 Bearer 方式认证，API Key 应由服务端或受控开发环境保存。前端网页、公开仓库、录屏、工单和聊天记录中不应出现完整 Key。怀疑密钥泄露时，应立即在官方控制台撤销并重新签发，同时检查调用日志与异常用量，而不是仅修改本地配置。\n\n生产接入应为密钥设置最小权限和独立环境，避免开发、测试、生产共用同一 Key；日志只保留请求标识、状态、耗时、模型和脱敏错误摘要。用户输入、私有代码与工具参数可能包含敏感数据，也应按最小必要原则处理。\n\n提交排障材料前应删除 Authorization、Cookie、邮箱、订单号、仓库地址和源码正文。客服可以要求用户提供 Key 的末尾少量字符用于区分配置，但不应要求完整密钥。"
+    }
+  ]
+}

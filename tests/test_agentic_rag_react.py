@@ -34,7 +34,7 @@ def build_agentic_search_runtime(
 
     manager.register(Tool(
         name="knowledge_search",
-        description="search UrbanOps streetlight knowledge",
+        description="search TokenPlan subscription knowledge",
         handler=knowledge_search,
         schema={
             "type": "object",
@@ -73,8 +73,8 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             queries.append(params["query"])
             return [{
                 "document_id": "plan-overview",
-                "title": "巡检方案说明",
-                "content": "巡检方案公开信息。",
+                "title": "套餐说明",
+                "content": "套餐公开信息。",
             }]
 
         async def decision_provider(payload):
@@ -88,7 +88,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             )
             return json.dumps({
                 "action": "FINAL",
-                "message": "巡检方案公开信息。",
+                "message": "套餐公开信息。",
                 "reason_code": "evidence_complete",
             }, ensure_ascii=False)
 
@@ -100,15 +100,15 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="initial-retrieval",
             agent_type="general",
             system_prompt="test",
-            message="介绍巡检方案",
+            message="介绍套餐",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
             initial_read_tool_name="knowledge_search",
-            initial_read_tool_arguments={"query": "介绍巡检方案", "top_k": 5},
+            initial_read_tool_arguments={"query": "介绍套餐", "top_k": 5},
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
-        self.assertEqual(["介绍巡检方案"], queries)
+        self.assertEqual(["介绍套餐"], queries)
         self.assertEqual(1, len(decision_payloads))
         self.assertEqual(
             ["CALL_TOOL", "FINAL"],
@@ -125,9 +125,9 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             del context
             queries.append(params["query"])
             return [{
-                "document_id": "work_order-download-path",
-                "title": "电子维修工单下载",
-                "content": "电子维修工单可在巡检记录中心的维修工单记录中下载。",
+                "document_id": "invoice-download-path",
+                "title": "电子发票下载",
+                "content": "电子发票可在账单中心的发票记录中下载。",
             }]
 
         async def decision_provider(payload):
@@ -135,12 +135,12 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "电子维修工单在哪里下载"},
-                    "reason_code": "need_work_order_download_path",
+                    "arguments": {"query": "电子发票在哪里下载"},
+                    "reason_code": "need_invoice_download_path",
                 }, ensure_ascii=False)
             return json.dumps({
                 "action": "FINAL",
-                "message": "电子维修工单可在巡检记录中心的维修工单记录中下载。",
+                "message": "电子发票可在账单中心的发票记录中下载。",
                 "reason_code": "evidence_complete",
             }, ensure_ascii=False)
 
@@ -152,13 +152,13 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="simple-faq",
             agent_type="general",
             system_prompt="test",
-            message="电子维修工单在哪里下载？",
+            message="电子发票在哪里下载？",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
-        self.assertEqual(["电子维修工单在哪里下载"], queries)
+        self.assertEqual(["电子发票在哪里下载"], queries)
         self.assertEqual(1, len(result.tool_events))
         self.assertEqual(2, len(result.steps))
         self.assertEqual(1, len(result.artifact.payload.facts))
@@ -170,16 +170,16 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             del context
             query = params["query"]
             queries.append(query)
-            if query == "控制器怎么设置":
+            if query == "插件怎么设置":
                 return [{
                     "document_id": "plugin-service-overview",
-                    "title": "控制器服务概览",
-                    "content": "UrbanOps 支持 VS Code 和 JetBrains 系列控制器。",
+                    "title": "插件服务概览",
+                    "content": "TokenPlan 支持 VS Code 和 JetBrains 系列插件。",
                 }]
             return [{
                 "document_id": "vscode-plugin-setup",
-                "title": "单灯控制器安装流程",
-                "content": "先从扩展市场安装 UrbanOps 控制器，再登录巡检任务路灯终端。",
+                "title": "VS Code 插件安装流程",
+                "content": "先从扩展市场安装 TokenPlan 插件，再登录订阅账户。",
             }]
 
         async def decision_provider(payload):
@@ -188,7 +188,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "控制器怎么设置"},
+                    "arguments": {"query": "插件怎么设置"},
                     "reason_code": "initial_search",
                 }, ensure_ascii=False)
             if len(payload["search_history"]) == 1:
@@ -198,11 +198,11 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                     first_data[0]["document_id"],
                 )
                 self.assertEqual(
-                    "urbanops-agent-loop-v8",
+                    "customer-service-agent-loop-v8",
                     payload["prompt_version"],
                 )
                 self.assertEqual(
-                    ["控制器怎么设置"],
+                    ["插件怎么设置"],
                     [item["query"] for item in payload["search_history"]],
                 )
                 self.assertIn(
@@ -212,7 +212,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "单灯控制器安装流程"},
+                    "arguments": {"query": "VS Code 插件安装流程"},
                     "reason_code": "missing_vscode_plugin_procedure",
                 }, ensure_ascii=False)
             retrieval_observations = [
@@ -222,7 +222,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             second_data = retrieval_observations[-1]["data"]
             self.assertEqual("vscode-plugin-setup", second_data[0]["document_id"])
             self.assertEqual(
-                ["控制器怎么设置", "单灯控制器安装流程"],
+                ["插件怎么设置", "VS Code 插件安装流程"],
                 [item["query"] for item in payload["search_history"]],
             )
             self.assertEqual(
@@ -246,7 +246,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             )
             return json.dumps({
                 "action": "FINAL",
-                "message": "请先从扩展市场安装 UrbanOps 控制器，再登录巡检任务路灯终端。",
+                "message": "请先从扩展市场安装 TokenPlan 插件，再登录订阅账户。",
                 "reason_code": "evidence_complete",
             }, ensure_ascii=False)
 
@@ -258,15 +258,15 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="plugin-setup",
             agent_type="general",
             system_prompt="test",
-            message="控制器怎么设置？",
+            message="插件怎么设置？",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
         self.assertEqual([
-            "控制器怎么设置",
-            "单灯控制器安装流程",
+            "插件怎么设置",
+            "VS Code 插件安装流程",
         ], queries)
         self.assertEqual(2, len(result.tool_events))
         self.assertEqual(3, len(result.steps))
@@ -280,8 +280,8 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             queries.append(params["query"])
             return [{
                 "document_id": "duplicate-charge-handling",
-                "title": "重复告警处理",
-                "content": "发现重复告警后应提交巡检记录号和告警凭证。",
+                "title": "重复扣费处理",
+                "content": "发现重复扣费后应提交账单号和支付凭证。",
             }]
 
         async def decision_provider(payload):
@@ -289,29 +289,29 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "重复告警处理流程"},
+                    "arguments": {"query": "重复扣费处理流程"},
                     "reason_code": "need_charge_process",
                 }, ensure_ascii=False)
             if payload["terminal_only_reason"] != "duplicate_read_tool_call":
                 self.assertEqual(
-                    ["重复告警处理流程"],
+                    ["重复扣费处理流程"],
                     [item["query"] for item in payload["search_history"]],
                 )
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "重复告警处理流程"},
+                    "arguments": {"query": "重复扣费处理流程"},
                     "reason_code": "repeated_charge_process",
                 }, ensure_ascii=False)
             self.assertEqual([], payload["allowed_tools"])
             self.assertTrue(payload["observations"][-1]["duplicate_blocked"])
             self.assertEqual(
-                ["重复告警处理流程", "重复告警处理流程"],
+                ["重复扣费处理流程", "重复扣费处理流程"],
                 [item["query"] for item in payload["search_history"]],
             )
             return json.dumps({
                 "action": "FINAL",
-                "message": "发现重复告警后应提交巡检记录号和告警凭证。",
+                "message": "发现重复扣费后应提交账单号和支付凭证。",
                 "reason_code": "existing_evidence_complete",
             }, ensure_ascii=False)
 
@@ -323,13 +323,13 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="duplicate-search",
             agent_type="general",
             system_prompt="test",
-            message="我好像被重复告警了怎么办？",
+            message="我好像被重复扣费了怎么办？",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
-        self.assertEqual(["重复告警处理流程"], queries)
+        self.assertEqual(["重复扣费处理流程"], queries)
         self.assertEqual(1, len(result.tool_events))
         self.assertEqual(3, len(result.steps))
 
@@ -340,16 +340,16 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             del context
             query = params["query"]
             queries.append(query)
-            if query == "重复告警申诉流程":
+            if query == "重复扣费申诉流程":
                 return [{
                     "document_id": "duplicate-charge-appeal",
-                    "title": "重复告警申诉",
-                    "content": "重复告警申诉需提交巡检记录号和告警凭证。",
+                    "title": "重复扣费申诉",
+                    "content": "重复扣费申诉需提交账单号和支付凭证。",
                 }]
             return [{
-                "document_id": "withdrawal-arrival-time",
-                "title": "工单撤回到账时效",
-                "content": "工单撤回到账时间以原告警渠道的处理进度为准。",
+                "document_id": "refund-arrival-time",
+                "title": "退款到账时效",
+                "content": "退款到账时间以原支付渠道的处理进度为准。",
             }]
 
         async def decision_provider(payload):
@@ -358,22 +358,22 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "重复告警申诉流程"},
+                    "arguments": {"query": "重复扣费申诉流程"},
                     "reason_code": "missing_appeal_process",
                 }, ensure_ascii=False)
             if len(history) == 1:
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "工单撤回到账时效"},
-                    "reason_code": "missing_withdrawal_arrival_time",
+                    "arguments": {"query": "退款到账时效"},
+                    "reason_code": "missing_refund_arrival_time",
                 }, ensure_ascii=False)
             self.assertEqual(
-                ["重复告警申诉流程", "工单撤回到账时效"],
+                ["重复扣费申诉流程", "退款到账时效"],
                 [item["query"] for item in history],
             )
             self.assertEqual(
-                {"duplicate-charge-appeal", "withdrawal-arrival-time"},
+                {"duplicate-charge-appeal", "refund-arrival-time"},
                 {
                     item["document_id"]
                     for item in payload["accumulated_evidence"]
@@ -381,7 +381,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             )
             return json.dumps({
                 "action": "FINAL",
-                "message": "请先提交重复告警申诉；工单撤回到账时间以原告警渠道进度为准。",
+                "message": "请先提交重复扣费申诉；退款到账时间以原支付渠道进度为准。",
                 "reason_code": "all_information_covered",
             }, ensure_ascii=False)
 
@@ -393,14 +393,14 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="two-information-points",
             agent_type="general",
             system_prompt="test",
-            message="重复告警怎么申诉，工单撤回多久能到账？",
-            focus="申诉流程和工单撤回时效",
+            message="重复扣费怎么申诉，退款多久能到账？",
+            focus="申诉流程和退款时效",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
-        self.assertEqual(["重复告警申诉流程", "工单撤回到账时效"], queries)
+        self.assertEqual(["重复扣费申诉流程", "退款到账时效"], queries)
         self.assertEqual(2, len(result.tool_events))
         self.assertEqual(3, len(result.steps))
 
@@ -412,16 +412,16 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             del context
             query = params["query"]
             queries.append(query)
-            if query == "重复告警申诉需要哪些材料":
+            if query == "重复扣费申诉需要哪些材料":
                 return [{
                     "document_id": "appeal-materials",
                     "title": "申诉材料",
-                    "content": "申诉需要巡检记录号与告警凭证。",
+                    "content": "申诉需要账单号与支付凭证。",
                 }]
             return [{
                 "document_id": "appeal-process",
                 "title": "申诉流程",
-                "content": "申诉在巡检记录页提交后由人工审核。",
+                "content": "申诉在账单页提交后由人工审核。",
             }]
 
         async def decision_provider(payload):
@@ -436,7 +436,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                         "complete": False,
                         "supporting_document_ids": ["appeal-materials"],
                         "missing_information": "申诉的具体流程",
-                        "next_query": "重复告警申诉流程",
+                        "next_query": "重复扣费申诉流程",
                     },
                     "reason_code": "partial_answer",
                 }, ensure_ascii=False)
@@ -444,19 +444,19 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "重复告警申诉流程"},
+                    "arguments": {"query": "重复扣费申诉流程"},
                     "retrieval_reflection": {
                         "relevant": True,
                         "complete": False,
                         "supporting_document_ids": ["appeal-materials"],
                         "missing_information": "申诉的具体流程",
-                        "next_query": "重复告警申诉流程",
+                        "next_query": "重复扣费申诉流程",
                     },
                     "reason_code": "fill_gap",
                 }, ensure_ascii=False)
             return json.dumps({
                 "action": "FINAL",
-                "message": "申诉需提交巡检记录号和告警凭证，提交后由人工审核。",
+                "message": "申诉需提交账单号和支付凭证，提交后由人工审核。",
                 "retrieval_reflection": {
                     "relevant": True,
                     "complete": True,
@@ -474,17 +474,17 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="incomplete-repair",
             agent_type="general",
             system_prompt="test",
-            message="重复告警怎么申诉？",
+            message="重复扣费怎么申诉？",
             focus="申诉流程",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
             initial_read_tool_name="knowledge_search",
-            initial_read_tool_arguments={"query": "重复告警申诉需要哪些材料"},
+            initial_read_tool_arguments={"query": "重复扣费申诉需要哪些材料"},
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
         self.assertEqual(
-            ["重复告警申诉需要哪些材料", "重复告警申诉流程"], queries,
+            ["重复扣费申诉需要哪些材料", "重复扣费申诉流程"], queries,
         )
         codes = [step.reason_code for step in result.steps]
         self.assertEqual(1, codes.count("retrieval_evidence_incomplete_repair"))
@@ -686,19 +686,19 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
             run_id="multi-initial-retrieval",
             agent_type="general",
             system_prompt="test",
-            message="下次巡检日由什么决定；另外，片区巡检 巡检权限怎么加？",
+            message="续费日由什么决定；另外，Team 席位怎么加？",
             tool_binding=binding,
             intent_id="agentic-rag-intent",
             initial_read_calls=[
                 {"tool_name": "knowledge_search",
-                 "arguments": {"query": "下次巡检日由什么决定", "top_k": 5}},
+                 "arguments": {"query": "续费日由什么决定", "top_k": 5}},
                 {"tool_name": "knowledge_search",
-                 "arguments": {"query": "片区巡检 巡检权限怎么加", "top_k": 5}},
+                 "arguments": {"query": "Team 席位怎么加", "top_k": 5}},
             ],
         )
 
         self.assertEqual(AgentRunStatus.COMPLETED, result.status)
-        self.assertEqual(["下次巡检日由什么决定", "片区巡检 巡检权限怎么加"], queries)
+        self.assertEqual(["续费日由什么决定", "Team 席位怎么加"], queries)
         # 两路初始检索都在模型首次决策之前执行；反射契约只约束模型决策，
         # 系统注入的第 2 路初始检索不被 fail-closed 误伤。
         self.assertEqual(1, len(payloads))

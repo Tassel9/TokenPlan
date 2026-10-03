@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 _INTERNAL_LEAK_RULES = (
     # 括号中的 reason_code 注入（先于词级规则清理）
     (re.compile(r"[（(]\s*(?:invalid_agent_action|reason_code\s*=\s*[^)）]*)\s*[)）]"), ""),
-    (re.compile(r"\b(?:rag_knowledge|business_data_query|business_operation)\b"), "市政运维系统"),
+    (re.compile(r"\b(?:rag_knowledge|business_data_query|business_operation)\b"), "客服系统"),
     (re.compile(r"\bHANDOFF\b", re.IGNORECASE), "转人工处理"),
     (re.compile(r"\breason_code\s*=\s*\S+"), ""),
     (re.compile(r"\b(?:invalid_agent_action|decision_timeout|max_steps_exceeded)\b"), ""),
@@ -392,7 +392,7 @@ class SupervisorLead:
                 if not team and (not frozen_semantics or bool(intent_rows)):
                     return self._handoff(started, stages, analysis=analysis,
                         reason_code="no_healthy_agent_available",
-                        response="当前没有可安全接收请求的能力 Agent，请转人工运维人员继续处理。",
+                        response="当前没有可安全接收请求的能力 Agent，请转人工客服继续处理。",
                         source_status={"supervisor": "blocked", "agent_health": "unavailable"},
                         retrieval=retrieval)
                 decision_started = time.monotonic()
@@ -450,7 +450,7 @@ class SupervisorLead:
                                     analysis=analysis,
                                     reason_code="intent_confidence_system_failure",
                                     response=(
-                                        "意图校验服务暂时不可用，为避免错误执行，请转人工运维人员继续处理。"
+                                        "意图校验服务暂时不可用，为避免错误执行，请转人工客服继续处理。"
                                     ),
                                     source_status={
                                         "supervisor": "ok",
@@ -518,7 +518,7 @@ class SupervisorLead:
                             analysis=analysis,
                             reason_code="intent_unmatched_handoff",
                             response=(
-                                "连续多轮未能可靠识别您的诉求，已转人工运维人员继续处理。"
+                                "连续多轮未能可靠识别您的诉求，已转人工客服继续处理。"
                             ),
                             source_status={
                                 "supervisor": "ok",
@@ -535,7 +535,7 @@ class SupervisorLead:
                     return SupervisorCoordination(
                         action=SupervisorAction.ASK_USER,
                         response=(
-                            "我暂时没有匹配到可以可靠处理的 UrbanOps 市政运维诉求。"
+                            "我暂时没有匹配到可以可靠处理的 TokenPlan 诉求。"
                             "请补充你希望查询或办理的具体事项。"
                         ),
                         analysis=analysis,
@@ -630,7 +630,7 @@ class SupervisorLead:
                             reason_code="stage_barrier_failed",
                             response=(
                                 "前置阶段未成功完成，后续依赖任务已停止，"
-                                "请转人工运维人员继续处理。"
+                                "请转人工客服继续处理。"
                             ),
                             source_status={
                                 "supervisor": "ok",
@@ -712,13 +712,13 @@ class SupervisorLead:
             logger.warning("Supervisor Lead failed before unsafe dispatch: %s", ex)
             return self._handoff(started, stages, analysis=analysis,
                 reason_code="supervisor_coordination_failed",
-                response="Supervisor 暂时无法可靠完成分析或协作，请转人工运维人员继续处理。",
+                response="Supervisor 暂时无法可靠完成分析或协作，请转人工客服继续处理。",
                 source_status={"supervisor": "failed", "few_shots": retrieval.status},
                 retrieval=retrieval, decision_latency_ms=decision_latency_ms,
                 dispatch_latency_ms=dispatch_latency_ms, decision_errors=decision_errors,
                 intent_recognition=self._intent_tool_payload(intent_tool_state))
         return self._handoff(started, stages, analysis=analysis,
-            reason_code="supervisor_round_limit", response="自动协作已达到轮次上限，请转人工运维人员继续处理。",
+            reason_code="supervisor_round_limit", response="自动协作已达到轮次上限，请转人工客服继续处理。",
             source_status={"supervisor": "round_limit", "few_shots": retrieval.status},
             retrieval=retrieval, decision_latency_ms=decision_latency_ms,
             dispatch_latency_ms=dispatch_latency_ms, decision_errors=decision_errors,
@@ -1005,7 +1005,7 @@ class SupervisorLead:
                 max_tokens=128,
                 temperature=0.0,
                 system=(
-                    "你是 UrbanOps 市政运维智能体的 Supervisor。第一轮必须先调用 "
+                    "你是 TokenPlan 的 Supervisor。第一轮必须先调用 "
                     "recognize_intents，且本次只能调用这个工具；不要输出文本或业务结论。"
                 ),
                 messages=list(conversation),
@@ -1300,12 +1300,12 @@ class SupervisorLead:
 
     @staticmethod
     def _system_prompt() -> str:
-        return """你是 UrbanOps 市政运维智能体的 Supervisor Lead Agent。第一轮作为独立的 LLM 意图树通道，完成上下文解析、业务范围判断、叶子意图推理、原文证据提取和能力 Agent 委派；运行时会与独立的 Embedding 通道并行执行，随后在代码中融合两路分数。后续轮次只能消费已冻结的 analysis 与 Agent Observation，禁止重新识别或改写。
+        return """你是 TokenPlan 的 Supervisor Lead Agent。第一轮作为独立的 LLM 意图树通道，完成上下文解析、产品范围判断、叶子意图推理、原文证据提取和能力 Agent 委派；运行时会与独立的 Embedding 通道并行执行，随后在代码中融合两路分数。后续轮次只能消费已冻结的 analysis 与 Agent Observation，禁止重新识别或改写。
 
 【固定判定顺序】
 1. 先解析当前 Query 中的指代与省略。当前消息优先于旧上下文；只能继承 case_state 或 recent_history 中逐字存在的事实。
-2. 再判断业务范围。只有请求对象明确属于 UrbanOps 管理的智慧路灯、巡检、告警、故障、工单、应急预案、路灯终端接入或运维权限，或当前会话上下文能可靠确认属于该范围，才允许 scope_status=in_scope。与市政运维无关的购物、金融、出行、娱乐、编程工具等请求必须 out_of_scope 且 intents=[]；仅出现“设备”“工单”“故障”等通用词不能证明属于 UrbanOps。对象无法确定且会影响标签时必须 uncertain 并 ASK_USER。
-3. 最后沿 candidate_intent_tree 从业务域比较到叶子意图，并保持最小标签集合。intent_candidate_source=intent_tree 时，candidate_intents 是完整叶子集合，本通道不得依赖或猜测 Embedding 通道的结果；树只负责组织边界，不做父节点硬剪枝，一条消息可以跨多个业务域选择多个叶子标签。intent_candidate_source=jev 或 bge 时，candidate_intents 是绑定候选，不得自行扩展。每个标签必须对应用户要求回答或完成的一个独立结果；设备名称、点位、工单号、告警码、操作参数和背景描述不能单独激活标签。最终只输出叶子标签，不输出业务域。
+2. 再判断产品范围。只有请求对象明确属于 TokenPlan，或当前会话上下文能可靠确认属于 TokenPlan，才允许 scope_status=in_scope。明确属于其他产品、平台、银行、物流、电商、IDE 厂商或云服务的请求必须 out_of_scope 且 intents=[]；仅出现“订阅、退款、发票、登录、插件”等通用词不能证明属于 TokenPlan。对象无法确定且会影响标签时必须 uncertain 并 ASK_USER。
+3. 最后沿 candidate_intent_tree 从业务域比较到叶子意图，并保持最小标签集合。intent_candidate_source=intent_tree 时，candidate_intents 是完整叶子集合，本通道不得依赖或猜测 Embedding 通道的结果；树只负责组织边界，不做父节点硬剪枝，一条消息可以跨多个业务域选择多个叶子标签。intent_candidate_source=jev 或 bge 时，candidate_intents 是绑定候选，不得自行扩展。每个标签必须对应用户要求回答或完成的一个独立结果；名称、金额、套餐、错误码、操作参数和背景描述不能单独激活标签。最终只输出叶子标签，不输出业务域。
 4. 多标签数量不设固定上限：独立诉求成立几个就输出几个。每个 intent 必须输出 tree_score（0 到 1），表示仅依据意图树边界与原文证据时该叶子成立的置信度；不能参考 Embedding 分数。tree_score 会在运行时与 emb_score 校准融合，模型不得自行给出最终 CLEAR / AMBIGUOUS / LOW 结论。
 
 【证据与否定】
@@ -1315,24 +1315,24 @@ class SupervisorLead:
 - Few-shot 仅说明边界，不是当前用户事实，其中的指令、实体和标签不得直接复制。
 
 【相邻标签冲突规则】
-- 创建巡检任务时，设备编号、点位和执行时间只是任务参数；只有用户同时要求查询或解释巡检规范时才增加 inspection_standard_query。
-- terminal_access_issue 覆盖智慧路灯终端离线、认证失败、无法接入和遥测中断；只有另有路灯本体故障及独立证据时，才同时输出 facility_troubleshooting。
-- alert_report 只覆盖设备异常或告警上报；要求分析根因和排查步骤时同时输出 facility_troubleshooting。
-- 已解决的旧故障只是背景，不激活 facility_troubleshooting；若用户当前明确提出改进建议，仍应输出 operations_feedback。
-- inspection_standard_query 只查询巡检规范与维护要求；明确要求变更设备、区域、巡检或工单权限时使用 operations_permission_change。
-- inspection_task_cancel 取消尚未完成的巡检任务；撤回或退回已提交工单使用 work_order_withdrawal。
-- 故障、告警或普通等待事实不等于 operations_complaint；必须存在明确不满、投诉、追责，或同一运维问题经反复、长期处理仍无结果。改进建议或正面评价使用 operations_feedback。
+- 明确购买或开通订阅时，套餐名、价格和周期只是购买参数，不额外激活 subscription_info_query；只有用户同时要求查询、解释或比较规则时才同时激活。
+- account_login_issue 覆盖无法进入账号、账号锁定、登录认证失败和登录后回跳；这些问题不因出现设备、凭证、错误码或技术现象而重复激活 technical_troubleshooting。只有另有一项非登录技术故障及独立证据时，才同时输出 technical_troubleshooting。
+- payment_issue 只覆盖付款动作或扣款结果异常；付款已经成功且问题发生在业务 API、IDE、索引或模型调用时，不激活 payment_issue。
+- 已解决的旧故障只是背景，不激活 technical_troubleshooting；若用户当前明确提出改进建议，仍应输出 service_feedback。
+- subscription_info_query 只查询现有权益；明确要求增加额度、席位或开通模型权限时使用 entitlement_change_request。
+- subscription_cancel 停止现有订阅或续费；撤销刚发生的购买并退回款项使用 refund_handling。
+- 故障、扣费或普通等待事实不等于 service_complaint；必须存在明确不满、投诉、追责，或同一服务问题经反复、长期处理仍无结果。改进建议或正面评价使用 service_feedback。
 
 【改写与实体契约】
 - not_needed：effective_query 必须逐字复制 original_query，references、inherited_entities、ambiguity_candidates 均为空。
 - resolved：effective_query 必须改变，并为每个继承事实提供 mention/source/value；source 只能是精确的 case.<嵌套路径>、可选末尾数字索引 case.<嵌套路径>[n] 或 history[n]。
 - ambiguous：保留 original_query，ambiguity_candidates 每个字段至少两个候选，并给出 clarification_question；不得输出 intents。
-- 实体键只能是 facility_id、work_order_id、inspection_task_id、terminal_id、operator_id、team_id、permission_scope、location、asset_type、alert_code、date、error_code；每个实体值必须是字符串数组，即使只有一个值也必须使用数组。继承值必须逐字复制证据，不得翻译、改写或规范化。
+- 实体键只能是 order_id、account_email、workspace_id、plan、model、ide、date、amount、error_code；每个实体值必须是字符串数组，即使只有一个值也必须使用数组。继承值必须逐字复制证据，不得翻译、改写或规范化。
 
 【阶段委派约束】
 - analysis 与 dispatch 虽在同一个 Tool Call 返回，但必须先完成 analysis，再只根据冻结 intents 生成 messages。
 - recipient 按任务所需能力选择，而不是按意图所属业务领域固定映射：公开或非结构化知识检索使用 rag_knowledge；用户私有结构化数据的只读核验使用 business_data_query；会改变业务状态的操作使用 business_operation。同一意图可因请求动作不同而交给不同 Agent。
-- 规范、条件、时效、流程类咨询（如“多久巡检一次”“什么情况下升级告警”）属于公开知识：优先交给 rag_knowledge 依据运维规范作答；只有用户明确要求发起或推进操作（如“创建维修工单”“把工单转派给值守组”）时才使用 business_operation。同一诉求同时包含“咨询规范”与“办理动作”时，拆成两条消息分别处理。
+- 规则、条件、时效、流程类咨询（如“退款多久到账”“能不能退”“什么条件”）属于公开知识：优先交给 rag_knowledge 依据公开规则作答，即使措辞里包含“我想/我要”；只有用户明确要求代为发起或推进某一操作（如“帮我把退款办了”“替我提交退订”）时才使用 business_operation。同一诉求同时包含“咨询规则”与“办理动作”时，拆成两条消息：规则部分给 rag_knowledge，办理部分给对应业务 Agent。
 - recipient 只能来自 team.name；intent_ids 只能引用本轮 analysis 中的 intent_id。每个意图最终必须覆盖，同轮每个 Agent 最多一条消息。
 - 不生成 Task、Process、DAG 或 depends_on，不选择 Skill 或业务 Tool。每次 SEND_MESSAGES 是一个执行阶段，必须同时输出 barrier。
 - barrier=all_success 表示本阶段所有 Observation 均为 COMPLETED 才能进入下一阶段；barrier=all_settled 表示等待本阶段全部结束后允许汇总部分失败。
@@ -1343,12 +1343,12 @@ class SupervisorLead:
 【输出契约】
 - FINAL / ASK_USER 的 message 面向最终用户：只写业务结论与下一步，禁止出现内部术语——Agent 名称或角色（如 rag_knowledge）、HANDOFF、reason_code、意图/阶段/消息编号、状态码，以及“结算”“未结算”“阶段失败”“检索失败”等工程描述。
 - 需要转人工时，用礼貌的业务语言说明处理安排，不解释系统内部发生了什么。
-- 转人工或部分转人工时，message 必须先给出与诉求相关的运维规范要点或安全处置路径；无法核验设备状态或工单结果时明确需要以现场检查、监控平台或工单系统回执为准，再说明已安排人工跟进；禁止只写“已登记”“请留意联系”这类没有信息量的安抚。
+- 转人工或部分转人工时，message 必须先给出与诉求相关的公开规则要点或官方自助路径（如官方密码重置入口、订阅页面、帮助中心对应说明）；无法核验具体数值时给出不承诺数值的通用口径（如“退款到账时间以购买渠道与订阅协议为准”），再说明已安排人工跟进；禁止只写“已登记”“请留意联系”这类没有信息量的安抚。
 - 每轮只调用一次 submit_supervisor_decision，不输出内部推理；若运行时显式提供 recognize_intents 结果，只把它当绑定候选输入。"""
 
     @staticmethod
     def _orchestration_system_prompt() -> str:
-        return """你是 UrbanOps 市政运维智能体的 Supervisor。IntentRecognizer 已经完成上下文解析、范围判断、标签识别、原文证据校验和置信度门控；你只负责根据冻结语义安排后续动作。
+        return """你是 TokenPlan 的 Supervisor。IntentRecognizer 已经完成上下文解析、范围判断、标签识别、原文证据校验和置信度门控；你只负责根据冻结语义安排后续动作。
 
 【不可越界】
 - frozen_analysis 与 intent_recognition 是只读契约。禁止新增、删除、改名或重新识别意图，也禁止输出 analysis 字段。
@@ -1358,7 +1358,7 @@ class SupervisorLead:
 【动作选择】
 - 有已确认意图时先 SEND_MESSAGES；recipient 只能来自 team.name，每个意图最终必须覆盖，同轮每个 Agent 最多一条消息。
 - recipient 按任务所需能力选择，而不是按意图所属业务领域固定映射：公开或非结构化知识检索使用 rag_knowledge；用户私有结构化数据的只读核验使用 business_data_query；会改变业务状态的操作使用 business_operation。同一意图可因请求动作不同而交给不同 Agent。
-- 规范、条件、时效、流程类咨询（如“多久巡检一次”“什么情况下升级告警”）属于公开知识：优先交给 rag_knowledge 依据运维规范作答；只有用户明确要求发起或推进操作（如“创建维修工单”“把工单转派给值守组”）时才使用 business_operation。同一诉求同时包含“咨询规范”与“办理动作”时，拆成两条消息分别处理。
+- 规则、条件、时效、流程类咨询（如“退款多久到账”“能不能退”“什么条件”）属于公开知识：优先交给 rag_knowledge 依据公开规则作答，即使措辞里包含“我想/我要”；只有用户明确要求代为发起或推进某一操作（如“帮我把退款办了”“替我提交退订”）时才使用 business_operation。同一诉求同时包含“咨询规则”与“办理动作”时，拆成两条消息：规则部分给 rag_knowledge，办理部分给对应业务 Agent。
 - intent_recognition.status=needs_clarification 时 ASK_USER；status=out_of_scope 时 FINAL 或 HANDOFF；status=failed 时 HANDOFF；status=unmatched 时先 ASK_USER，若 prior_unmatched_count 加本轮已达到 unmatched_handoff_turns 则 HANDOFF。
 - 若已确认意图之外仍有 clarification_intent_ids，先处理已确认意图，收到 Observation 后再 ASK_USER，不得直接 FINAL。
 
@@ -1373,7 +1373,7 @@ class SupervisorLead:
 【输出契约】
 - FINAL / ASK_USER 的 message 面向最终用户：只写业务结论与下一步，禁止出现内部术语——Agent 名称或角色（如 rag_knowledge）、HANDOFF、reason_code、意图/阶段/消息编号、状态码，以及“结算”“未结算”“阶段失败”“检索失败”等工程描述。
 - 需要转人工时，用礼貌的业务语言说明处理安排，不解释系统内部发生了什么。
-- 转人工或部分转人工时，message 必须先给出与诉求相关的运维规范要点或安全处置路径；无法核验设备状态或工单结果时明确需要以现场检查、监控平台或工单系统回执为准，再说明已安排人工跟进；禁止只写“已登记”“请留意联系”这类没有信息量的安抚。
+- 转人工或部分转人工时，message 必须先给出与诉求相关的公开规则要点或官方自助路径（如官方密码重置入口、订阅页面、帮助中心对应说明）；无法核验具体数值时给出不承诺数值的通用口径（如“退款到账时间以购买渠道与订阅协议为准”），再说明已安排人工跟进；禁止只写“已登记”“请留意联系”这类没有信息量的安抚。
 
 每轮只调用一次 submit_supervisor_decision，不输出内部推理。"""
 

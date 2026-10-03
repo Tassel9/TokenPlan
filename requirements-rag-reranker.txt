@@ -1,0 +1,3 @@
+# BGE cross-encoder reranker dependencies (also supplied by the local ML runtime).
+torch>=2.1,<3
+transformers==4.46.3

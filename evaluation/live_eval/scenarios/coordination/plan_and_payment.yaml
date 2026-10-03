@@ -1,0 +1,20 @@
+schema_version: 1
+id: tokenplan-plan-payment-003
+name: 套餐咨询与扣款异常双诉求
+group: coordination
+tier: smoke
+tags: [multi_intent, billing, exact_route]
+turns:
+  - Pro 套餐包含哪些模型？另外我刚才付款失败了。
+expect:
+  answer:
+    contains_groups:
+      - [套餐, 模型, 权益]
+      - [付款, 支付, 扣款]
+    contains_none: [已经修复, 已处理完成]
+  route:
+    intents_exact: [subscription_info_query, payment_issue]
+  trace:
+    events_all: [INTENTS_ROUTED, REQUEST_FINISHED]
+judge:
+  goal: 同时回答套餐权益并处理支付异常，两个诉求都不能遗漏，也不得声称支付问题已经修复。

@@ -1,21 +1,26 @@
-"""UrbanOps support scope and explicit out-of-scope markers."""
+"""TokenPlan support scope and explicit out-of-scope markers."""
 from __future__ import annotations
 
 from typing import Tuple
 
 
 BUSINESS_SCOPE = (
-    "UrbanOps 市政运维服务，包括设施台账、设备巡检、异常告警、故障排查、"
-    "维修工单、应急预案、智慧路灯终端接入与运维权限管理。"
+    "TokenPlan AI 编程订阅服务，包括套餐与权益、模型和 Token 额度、订阅账单、"
+    "账号安全，以及 IDE 插件、代码补全和 API 调用相关技术支持。"
 )
 
 OUT_OF_SCOPE_MARKERS: Tuple[str, ...] = (
-    "购物",
-    "股票交易",
-    "电商订单",
-    "酒店预订",
-    "电影购票",
-    "快递寄件",
+    "快递",
+    "物流",
+    "收货地址",
+    "发货",
+    "配送",
+    "签收",
+    "退货",
+    "换货",
+    "尺码",
+    "鞋码",
+    "上门取件",
     "航班",
     "机票",
     "酒店",
@@ -26,8 +31,7 @@ OUT_OF_SCOPE_MARKERS: Tuple[str, ...] = (
     "体检报告",
     "股票",
     "播放音乐",
-    "代码补全",
-    "编程工具配置",
+    "洗衣机",
 )
 
 

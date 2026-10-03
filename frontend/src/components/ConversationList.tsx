@@ -33,7 +33,7 @@ export function ConversationList({ conversations, currentId, onSelect, onDelete 
       <div className="history-empty">
         <MessageSquare aria-hidden="true" />
         <p>还没有对话</p>
-        <span>从一个真实运维问题开始</span>
+        <span>从一个真实客服问题开始</span>
       </div>
     )
   }

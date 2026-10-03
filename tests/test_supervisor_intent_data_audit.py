@@ -10,9 +10,9 @@ from evaluation.evaluate_supervisor_semantics import calculate_metrics, calculat
 class SupervisorIntentDataAuditTests(unittest.TestCase):
     def test_semantic_metrics_include_structure_and_slices(self):
         rows = [
-            {"expected_intents": ["work_order_withdrawal"], "predicted_intents": ["work_order_withdrawal"],
+            {"expected_intents": ["refund_handling"], "predicted_intents": ["refund_handling"],
              "exact_match": True, "latency_ms": 10, "error": "", "dimensions": ["boundary"]},
-            {"expected_intents": [], "predicted_intents": ["work_order_withdrawal"],
+            {"expected_intents": [], "predicted_intents": ["refund_handling"],
              "exact_match": False, "latency_ms": 20, "error": "invalid", "dimensions": ["boundary"]},
         ]
         self.assertEqual(0.5, calculate_metrics(rows)["structural_success_rate"])
@@ -24,15 +24,15 @@ class SupervisorIntentDataAuditTests(unittest.TestCase):
             few = root / "few.json"
             fixture = root / "fixture.json"
             few.write_text(json.dumps({"examples": [{
-                "id": "one", "query": "我要工单撤回", "tags": ["negative"],
-                "expected": {"intents": ["work_order_withdrawal"], "negative_labels": []},
+                "id": "one", "query": "我要退款", "tags": ["negative"],
+                "expected": {"intents": ["refund_handling"], "negative_labels": []},
             }]}, ensure_ascii=False), encoding="utf-8")
             fixture.write_text(json.dumps({
                 "metadata": {"dataset_id": "test", "dataset_role": "holdout", "frozen": True,
                              "frozen_before_first_live_run": True,
                              "independent_review": {"status": "pending"}},
-                "cases": [{"id": "case", "message": "我要工单撤回",
-                           "expected_intents": ["work_order_withdrawal"], "dimensions": ["single_intent"]}],
+                "cases": [{"id": "case", "message": "我要退款",
+                           "expected_intents": ["refund_handling"], "dimensions": ["single_intent"]}],
             }, ensure_ascii=False), encoding="utf-8")
 
             report = audit(few, [fixture])
@@ -40,7 +40,7 @@ class SupervisorIntentDataAuditTests(unittest.TestCase):
             self.assertEqual("gaps_found", report["status"])
             self.assertFalse(report["checks"]["no_exact_few_shot_fixture_overlap"])
             self.assertFalse(report["checks"]["each_label_has_positive_few_shot"])
-            self.assertEqual(1, report["few_shots"]["positive_label_counts"]["work_order_withdrawal"])
+            self.assertEqual(1, report["few_shots"]["positive_label_counts"]["refund_handling"])
 
 
 if __name__ == "__main__":

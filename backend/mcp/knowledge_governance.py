@@ -38,9 +38,9 @@ STATUS_PRIORITY = {
 }
 
 TIME_SENSITIVE_QUERY = re.compile(
-    r"(?:当前|现在|目前|最新|现行|规范|阈值|巡检周期|告警等级|工单时限|"
+    r"(?:当前|现在|目前|最新|现行|价格|售价|套餐|权益|额度|订阅|"
     r"截止时间|开放时间|材料要求|"
-    r"current|latest|standard|procedure|inspection|alarm|work order|facility)",
+    r"current|latest|price|pricing|plan|subscription)",
     re.IGNORECASE,
 )
 

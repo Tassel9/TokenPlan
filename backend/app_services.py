@@ -19,15 +19,10 @@ from core.embedding_provider import (
 )
 from core.supervisor_context import SupervisorContext
 from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
-from mcp.local_business_backend import UrbanOpsLocalBackend
 from mcp.knowledge_base import KnowledgeBase
 from mcp.knowledge_search_service import KnowledgeSearchService
 from mcp.tool_registry import Tool, ToolRegistry
-from mcp.tool_capabilities import (
-    BUSINESS_DATA_QUERY,
-    BUSINESS_OPERATION_EXECUTE,
-    KNOWLEDGE_RETRIEVE,
-)
+from mcp.tool_capabilities import KNOWLEDGE_RETRIEVE
 from memory.conversation_memory import MemoryManager
 from memory.profile_update_queue import RabbitMQProfileUpdateQueue
 from monitor.execution_trace import (
@@ -59,7 +54,6 @@ class AppServices:
     agent_health: AgentHealthTracker
     traces: ExecutionTraceService
     chat_service: ChatService
-    local_backend: Optional[UrbanOpsLocalBackend] = None
     resource_limits: Optional[ResourceConcurrencyLimits] = None
     profile_updates: Optional[RabbitMQProfileUpdateQueue] = None
     request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None
@@ -95,8 +89,6 @@ class AppServices:
             await close_orchestrator()
         await self.traces.close()
         await self.knowledge_search.close()
-        if self.local_backend is not None:
-            await asyncio.to_thread(self.local_backend.close)
         session_store = getattr(self.memory, "session_store", None)
         if session_store is not None:
             await asyncio.to_thread(session_store.close)
@@ -114,7 +106,6 @@ def build_app_services(
     profile_updates: Optional[RabbitMQProfileUpdateQueue] = None,
     request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None,
     conversation_turn_gate: Optional[SQLiteConversationTurnGate] = None,
-    local_backend: Optional[UrbanOpsLocalBackend] = None,
 ) -> AppServices:
     """Construct API/CLI dependencies without hidden handler introspection."""
 
@@ -228,7 +219,7 @@ def build_app_services(
         resolved_profile_updates = RabbitMQProfileUpdateQueue(
             url=os.getenv(
                 "RABBITMQ_URL",
-                "amqp://urbanops:urbanops123@rabbitmq:5672/",
+                "amqp://tokenplan:tokenplan123@rabbitmq:5672/",
             ),
             handler=resolved_memory.process_profile_update,
             stage_handler=resolved_memory.stage_profile_update,
@@ -266,7 +257,7 @@ def build_app_services(
             "title": "知识库降级结果",
             "content": (
                 f"知识库暂时不可用，未能完成对“{query}”的语义检索。"
-                "请稍后重试，或转人工运维人员确认。"
+                "请稍后重试，或转人工客服确认。"
             ),
             "score": 0.0,
             "fallback": True,
@@ -296,58 +287,6 @@ def build_app_services(
         capabilities=[KNOWLEDGE_RETRIEVE],
         evidence_type="knowledge_retrieval",
         max_retries=1,
-    ))
-    resolved_local_backend = local_backend or UrbanOpsLocalBackend(
-        os.getenv("LOCAL_BACKEND_DB_PATH", "./data/local/urbanops_local.sqlite3")
-    )
-    resolved_tools.register(Tool(
-        name="business_data_query",
-        description="查询本地验证数据中的设施、维修工单或操作申请记录",
-        handler=resolved_local_backend.query,
-        schema={
-            "type": "object",
-            "properties": {
-                "resource": {
-                    "type": "string",
-                    "enum": ["facility", "work_order", "operation_requests"],
-                },
-                "record_id": {"type": "string"},
-            },
-            "required": ["resource"],
-        },
-        side_effect="read",
-        risk_level="medium",
-        auth_scope="urbanops.records.read",
-        allowed_agents=["business_data_query"],
-        capabilities=[BUSINESS_DATA_QUERY],
-        evidence_type="verified_record_lookup",
-        max_retries=1,
-    ))
-    resolved_tools.register(Tool(
-        name="business_operation",
-        description=(
-            "向本地验证后端提交巡检、告警、维修工单或权限变更申请；"
-            "仅验证审批、幂等与审计边界，不代表真实平台已经执行"
-        ),
-        handler=resolved_local_backend.submit_operation,
-        schema={
-            "type": "object",
-            "properties": {
-                "operation": {
-                    "type": "string",
-                    "enum": sorted(UrbanOpsLocalBackend.OPERATIONS),
-                },
-                "target_id": {"type": "string"},
-                "details": {"type": "object"},
-            },
-            "required": ["operation", "target_id"],
-        },
-        side_effect="write",
-        risk_level="high",
-        auth_scope="urbanops.operations.write",
-        allowed_agents=["business_operation"],
-        capabilities=[BUSINESS_OPERATION_EXECUTE],
-        evidence_type="verified_state_change",
     ))
 
     catalog_path = os.getenv("SKILL_CATALOG_PATH") or str(
@@ -445,7 +384,6 @@ def build_app_services(
         agent_health=resolved_agent_health,
         traces=resolved_traces,
         chat_service=chat_service,
-        local_backend=resolved_local_backend,
         resource_limits=resource_limits,
         profile_updates=resolved_profile_updates,
         request_rate_limiter=resolved_request_rate_limiter,
@@ -454,7 +392,7 @@ def build_app_services(
 
 
 def _supervisor_semantic_options() -> Dict[str, Any]:
-    root = pathlib.Path(__file__).parent.parent
+    root = pathlib.Path(__file__).parent
     return {
         "few_shot_path": os.getenv(
             "SUPERVISOR_FEW_SHOT_PATH",

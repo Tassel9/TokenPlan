@@ -10,40 +10,40 @@ from prometheus_client import Gauge
 logger = logging.getLogger(__name__)
 
 AGENT_REQUESTS = Gauge(
-    "urbanops_agent_requests", "Agent handled requests", ["agent"]
+    "tokenplan_agent_requests", "Agent handled requests", ["agent"]
 )
 AGENT_SUCCESS_RATE = Gauge(
-    "urbanops_agent_success_rate", "Agent success rate", ["agent"]
+    "tokenplan_agent_success_rate", "Agent success rate", ["agent"]
 )
 AGENT_AVG_LATENCY_MS = Gauge(
-    "urbanops_agent_avg_latency_ms", "Agent average latency", ["agent"]
+    "tokenplan_agent_avg_latency_ms", "Agent average latency", ["agent"]
 )
 AGENT_P95_LATENCY_MS = Gauge(
-    "urbanops_agent_p95_latency_ms", "Agent recent P95 latency", ["agent"]
+    "tokenplan_agent_p95_latency_ms", "Agent recent P95 latency", ["agent"]
 )
 AGENT_JUDGE_QUALITY = Gauge(
-    "urbanops_agent_judge_quality", "Agent LLM Judge quality", ["agent"]
+    "tokenplan_agent_judge_quality", "Agent LLM Judge quality", ["agent"]
 )
 AGENT_HEALTH_DEGRADED = Gauge(
-    "urbanops_agent_health_degraded", "Whether Agent health is degraded", ["agent"]
+    "tokenplan_agent_health_degraded", "Whether Agent health is degraded", ["agent"]
 )
 TOOL_CALLS = Gauge(
-    "urbanops_tool_calls", "Tool call count", ["tool"]
+    "tokenplan_tool_calls", "Tool call count", ["tool"]
 )
 TOOL_SUCCESS_RATE = Gauge(
-    "urbanops_tool_success_rate", "Tool success rate", ["tool"]
+    "tokenplan_tool_success_rate", "Tool success rate", ["tool"]
 )
 TOOL_AVG_LATENCY_MS = Gauge(
-    "urbanops_tool_avg_latency_ms", "Tool average latency", ["tool"]
+    "tokenplan_tool_avg_latency_ms", "Tool average latency", ["tool"]
 )
 TOOL_CONSECUTIVE_FAILURES = Gauge(
-    "urbanops_tool_consecutive_failures", "Tool consecutive failures", ["tool"]
+    "tokenplan_tool_consecutive_failures", "Tool consecutive failures", ["tool"]
 )
 SESSION_DB_BYTES = Gauge(
-    "urbanops_session_db_bytes", "SQLite session database pages in bytes"
+    "tokenplan_session_db_bytes", "SQLite session database pages in bytes"
 )
 SESSION_STORE_AVAILABLE = Gauge(
-    "urbanops_session_store_available", "Whether SQLite session storage is available"
+    "tokenplan_session_store_available", "Whether SQLite session storage is available"
 )
 
 

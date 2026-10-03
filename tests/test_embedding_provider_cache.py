@@ -40,8 +40,8 @@ class EmbeddingProviderCacheTests(unittest.TestCase):
 
     def test_single_embed_reuses_cached_vector(self):
         provider = self._provider()
-        first = provider.embed_sync("重复告警", is_query=True)
-        second = provider.embed_sync("重复告警", is_query=True)
+        first = provider.embed_sync("重复扣款", is_query=True)
+        second = provider.embed_sync("重复扣款", is_query=True)
         self.assertEqual(first, second)
         self.assertEqual(1, len(provider._model.payloads))
         stats = provider.cache_stats()
@@ -50,8 +50,8 @@ class EmbeddingProviderCacheTests(unittest.TestCase):
 
     def test_query_and_document_are_cached_separately(self):
         provider = self._provider()
-        provider.embed_sync("巡检方案", is_query=True)
-        provider.embed_sync("巡检方案", is_query=False)
+        provider.embed_sync("套餐", is_query=True)
+        provider.embed_sync("套餐", is_query=False)
         self.assertEqual(2, len(provider._model.payloads))
         self.assertEqual(0, provider.cache_stats()["hits"])
 
@@ -99,8 +99,8 @@ class EmbeddingProviderCacheTests(unittest.TestCase):
         provider = self._provider()
 
         async def run():
-            first = await provider.embed("重复告警", is_query=True)
-            second = await provider.embed("重复告警", is_query=True)
+            first = await provider.embed("重复扣款", is_query=True)
+            second = await provider.embed("重复扣款", is_query=True)
             return first, second
 
         first, second = asyncio.run(run())

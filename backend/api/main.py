@@ -1,6 +1,7 @@
 """
-UrbanOps 市政运维智能体 — FastAPI 入口
+TokenPlan 智能客服系统 — FastAPI 入口
 
+启动时打印小熊饼干图案。
 所有核心组件在 lifespan 中初始化，通过环境变量配置。
 """
 import asyncio
@@ -15,7 +16,7 @@ from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Dict, List, Optional, Union
 
-# 将后端源码根目录加入 sys.path，确保无论从哪里执行都能找到 agents/core/memory 等模块
+# 将项目根目录加入 sys.path，确保无论从哪里执行都能找到 agents/core/memory 等模块
 # 这一行必须在所有项目内部 import 之前执行
 _ROOT = str(pathlib.Path(__file__).parent.parent.resolve())
 if _ROOT not in sys.path:
@@ -51,6 +52,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+BANNER = r"""
+    ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ
+   ╔══════════════════════╗
+   ║   TokenPlan v2.0     ║
+   ║   智能客服 AI 系统    ║
+   ╚══════════════════════╝
+    ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ  ʕ•ᴥ•ʔ
+"""
+
 # ── 全局组件（lifespan 中初始化）─────────────────────────────────────────────
 _services     = None
 _monitor      = None
@@ -59,6 +69,8 @@ _monitor      = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _services, _monitor
+
+    print(BANNER, flush=True)
 
     from app_services import build_app_services
     from monitor.performance_monitor import PerformanceMonitor
@@ -89,18 +101,18 @@ async def lifespan(app: FastAPI):
     )
     await _monitor.start()
 
-    logger.info("UrbanOps 已就绪")
+    logger.info("TokenPlan 已就绪")
     yield
 
     await _monitor.stop()
     await _services.close()
     _services = None
-    logger.info("UrbanOps 已关闭")
+    logger.info("TokenPlan 已关闭")
 
 
 # ── FastAPI ───────────────────────────────────────────────────────────────────
 app = FastAPI(
-    title="UrbanOps 市政运维智能体",
+    title="TokenPlan 智能客服",
     version="2.0.0",
     lifespan=lifespan,
     docs_url="/docs",
@@ -643,8 +655,8 @@ async def add_knowledge(body: BatchDocInput):
     ```json
     {
       "documents": [
-        {"title": "泵站巡检规范", "content": "巡检时应记录水位、温度、振动和设备状态..."},
-        {"title": "积水应急预案", "content": "达到规定水位后启动分级响应并通知值守人员..."}
+        {"title": "退款政策", "content": "用户在购买后 7 天内可以申请无理由退款..."},
+        {"title": "配送说明", "content": "标准配送 3-5 个工作日..."}
       ]
     }
     ```
@@ -733,7 +745,8 @@ async def knowledge_documents():
 
 # ── 交互式 CLI ────────────────────────────────────────────────────────────────
 async def _cli():
-    print("UrbanOps CLI — 输入 quit 退出\n")
+    print(BANNER)
+    print("TokenPlan CLI — 输入 quit 退出\n")
 
     from app_services import build_app_services
 
@@ -746,10 +759,10 @@ async def _cli():
         try:
             msg = input("你: ").strip()
         except (EOFError, KeyboardInterrupt):
-            print("\n再见")
+            print("\n再见 ʕ•ᴥ•ʔ")
             break
         if not msg or msg.lower() in ("quit", "exit", "退出"):
-            print("再见")
+            print("再见 ʕ•ᴥ•ʔ")
             break
 
         outcome = await services.chat_service.handle(
@@ -762,7 +775,7 @@ async def _cli():
         result = outcome.result
 
         source = result.agent_type.value if result.agent_type else "request-control"
-        print(f"\nUrbanOps [{source}]: {result.response}\n")
+        print(f"\nTokenPlan [{source}]: {result.response}\n")
 
     await services.close()
 

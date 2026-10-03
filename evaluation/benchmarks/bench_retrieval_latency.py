@@ -40,9 +40,6 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-BACKEND_ROOT = ROOT / "backend"
-if str(BACKEND_ROOT) not in sys.path:
-    sys.path.insert(0, str(BACKEND_ROOT))
 
 from mcp.knowledge_base import KnowledgeBase  # noqa: E402
 from mcp.knowledge_search_service import (  # noqa: E402
@@ -52,7 +49,7 @@ from mcp.knowledge_search_service import (  # noqa: E402
 )
 
 DEFAULT_FIXTURE = (
-    ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+    ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
 )
 
 
@@ -271,7 +268,7 @@ async def main() -> int:
     if not cases:
         raise SystemExit("no cases selected")
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-latency-bench-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-latency-bench-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,
@@ -301,14 +298,14 @@ async def main() -> int:
     )
     service = KnowledgeSearchService(
         knowledge_base=kb,
-        api_key=os.getenv("DEEPSEEK_API_KEY") or "benchmark-api-key-placeholder",
+        api_key=os.getenv("DEEPSEEK_API_KEY") or "sk-latency-benchmark-dummy",
         retrieval_config=adaptive,
         reranker_config=reranker_config,
         reranker=reranker,
     )
     cached_service = KnowledgeSearchService(
         knowledge_base=kb,
-        api_key=os.getenv("DEEPSEEK_API_KEY") or "benchmark-api-key-placeholder",
+        api_key=os.getenv("DEEPSEEK_API_KEY") or "sk-latency-benchmark-dummy",
         retrieval_config=AdaptiveRetrievalConfig.from_env(),
         reranker_config=reranker_config,
         reranker=reranker,
@@ -360,7 +357,7 @@ async def main() -> int:
             merged_recall.append(float(row["document_recall"]))
 
     report = {
-        "schema": "urbanops-hybrid-retrieval-latency-v1",
+        "schema": "tokenplan-hybrid-retrieval-latency-v1",
         "generated_at": time.strftime("%Y-%m-%d %H:%M:%S"),
         "host": {
             "platform": platform.platform(),

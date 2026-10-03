@@ -1,4 +1,4 @@
-"""SQLite FTS5 lexical index used by the UrbanOps knowledge base."""
+"""SQLite FTS5 lexical index used by the Coding Plan knowledge base."""
 from __future__ import annotations
 
 import json

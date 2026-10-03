@@ -23,10 +23,10 @@ class EvidenceCoverageTests(unittest.IsolatedAsyncioTestCase):
 
     def test_label_catalog_examples_are_not_delegated_user_requirements(self):
         analysis = SupervisorDecisionValidator.validate_analysis(
-            first_analysis(), original_query="控制器报401，而且重复告警"
+            first_analysis(), original_query="插件报401，而且重复扣款"
         )
         rows = analysis.intent_rows
-        self.assertEqual(rows[0]["label"], "facility_troubleshooting")
+        self.assertEqual(rows[0]["label"], "technical_troubleshooting")
         self.assertNotIn("description", rows[0])
 
     def test_delegation_context_does_not_claim_verified_rewrite(self):
@@ -37,7 +37,7 @@ class EvidenceCoverageTests(unittest.IsolatedAsyncioTestCase):
             user_id="u1",
             conv_id="c1",
             intent_id="round-1-message-1",
-            intent="inspection_standard_query",
+            intent="subscription_info_query",
         ))
         self.assertIn("不是检索事实", context)
         self.assertNotIn("经证据约束补全", context)

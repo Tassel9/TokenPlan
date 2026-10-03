@@ -117,7 +117,7 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             "mcp.knowledge_base.annotate_retrieval_results",
             side_effect=lambda query, items: items,
         ):
-            results = await knowledge_base.search_async("withdrawal", top_k=1)
+            results = await knowledge_base.search_async("refund", top_k=1)
         elapsed = time.perf_counter() - started
 
         dense_start, dense_end = collection.span
@@ -138,14 +138,14 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             side_effect=lambda query, items: items,
         ):
             sequential = build_knowledge_base().search(
-                "withdrawal",
+                "refund",
                 top_k=3,
-                lexical_query="withdrawal ERR-42",
+                lexical_query="refund ERR-42",
             )
             concurrent = await build_knowledge_base().search_async(
-                "withdrawal",
+                "refund",
                 top_k=3,
-                lexical_query="withdrawal ERR-42",
+                lexical_query="refund ERR-42",
             )
 
         self.assertEqual(
@@ -161,7 +161,7 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             "mcp.knowledge_base.annotate_retrieval_results",
             side_effect=lambda query, items: items,
         ):
-            results = await knowledge_base.search_async("withdrawal", top_k=2)
+            results = await knowledge_base.search_async("refund", top_k=2)
 
         self.assertEqual(
             ["shared-1", "lex-1"],
@@ -180,7 +180,7 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             "mcp.knowledge_base.annotate_retrieval_results",
             side_effect=lambda query, items: items,
         ):
-            results = await knowledge_base.search_async("withdrawal", top_k=2)
+            results = await knowledge_base.search_async("refund", top_k=2)
 
         self.assertEqual(
             ["dense-1", "shared-1"],
@@ -197,7 +197,7 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             lexical=_LexicalIndex(fail=True),
         )
         with self.assertRaises(KnowledgeRetrievalUnavailable):
-            await knowledge_base.search_async("withdrawal", top_k=2)
+            await knowledge_base.search_async("refund", top_k=2)
 
     async def test_single_channel_failure_does_not_fail_the_sequential_path(self):
         knowledge_base = build_knowledge_base(
@@ -207,14 +207,14 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             "mcp.knowledge_base.annotate_retrieval_results",
             side_effect=lambda query, items: items,
         ):
-            results = knowledge_base.search("withdrawal", top_k=2)
+            results = knowledge_base.search("refund", top_k=2)
 
         self.assertEqual(2, len(results))
 
     async def test_unknown_keyword_is_rejected_instead_of_silently_ignored(self):
         knowledge_base = build_knowledge_base()
         with self.assertRaises(TypeError):
-            await knowledge_base.search_async("withdrawal", top_k=1, bogus=1)
+            await knowledge_base.search_async("refund", top_k=1, bogus=1)
 
     async def test_document_scope_reaches_both_channels(self):
         collection = _VectorCollection()
@@ -228,7 +228,7 @@ class ConcurrentDualPathRecallTests(unittest.IsolatedAsyncioTestCase):
             side_effect=lambda query, items: items,
         ):
             await knowledge_base.search_async(
-                "withdrawal",
+                "refund",
                 top_k=1,
                 document_ids=["doc-a"],
             )

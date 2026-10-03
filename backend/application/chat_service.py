@@ -1,4 +1,4 @@
-"""Application-level orchestration for one UrbanOps operations turn."""
+"""Application-level orchestration for one customer-service conversation turn."""
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class ChatCommand:
-    """Transport-neutral input for one UrbanOps chat turn."""
+    """Transport-neutral input for one TokenPlan chat turn."""
 
     message: str
     user_id: str

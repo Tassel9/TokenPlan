@@ -10,10 +10,10 @@ FIXTURE = Path(__file__).parents[1] / "evaluation" / "fixtures" / "supervisor_fe
 
 class _Embedding:
     async def embed_many(self, texts, *, is_query):
-        return [[float("重复告警" in text), float("工单撤回" in text), 1.0] for text in texts]
+        return [[float("重复扣款" in text), float("退款" in text), 1.0] for text in texts]
 
     async def embed(self, text, *, is_query):
-        return [float("重复告警" in text), float("工单撤回" in text), 1.0]
+        return [float("重复扣款" in text), float("退款" in text), 1.0]
 
 
 class _BrokenEmbedding:
@@ -24,7 +24,7 @@ class _BrokenEmbedding:
 class SupervisorFewShotRetrieverTests(unittest.IsolatedAsyncioTestCase):
     async def test_retrieves_candidate_specific_positive_and_hard_negatives(self):
         retriever = SupervisorFewShotRetriever(str(FIXTURE), embedding_provider=_Embedding(), top_k=6)
-        result = await retriever.retrieve("重复告警但不是工单撤回")
+        result = await retriever.retrieve("重复扣款但不是退款")
         self.assertEqual("ok", result.status)
         self.assertEqual("parallel_embedding_multisource_v1", result.strategy)
         self.assertEqual(len(INTENT_SPECS), len(result.intent_scores))
@@ -61,19 +61,19 @@ class SupervisorFewShotRetrieverTests(unittest.IsolatedAsyncioTestCase):
         retriever = SupervisorFewShotRetriever(
             str(FIXTURE), embedding_provider=_Embedding(), top_k=2
         )
-        result = await retriever.retrieve("重复告警但不是工单撤回")
+        result = await retriever.retrieve("重复扣款但不是退款")
         self.assertEqual(2, len(result.candidate_intents))
         self.assertLessEqual(len(result.examples), 4)
 
     async def test_default_candidate_cap_stays_small(self):
         retriever = SupervisorFewShotRetriever(str(FIXTURE), embedding_provider=_Embedding())
-        result = await retriever.retrieve("重复告警但不是工单撤回")
+        result = await retriever.retrieve("重复扣款但不是退款")
         self.assertEqual(6, retriever.top_k)
         self.assertLessEqual(len(result.candidate_intents), 6)
 
     async def test_embedding_failure_uses_fixed_examples(self):
         retriever = SupervisorFewShotRetriever(str(FIXTURE), embedding_provider=_BrokenEmbedding())
-        result = await retriever.retrieve("巡检方案有什么区别")
+        result = await retriever.retrieve("套餐有什么区别")
         self.assertEqual("degraded", result.status)
         self.assertTrue(result.examples)
         self.assertLessEqual(len(result.examples), 4)

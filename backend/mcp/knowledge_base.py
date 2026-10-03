@@ -1,4 +1,4 @@
-"""Structure-aware hybrid RAG knowledge base for UrbanOps municipal operations.
+"""Structure-aware hybrid RAG knowledge base for Coding Plan support.
 
 The public tool contract remains ``knowledge_search(query, top_k)``. Parsing,
 chunking and indexing are intentionally isolated from intent recognition.
@@ -33,6 +33,7 @@ from mcp.lexical_index import (
     LexicalSearchBackend,
     SQLiteFTS5Index,
 )
+from mcp.packaged_knowledge import load_packaged_knowledge
 
 logger = logging.getLogger(__name__)
 
@@ -59,13 +60,13 @@ class KnowledgeBase:
     Chroma's default MiniLM 384-dim).
     """
 
-    # Keep UrbanOps chunks separate from earlier project collections.
-    BGE_COLLECTION_NAME = "urbanops_knowledge_base_v1"
-    CHROMA_DEFAULT_COLLECTION_NAME = "urbanops_knowledge_base_chroma_v1"
+    # Keep structure-v2 chunks separate from the former fixed-500 collection.
+    BGE_COLLECTION_NAME = "tokenplan_knowledge_base_v3"
+    CHROMA_DEFAULT_COLLECTION_NAME = "tokenplan_knowledge_base_v2"
     COLLECTION_NAME = BGE_COLLECTION_NAME
     COLLECTION_NAME_ENV = "RAG_CHROMA_COLLECTION_NAME"
     LEXICAL_INDEX_ENV = "RAG_LEXICAL_INDEX_PATH"
-    LEXICAL_INDEX_FILENAME = "urbanops_lexical_v1.sqlite3"
+    LEXICAL_INDEX_FILENAME = "tokenplan_lexical_v2.sqlite3"
 
     def __init__(
         self,
@@ -143,7 +144,7 @@ class KnowledgeBase:
         collection_options: Dict[str, Any] = {
             "name": self._collection_name,
             "metadata": {
-                "description": "UrbanOps structure-aware municipal operations knowledge base",
+                "description": "TokenPlan structure-aware knowledge base",
                 "splitter_version": self._chunker.VERSION,
                 "embedding_backend": self._embedding_backend,
             },
@@ -162,6 +163,8 @@ class KnowledgeBase:
             else:
                 self.add_documents(list(bootstrap_documents))
         else:
+            if bootstrap_documents is None:
+                self._sync_packaged_documents()
             if self._lexical_index.count() != self._collection.count():
                 self._rebuild_lexical_index()
 
@@ -988,72 +991,72 @@ class KnowledgeBase:
 
     @staticmethod
     def builtin_documents() -> List[Dict[str, Any]]:
-        """Return the six stable UrbanOps municipal operations documents."""
+        """Return the six stable Coding Plan support documents."""
         default_docs = [
             {
-                "title": "市政设施巡检总则",
-                "source_uri": "builtin://inspection-guidelines",
-                "section": "巡检规范",
+                "title": "套餐与权益说明",
+                "source_uri": "builtin://plans",
+                "section": "套餐与权益",
                 "content": (
-                    "市政设施巡检应依据设施类型、区域、季节和风险等级制定检查项目与周期。"
-                    "巡检人员应记录设施编号、点位、时间、现场状态、异常现象和处置结果。"
-                    "涉及人身安全、停机或道路封闭的异常应按应急预案升级。"
-                    "知识库只能解释运维规范，不能替代现场检查或实时监控平台。"
+                    "Coding Plan 提供面向个人和团队的 AI 编程订阅能力。"
+                    "不同套餐可能在可用模型、代码补全或生成额度、团队席位和管理功能上存在差异。"
+                    "具体价格、额度数值和实时权益应以产品订阅页面及用户控制台显示为准。"
+                    "知识库只能解释公开规则，不能替代真实订阅后台核验用户当前套餐。"
                 ),
             },
             {
-                "title": "设备告警与状态核验",
-                "source_uri": "builtin://alarm-handling",
-                "section": "告警处置",
+                "title": "额度与用量说明",
+                "source_uri": "builtin://quota",
+                "section": "额度与用量",
                 "content": (
-                    "收到设备告警时应核对设施编号、告警码、发生时间、传感数据和通信状态。"
-                    "重复告警需要区分持续故障、传感器抖动、阈值配置和链路重传。"
-                    "监控平台数据与现场现象不一致时，应保留时间窗口、趋势截图和现场记录。"
-                    "没有实时遥测或现场证据时不能声称设备已经恢复。"
+                    "用户可以在 Coding Plan 控制台查看当前套餐、用量和剩余额度。"
+                    "额度重置周期、不同模型的计量方式以及团队共享规则可能因套餐而异。"
+                    "如果控制台显示与实际使用不一致，应保留时间、模型名称和页面截图并联系人工核验。"
+                    "客服不能在没有额度后台证据时声称已经恢复或修改额度。"
                 ),
             },
             {
-                "title": "智慧路灯终端接入与凭证安全",
-                "source_uri": "builtin://streetlight-security",
-                "section": "智慧路灯终端安全",
+                "title": "账户安全",
+                "source_uri": "builtin://account-security",
+                "section": "账户安全",
                 "content": (
-                    "智慧路灯终端接入前应核对路灯编号、单灯控制器证书、时间同步、网络和绑定关系。"
-                    "不得在对话、工单或截图中提交平台口令、完整私钥、设备证书或接入令牌。"
-                    "发现未知路灯终端或异常会话时，应暂停高风险操作并由授权人员核验。"
-                    "更新证书、修改绑定和撤销会话必须通过真实设备管理平台执行。"
+                    "Coding Plan 账户可通过已绑定的邮箱和安全验证流程管理登录。"
+                    "忘记密码时应使用官方重置入口，不要向客服或他人提供密码、验证码和恢复码。"
+                    "发现异常设备或未知会话时，应尽快修改密码、撤销其他会话并检查第三方账号绑定。"
+                    "修改绑定信息、两步验证或注销账户都需要在真实账户后台完成身份核验。"
                 ),
             },
             {
-                "title": "泵站设备故障排查",
-                "source_uri": "builtin://pump-station-troubleshooting",
-                "section": "泵站排障",
+                "title": "IDE 插件故障排查",
+                "source_uri": "builtin://ide-troubleshooting",
+                "section": "IDE 插件故障",
                 "content": (
-                    "泵站出现高温、振动或流量异常时，应先记录设备编号、负载、环境温度和告警趋势。"
-                    "排查时依次核对供电、传感器、冷却或润滑状态、机械部件和控制柜。"
-                    "涉及带电设备、旋转部件或受限空间时必须遵守停机和安全作业要求。"
-                    "问题持续时应由现场人员核验，不能根据远程描述声称故障已经修复。"
+                    "Coding Plan 插件异常时，先记录 IDE 名称与版本、插件版本、操作系统、错误码和复现步骤。"
+                    "插件无法启动可尝试重启 IDE、检查扩展是否启用并升级到兼容版本。"
+                    "401 通常与认证状态有关，可重新登录并检查系统时间和代理配置。"
+                    "请求超时或 500 错误应保留诊断日志；问题持续时交由技术支持核验，不能声称本地排查已经修复服务端问题。"
                 ),
             },
             {
-                "title": "路灯与道路设施巡检",
-                "source_uri": "builtin://road-facility-inspection",
-                "section": "道路设施",
+                "title": "代码补全与仓库上下文",
+                "source_uri": "builtin://repository-context",
+                "section": "代码补全与仓库上下文",
                 "content": (
-                    "路灯和道路附属设施巡检应记录点位、杆体、灯具、供电、控制器和通信状态。"
-                    "单点离线与区域批量离线应分别排查设备供电、控制箱、网关和通信链路。"
-                    "发现倾斜、裸露线缆或井盖破损等安全风险时，应先设置现场警示并升级处置。"
-                    "具体处置优先级应以现场风险和当前生效规范为准。"
+                    "代码补全和仓库上下文能力会受到 IDE、插件版本、项目规模、网络和所选模型影响。"
+                    "大型仓库首次索引可能耗时更长；若索引持续停滞，应记录项目规模、停滞阶段和诊断日志。"
+                    "不要上传密码、密钥或其他敏感信息作为排障材料。"
+                    "模型支持范围和上下文限制以当前套餐页面及官方说明为准。"
                 ),
             },
             {
-                "title": "维修工单流转规范",
-                "source_uri": "builtin://work-order-flow",
-                "section": "工单管理",
+                "title": "订阅、续费、退款与发票",
+                "source_uri": "builtin://billing",
+                "section": "订阅与账单",
                 "content": (
-                    "维修工单应关联设施编号、点位、异常现象、告警等级、现场照片和责任班组。"
-                    "派发、转派、退回和关闭需要遵守权限、审批、幂等和审计要求。"
-                    "工单状态和处理时限应以真实工单平台的回执为准。"
-                    "系统可以解释公开流程，但没有业务回执时不能承诺工单已经创建、派发或关闭。"
+                    "用户可在订阅设置中查看续费状态、付款方式和账单记录。"
+                    "退款资格、结算方式和到账时间应以购买渠道、订阅协议及支付机构的实际状态为准。"
+                    "发票抬头和账单信息的修改需要通过真实账单后台核验。"
+                    "客服可以解释公开流程，但没有支付证据时不能承诺扣款撤销、退款成功或具体到账日期。"
                 ),
             },
         ]
@@ -1061,15 +1064,40 @@ class KnowledgeBase:
 
     @classmethod
     def default_documents(cls) -> List[Dict[str, Any]]:
-        """Return the built-in UrbanOps municipal operations knowledge."""
-        return cls.builtin_documents()
+        """Return built-in rules plus reviewed official vendor knowledge packs."""
+        return cls.builtin_documents() + load_packaged_knowledge()
 
     def _load_default_docs(self) -> None:
-        """Import default UrbanOps municipal operations knowledge."""
+        """Import default Coding Plan rules and bundled official summaries."""
         default_docs = self.default_documents()
         self.add_documents(default_docs)
         logger.info("已导入默认知识库: %s 篇文档", len(default_docs))
 
     def _sync_packaged_documents(self) -> None:
-        """Compatibility no-op: UrbanOps no longer loads legacy packaged knowledge."""
-        return
+        """Add new or version-changed bundled documents to an existing v2 index."""
+        packaged = load_packaged_knowledge()
+        if not packaged:
+            return
+        document_ids = [str(item["document_id"]) for item in packaged]
+        result = self._collection.get(
+            where={"document_id": {"$in": document_ids}},
+            include=["metadatas"],
+        )
+        indexed_versions: Dict[str, str] = {}
+        for metadata in result.get("metadatas") or []:
+            if not isinstance(metadata, dict):
+                continue
+            document_id = str(metadata.get("document_id") or "")
+            if document_id:
+                indexed_versions[document_id] = str(
+                    metadata.get("knowledge_version") or ""
+                )
+        pending = [
+            item
+            for item in packaged
+            if indexed_versions.get(str(item["document_id"]))
+            != str(item.get("knowledge_version") or "")
+        ]
+        if pending:
+            self.add_documents(pending)
+            logger.info("已同步知识包文档: %s 篇", len(pending))

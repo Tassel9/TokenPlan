@@ -1,4 +1,4 @@
-"""Run the isolated, scenario-driven UrbanOps live evaluation suite."""
+"""Run the isolated, scenario-driven TokenPlan live evaluation suite."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ async def main(args: argparse.Namespace) -> int:
     run_root = (
         args.root / f"live-eval-{invocation}"
         if args.root
-        else Path(tempfile.mkdtemp(prefix="urbanops-live-eval-"))
+        else Path(tempfile.mkdtemp(prefix="tokenplan-live-eval-"))
     )
     output = args.out_dir or REPORTS_DIR / invocation
     run_root.mkdir(parents=True, exist_ok=True)

@@ -22,12 +22,11 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "backend"))
 
 from mcp.bge_reranker import BGEReranker  # noqa: E402
 from mcp.knowledge_base import KnowledgeBase  # noqa: E402
 
-FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
 # (label, multiplier, min_pool) -> per-channel pool for top_k=12
 CONFIGS = (
     ("池 48（当前 4×12）", 4, 20),
@@ -66,7 +65,7 @@ def _passage(item):
 async def main() -> int:
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     cases = [c for c in fixture["cases"] if c["split"] == "holdout"]
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-pool-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-pool-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,

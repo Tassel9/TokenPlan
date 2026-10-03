@@ -23,7 +23,6 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "backend"))
 
 from dataclasses import replace  # noqa: E402
 
@@ -35,7 +34,7 @@ from mcp.knowledge_search_service import (  # noqa: E402
     RerankerConfig,
 )
 
-FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
 LEVELS = (1, 2, 4, 8, 16)
 
 
@@ -50,7 +49,7 @@ def build(argv=None):
     cases = [c for c in fixture["cases"] if c["split"] == "holdout"]
     queries = [str(case["user_input"]) for case in cases]
 
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-conc-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-conc-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,
@@ -61,7 +60,7 @@ def build(argv=None):
     reranker = BGEReranker(dtype="auto")
     service = KnowledgeSearchService(
         knowledge_base=kb,
-        api_key="benchmark-api-key-placeholder",
+        api_key="sk-concurrency-benchmark",
         retrieval_config=replace(
             AdaptiveRetrievalConfig.from_env(),
             pipeline_cache_ttl_s=0.0,

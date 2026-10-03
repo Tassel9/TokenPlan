@@ -1,0 +1,55 @@
+{
+  "schema_version": "tokenplan-agentic-rag-ragas-manifest-v1",
+  "latest": true,
+  "dataset_id": "tokenplan-agentic-rag-ragas-curated-v1",
+  "business_domain": "token_plan_subscription",
+  "production_evidence": false,
+  "dataset": {
+    "path": "evaluation/fixtures/tokenplan_agentic_rag_ragas_cases_v1.json",
+    "schema_version": "tokenplan-agentic-rag-ragas-dataset-v1",
+    "sha256": "96b6eedc90c3067ee8978e05f21a28450e705c1fa106e0be71f6382a4fc9e1f4",
+    "base_contract_sha256": "d18ab7e8eaaea995eb13fda9cfec2efbf6cec9f199317f9865eecf7876a9ef22",
+    "metadata_sha256": "33456d62d1dbf30e09d9e2f3c6b7b0e4f12d7bfa29307878a06b6d77d5b2736d",
+    "blueprint_sha256": "e86019fcf6906cfc4fcfc3346e5200c0b106f29d01846539ad0fb4c4127e0671",
+    "case_count": 200
+  },
+  "splits": {
+    "calibration": {
+      "case_count": 50,
+      "sha256": "2f52a2b18569c03eddaf61073c0875c7714998b8b5f63cac3d159a413057928e",
+      "frozen": false,
+      "permitted_for_tuning": true
+    },
+    "holdout": {
+      "case_count": 150,
+      "sha256": "59bbc4c87b9123e7f215dfcaf8980e890a6db66f1c3b084593c472b5803638ac",
+      "frozen": true,
+      "frozen_before_first_live_run": true,
+      "permitted_for_tuning": false,
+      "first_live_run_status": "not_run"
+    }
+  },
+  "review": {
+    "required": true,
+    "status": "pending",
+    "reviewer": null,
+    "gold_labels_model_generated": true
+  },
+  "protocol": {
+    "arms": [
+      "fixed_rag",
+      "fixed_rewrite_rag",
+      "agentic_rag"
+    ],
+    "top_k": 5,
+    "same_corpus_and_final_top_k": true,
+    "no_holdout_tuning": true,
+    "no_case_or_rubric_changes_after_first_live_run": true,
+    "publish_metrics_only_after_review": true
+  },
+  "limitations": [
+    "样本由项目作者构造，不来自生产流量。",
+    "Gold 文档与答案尚未完成独立业务复核。",
+    "冻结 Holdout 首次运行后不得依据结果修改；新发现的问题应进入独立回归集。"
+  ]
+}

@@ -1,0 +1,22 @@
+schema_version: 1
+id: tokenplan-technical-troubleshooting-002
+name: IDE 插件登录排障
+group: retrieval
+tier: regression
+tags: [single_turn, knowledge, troubleshooting]
+turns:
+  - VS Code 插件一直登录失败并提示 401，应该怎么排查？
+expect:
+  answer:
+    contains_any: [登录, "401", 凭证, 网络, 插件]
+    contains_none: [已经修复, 故障已恢复]
+  route:
+    intents_exact: [technical_troubleshooting]
+    agents_exact: [rag_knowledge]
+  tools:
+    must_call: [knowledge_search]
+    successful: [knowledge_search]
+  evidence:
+    min_count: 1
+judge:
+  goal: 给出有顺序且保留安全边界的排障步骤，不得在没有执行证据时声称问题已修复。

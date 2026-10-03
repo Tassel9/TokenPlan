@@ -128,13 +128,13 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         )
 
         result = await manager.search_with_rewrite(
-            "工单撤回规则",
+            "退款规则",
             top_k=2,
             context={"agent_type": "general"},
         )
 
         self.assertEqual("fast_path_rerank", result.metadata["retrieval_strategy"])
-        self.assertEqual(["工单撤回规则"], calls)
+        self.assertEqual(["退款规则"], calls)
         self.assertEqual(1, result.metadata["sub_query_count"])
         self.assertEqual(3, result.metadata["candidate_count"])
         self.assertGreater(result.metadata["latency_ms"], 0.0)
@@ -151,7 +151,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(result.artifact, IntentArtifact)
         self.assertIsInstance(result.artifact.payload, KnowledgePayload)
         self.assertEqual(
-            "工单撤回规则 的精确规则",
+            "退款规则 的精确规则",
             result.artifact.payload.facts[0].content,
         )
 
@@ -161,7 +161,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         async def handler(params, context):
             calls.append(dict(params))
             results = high_confidence_results(params["query"])
-            results[0]["content"] = "高频巡检 Cursor ERR-42 20盏路灯工单撤回规则"
+            results[0]["content"] = "Pro Cursor ERR-42 20美元退款规则"
             return results
 
         manager = self.build_manager(handler)
@@ -171,30 +171,30 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         context = {
             "agent_type": "general",
             "retrieval_entities": {
-                "plan": ["高频巡检"],
+                "plan": ["Pro"],
                 "ide": ["Cursor"],
                 "error_code": ["ERR-42"],
-                "amount": ["20盏路灯"],
+                "amount": ["20美元"],
             },
         }
 
         result = await manager.search_with_rewrite(
-            "工单撤回规则",
+            "退款规则",
             top_k=2,
             context=context,
         )
 
         self.assertEqual("fast_path_rerank", result.metadata["retrieval_strategy"])
-        self.assertEqual("工单撤回规则", calls[0]["query"])
+        self.assertEqual("退款规则", calls[0]["query"])
         self.assertEqual(
-            "工单撤回规则 高频巡检 Cursor ERR-42 20盏路灯",
+            "退款规则 Pro Cursor ERR-42 20美元",
             calls[0]["lexical_query"],
         )
 
     async def test_contextual_rewrite_combines_dense_query_only(self):
         calls = []
         original = "那专业版呢？"
-        effective = "智慧路灯运维 专业版每月有多少能耗阈值？"
+        effective = "Coding Plan 专业版每月有多少额度？"
 
         async def handler(params, context):
             calls.append(dict(params))
@@ -223,9 +223,9 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(f"{original}\n{effective}", calls[0]["query"])
         self.assertEqual(effective, calls[0]["lexical_query"])
 
-        await manager._search_once("专业版工单撤回条件", 5, context)
-        self.assertEqual("专业版工单撤回条件", calls[1]["query"])
-        self.assertEqual("专业版工单撤回条件", calls[1]["lexical_query"])
+        await manager._search_once("专业版退款条件", 5, context)
+        self.assertEqual("专业版退款条件", calls[1]["query"])
+        self.assertEqual("专业版退款条件", calls[1]["lexical_query"])
 
     async def test_agent_exposes_only_resolved_contextual_query_to_tools(self):
         class RecordingRuntime:
@@ -247,11 +247,11 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         request = AgentInput(
             request_id="test-intent",
             message="那专业版呢？",
-            execution_query="智慧路灯运维 专业版每月有多少能耗阈值？",
+            execution_query="Coding Plan 专业版每月有多少额度？",
             user_id="u1",
             conv_id="c1",
             intent_id="intent-1",
-            intent="inspection_standard_query",
+            intent="subscription_info_query",
         )
 
         await agent.handle(request)
@@ -266,17 +266,18 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
     def test_agent_context_filters_private_entities(self):
         filtered = _safe_retrieval_entities({
-            "location": ["东城区"],
-            "asset_type": ["排水泵站"],
-            "alert_code": ["ALM-42"],
+            "plan": ["Pro"],
+            "model": ["Claude"],
+            "ide": ["Cursor"],
             "error_code": ["ERR-42"],
-            "work_order_id": ["WO-SECRET"],
-            "operator_id": ["operator-secret"],
-            "team_id": ["team-secret"],
+            "amount": ["20美元"],
+            "order_id": ["ORDER-SECRET"],
+            "account_email": ["user@example.com"],
+            "workspace_id": ["workspace-secret"],
         })
 
         self.assertEqual(
-            {"location", "asset_type", "alert_code", "error_code"},
+            {"plan", "model", "ide", "error_code", "amount"},
             set(filtered),
         )
         self.assertNotIn("SECRET", str(filtered))
@@ -287,20 +288,20 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         async def handler(params, context):
             query = params["query"]
             calls.append(query)
-            if query == "工单撤回规则":
+            if query == "退款规则":
                 return [
-                    {"chunk_id": "shared", "content": "工单撤回", "score": 0.55},
+                    {"chunk_id": "shared", "content": "退款", "score": 0.55},
                     {"chunk_id": "original-only", "content": "原始", "score": 0.52},
                 ]
             suffix = "process" if "流程" in query else "time"
             return [
-                {"chunk_id": "shared", "content": "工单撤回", "score": 0.90},
+                {"chunk_id": "shared", "content": "退款", "score": 0.90},
                 {"chunk_id": suffix, "content": query, "score": 0.80},
             ]
 
         manager = self.build_manager(handler, rerank_candidate_limit=10)
         manager.rewrite_query = AsyncMock(return_value=[
-            "工单撤回规则", "工单撤回申请流程", "工单撤回到账时间",
+            "退款规则", "退款申请流程", "退款到账时间",
         ])
 
         async def rerank(query, items, top_k):
@@ -309,15 +310,15 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         manager._rerank = AsyncMock(side_effect=rerank)
 
         result = await manager.search_with_rewrite(
-            "工单撤回规则",
+            "退款规则",
             top_k=2,
             context={"agent_type": "general"},
         )
 
         self.assertEqual(
-            ["工单撤回规则", "工单撤回申请流程", "工单撤回到账时间"], calls
+            ["退款规则", "退款申请流程", "退款到账时间"], calls
         )
-        self.assertEqual(1, calls.count("工单撤回规则"))
+        self.assertEqual(1, calls.count("退款规则"))
         self.assertEqual("expanded_rerank", result.metadata["retrieval_strategy"])
         self.assertEqual(4, result.metadata["candidate_count"])
         self.assertEqual(3, result.metadata["sub_query_count"])
@@ -336,7 +337,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
         manager = self.build_manager(handler)
         manager.rewrite_query = AsyncMock(return_value=[
-            "比较 常规巡检 和 强化巡检 巡检方案区别", "常规巡检 巡检方案", "强化巡检 巡检方案",
+            "比较 Basic 和 Plus 套餐区别", "Basic 套餐", "Plus 套餐",
         ])
 
         async def rerank(query, items, top_k):
@@ -345,7 +346,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         manager._rerank = AsyncMock(side_effect=rerank)
 
         result = await manager.search_with_rewrite(
-            "比较 常规巡检 和 强化巡检 巡检方案区别",
+            "比较 Basic 和 Plus 套餐区别",
             top_k=2,
             context={"agent_type": "general"},
         )
@@ -358,9 +359,9 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_multi_hop_query_uses_three_bounded_sources_and_bge(self):
         calls = []
-        original = "高频巡检 巡检方案能不能工单撤回，同时工单撤回后能耗阈值什么时候失效"
-        withdrawal_query = "高频巡检 巡检方案工单撤回条件"
-        quota_query = "高频巡检 巡检方案工单撤回后能耗阈值失效时间"
+        original = "Pro 套餐能不能退款，同时退款后额度什么时候失效"
+        refund_query = "Pro 套餐退款条件"
+        quota_query = "Pro 套餐退款后额度失效时间"
 
         async def handler(params, context):
             query = params["query"]
@@ -381,7 +382,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         manager = self.build_manager(handler)
         manager.rewrite_query = AsyncMock(return_value=[
             original,
-            withdrawal_query,
+            refund_query,
             quota_query,
             "不应执行的第四个查询",
         ])
@@ -403,11 +404,11 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
             top_k=3,
             context={
                 "agent_type": "general",
-                "retrieval_entities": {"plan": ["高频巡检"]},
+                "retrieval_entities": {"plan": ["Pro"]},
             },
         )
 
-        self.assertEqual([original, withdrawal_query, quota_query], calls)
+        self.assertEqual([original, refund_query, quota_query], calls)
         self.assertEqual(3, result.metadata["sub_query_count"])
         self.assertEqual("expanded_rerank", result.metadata["retrieval_strategy"])
         self.assertEqual("multi_aspect_query", result.metadata["rewrite_reason"])
@@ -459,26 +460,26 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
         )
 
         first = await manager.search_with_rewrite(
-            "工单撤回规则", top_k=2,
+            "退款规则", top_k=2,
             context={"agent_type": "general", "user_id": "u1"},
         )
         second = await manager.search_with_rewrite(
-            "工单撤回规则", top_k=2,
+            "退款规则", top_k=2,
             context={"agent_type": "general", "user_id": "u1"},
         )
 
         self.assertEqual("fast_path_rerank", first.metadata["retrieval_strategy"])
         self.assertEqual("pipeline_cache", second.metadata["retrieval_strategy"])
         self.assertTrue(second.metadata["cached"])
-        self.assertEqual(["工单撤回规则"], calls)
+        self.assertEqual(["退款规则"], calls)
         self.assertGreater(manager.invalidate_cache(), 0)
 
         third = await manager.search_with_rewrite(
-            "工单撤回规则", top_k=2,
+            "退款规则", top_k=2,
             context={"agent_type": "general", "user_id": "u1"},
         )
         self.assertEqual("fast_path_rerank", third.metadata["retrieval_strategy"])
-        self.assertEqual(["工单撤回规则", "工单撤回规则"], calls)
+        self.assertEqual(["退款规则", "退款规则"], calls)
 
     async def test_tool_cache_isolated_by_document_and_user_scope(self):
         calls = []
@@ -498,7 +499,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
             allowed_agents=["general"],
             capabilities=[KNOWLEDGE_RETRIEVE],
         ))
-        params = {"query": "工单撤回规则", "top_k": 2}
+        params = {"query": "退款规则", "top_k": 2}
         first = await manager.call(
             "knowledge_search",
             params,
@@ -568,7 +569,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
         result = await registry.call(
             "knowledge_search",
-            {"query": "工单撤回与能耗阈值"},
+            {"query": "退款与额度"},
             context={"agent_type": "general"},
         )
         event = result.to_event()
@@ -585,7 +586,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
 
         manager = self.build_manager(handler)
         result = await manager.search_with_rewrite(
-            "工单撤回规则", top_k=2,
+            "退款规则", top_k=2,
             context={"agent_type": "general"},
         )
         stats = manager.stats["retrieval"]
@@ -606,33 +607,33 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
     """多子句查询拆分检索（多诉求覆盖率修复）。"""
 
     def test_single_clause_query_is_unchanged(self):
-        query = "控制器返回 403 应该从哪些权限项排查？"
+        query = "插件返回 403 应该从哪些权限项排查？"
         self.assertEqual([query], _split_retrieval_queries(query))
 
     def test_multi_clause_query_splits_and_strips_lead_words(self):
         query = (
-            "巡检任务的下一次下次巡检日由什么决定；另外，片区巡检 巡检方案怎么增加和移除巡检人员权限？"
+            "订阅的下一次续费日由什么决定；另外，Team 套餐怎么增加和移除成员席位？"
         )
         self.assertEqual(
             [
-                "巡检任务的下一次下次巡检日由什么决定",
-                "片区巡检 巡检方案怎么增加和移除巡检人员权限？",
+                "订阅的下一次续费日由什么决定",
+                "Team 套餐怎么增加和移除成员席位？",
             ],
             _split_retrieval_queries(query),
         )
 
     def test_short_fragment_collapses_back_to_original_query(self):
         # 只有一条实质子句（尾部为极短片段）时不拆分，保持原样。
-        query = "能耗阈值用完怎么办；另外，要吗"
+        query = "额度用完怎么办；另外，要吗"
         self.assertEqual([query], _split_retrieval_queries(query))
 
     def test_more_than_three_clauses_merge_tail(self):
         parts = _split_retrieval_queries(
-            "工单撤回规则怎么办；能耗阈值用完怎么办；巡检记录怎么看；维修工单怎么开；巡检权限怎么加"
+            "退款规则怎么办；额度用完怎么办；账单怎么看；发票怎么开；席位怎么加"
         )
         self.assertEqual(3, len(parts))
-        self.assertIn("维修工单怎么开", parts[-1])
-        self.assertIn("巡检权限怎么加", parts[-1])
+        self.assertIn("发票怎么开", parts[-1])
+        self.assertIn("席位怎么加", parts[-1])
 
     async def test_agent_passes_per_clause_initial_read_calls(self):
         captured = {}
@@ -667,7 +668,7 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
                 "required": ["query"],
             },
             side_effect="read",
-            allowed_agents=["rag_knowledge", "business_data_query", "business_operation"],
+            allowed_agents=["rag_knowledge", "general", "technical", "billing"],
             capabilities=[KNOWLEDGE_RETRIEVE],
             evidence_type="knowledge_retrieval",
         ))
@@ -681,7 +682,7 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
             initial_retrieval_enabled=True,
         )
         query = (
-            "巡检任务的下一次下次巡检日由什么决定；另外，片区巡检 巡检方案怎么增加和移除巡检人员权限？"
+            "订阅的下一次续费日由什么决定；另外，Team 套餐怎么增加和移除成员席位？"
         )
         await agent.handle(AgentInput(
             request_id="req-split",
@@ -697,11 +698,11 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(2, len(calls or []))
         self.assertEqual("knowledge_search", calls[0]["tool_name"])
         self.assertEqual(
-            "巡检任务的下一次下次巡检日由什么决定",
+            "订阅的下一次续费日由什么决定",
             calls[0]["arguments"]["query"],
         )
         self.assertEqual(
-            "片区巡检 巡检方案怎么增加和移除巡检人员权限？",
+            "Team 套餐怎么增加和移除成员席位？",
             calls[1]["arguments"]["query"],
         )
 
@@ -713,7 +714,7 @@ class RagAgentPromptContractTests(unittest.TestCase):
         self.assertIn("团队", prompt)
         self.assertIn("官方自助路径", prompt)
         self.assertIn("逐一回应", prompt)
-        self.assertIn("工单创建后", prompt)
+        self.assertIn("退款完成后", prompt)
         self.assertIn("整段重复", prompt)
         self.assertIn("不同角度", prompt)
         self.assertIn("尽力而为", prompt)

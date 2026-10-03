@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import api.main
 from fastapi import HTTPException
-from memory.conversation_state import OperationsCase
+from memory.conversation_state import CustomerServiceCase
 from monitor.execution_trace import ExecutionTraceService, SQLiteTraceStore
 from pydantic import ValidationError
 import sqlite3
@@ -33,7 +33,7 @@ class _LongTermMemory:
 
 class _FakeMemory:
     def __init__(self):
-        self.case_state = OperationsCase.new("anonymous", "test")
+        self.case_state = CustomerServiceCase.new("anonymous", "test")
         self.saved_states = []
 
     async def get_short_term_memory(self, user_id, conv_id, *, turn_lease=None):
@@ -83,16 +83,16 @@ def _result():
     return SimpleNamespace(
         request_id="req-api",
         response="safe response",
-        primary_intent=SimpleNamespace(value="operations_withdrawal"),
-        intents=[SimpleNamespace(value="operations_withdrawal")],
-        agent_type=SimpleNamespace(value="operations"),
-        agent_types=[SimpleNamespace(value="operations")],
+        primary_intent=SimpleNamespace(value="billing_refund"),
+        intents=[SimpleNamespace(value="billing_refund")],
+        agent_type=SimpleNamespace(value="billing"),
+        agent_types=[SimpleNamespace(value="billing")],
         escalated=False,
         latency_ms=4.0,
         status="COMPLETED",
         overall_status="SUCCEEDED",
         response_action="RESPOND",
-        reason_code="withdrawal_answered",
+        reason_code="refund_answered",
         evidence_ids=[],
         tool_events=[],
         steps=[],
@@ -108,14 +108,14 @@ def _result():
             "resolution_complete": True,
         },
         intent_executions=[{
-            "intent_id": "intent-1-work_order_withdrawal",
-            "agent_type": "operations",
+            "intent_id": "intent-1-refund_handling",
+            "agent_type": "billing",
             "status": "COMPLETED",
-            "reason_code": "withdrawal_answered",
+            "reason_code": "refund_answered",
             "latency_ms": 3.0,
             "success": True,
             "routing": {
-                "selected_agent": "operations",
+                "selected_agent": "billing",
                 "reason": "requested",
             },
         }],
@@ -162,21 +162,21 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         return _result()
 
     async def test_chat_returns_queryable_trace_id(self):
-        response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
+        response = await api.main.chat(api.main.ChatRequest(message="refund"))
 
         self.assertTrue(response.trace_id.startswith("trace-"))
         self.assertEqual("SUCCEEDED", response.overall_status)
         self.assertEqual("RESPOND", response.response_action)
         self.assertEqual(1, len(self.services.profile_updates.jobs))
         self.assertEqual(
-            "withdrawal",
+            "refund",
             self.services.profile_updates.jobs[0]["user_message"],
         )
         self.assertEqual(0.5, response.stage_timings_ms["binding_ms"])
         self.assertTrue(response.memory_persisted)
         detail = await api.main.trace_detail(response.trace_id)
         self.assertEqual("req-api", detail.request_id)
-        self.assertEqual("operations", detail.routing[0])
+        self.assertEqual("billing", detail.routing[0])
         self.assertEqual(4.0, detail.stage_timings_ms["total_ms"])
         composition = next(node for node in detail.nodes if node.kind == "composition")
         self.assertEqual("SUCCEEDED", composition.attributes["overall_status"])
@@ -204,8 +204,8 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         listed = await api.main.list_traces(
             status="COMPLETED",
-            agent="operations",
-            routing="operations",
+            agent="billing",
+            routing="billing",
             reason_code=None,
             started_after=None,
             started_before=None,
@@ -225,7 +225,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         )
 
         with self.assertRaises(HTTPException) as raised:
-            await api.main.chat(api.main.ChatRequest(message="withdrawal", user_id="u1"))
+            await api.main.chat(api.main.ChatRequest(message="refund", user_id="u1"))
 
         self.assertEqual(429, raised.exception.status_code)
         self.assertEqual("23", raised.exception.headers["Retry-After"])
@@ -257,7 +257,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(HTTPException) as raised:
             await api.main.chat(api.main.ChatRequest(
-                message="withdrawal",
+                message="refund",
                 user_id="u1",
                 conv_id="c1",
             ))
@@ -291,7 +291,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(HTTPException) as raised:
             await api.main.chat(api.main.ChatRequest(
-                message="withdrawal",
+                message="refund",
                 user_id="u1",
                 conv_id="c1",
             ))
@@ -309,23 +309,23 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.services.memory = BrokenMemory()
 
-        response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
+        response = await api.main.chat(api.main.ChatRequest(message="refund"))
 
         self.assertEqual("safe response", response.response)
         self.assertFalse(response.memory_persisted)
         self.assertEqual("session_write_failed", response.memory_error_code)
 
     async def test_chat_replaces_old_case_from_explicit_result(self):
-        self.services.memory.case_state = OperationsCase.from_dict({
+        self.services.memory.case_state = CustomerServiceCase.from_dict({
             "case_id": "case-1",
             "stage": "escalated",
-            "entities": {"work_order_id": ["12345"]},
-            "last_intents": ["work_order_withdrawal"],
+            "entities": {"order_id": ["12345"]},
+            "last_intents": ["refund_handling"],
         }, user_id="anonymous", conv_id="test")
 
         async def run(_request):
             result = _result()
-            result.intents = [SimpleNamespace(value="facility_troubleshooting")]
+            result.intents = [SimpleNamespace(value="technical_troubleshooting")]
             result.case_update_mode = "replace"
             result.explicit_entities = {"error_code": ["500"]}
             return result
@@ -336,7 +336,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(self.services.memory.saved_states))
         saved = self.services.memory.saved_states[0]
         self.assertEqual({"error_code": ["500"]}, saved.entities)
-        self.assertEqual(["facility_troubleshooting"], saved.last_intents)
+        self.assertEqual(["technical_troubleshooting"], saved.last_intents)
 
     async def test_chat_exception_is_recorded_and_re_raised(self):
         async def fail(request):
@@ -344,7 +344,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
 
         self.services.orchestrator = SimpleNamespace(run=fail)
         with self.assertRaises(RuntimeError):
-            await api.main.chat(api.main.ChatRequest(message="withdrawal"))
+            await api.main.chat(api.main.ChatRequest(message="refund"))
 
         traces = await self.services.traces.list(status="FAILED")
         self.assertEqual(1, len(traces))
@@ -385,7 +385,7 @@ class TraceApiTests(unittest.IsolatedAsyncioTestCase):
         working_traces = self.services.traces
         self.services.traces = BrokenTraces()
         try:
-            response = await api.main.chat(api.main.ChatRequest(message="withdrawal"))
+            response = await api.main.chat(api.main.ChatRequest(message="refund"))
         finally:
             self.services.traces = working_traces
 

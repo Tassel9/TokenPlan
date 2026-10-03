@@ -1,4 +1,4 @@
-"""Deterministic, structure-aware chunking for UrbanOps documents.
+"""Deterministic, structure-aware chunking for Coding Plan documents.
 
 Parsers emit ordered blocks with page/heading coordinates.  This module owns
 only boundary selection, short-block refinement and controlled overlap, so it
@@ -15,7 +15,7 @@ _PROSE_TYPES = {"heading", "paragraph"}
 _ATOMIC_TYPES = {"table", "code", "list"}
 _CONNECTOR_PREFIXES = (
     "因此", "所以", "此外", "同时", "其中", "进一步", "另外", "然而", "但是",
-    "该方法", "该设备", "该设施", "该规范", "上述", "由此", "具体而言", "例如",
+    "该方法", "该模型", "该功能", "该套餐", "上述", "由此", "具体而言", "例如",
     "then", "therefore", "however", "moreover", "furthermore",
 )
 _INCOMPLETE_SUFFIXES = (
@@ -125,7 +125,7 @@ class DocumentChunk:
 class DocumentChunker:
     """Two-stage, structure-first document chunker."""
 
-    VERSION = "urbanops-structure-v1"
+    VERSION = "coding-plan-structure-v2"
 
     def __init__(self, config: Optional[ChunkingConfig] = None):
         self.config = config or ChunkingConfig()

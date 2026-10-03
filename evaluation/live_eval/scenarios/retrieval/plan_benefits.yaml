@@ -1,0 +1,27 @@
+schema_version: 1
+id: tokenplan-plan-benefits-001
+name: 套餐权益查询
+group: retrieval
+tier: smoke
+tags: [single_turn, knowledge, evidence]
+turns:
+  - Pro 套餐支持哪些模型和额度？
+expect:
+  answer:
+    contains_any: [Pro, 模型, 额度, 权益]
+    contains_none: [已经开通, 已完成升级]
+  route:
+    intents_exact: [subscription_info_query]
+    agents_exact: [rag_knowledge]
+    escalated: false
+  tools:
+    must_call: [knowledge_search]
+    successful: [knowledge_search]
+  evidence:
+    min_count: 1
+  trace:
+    events_all: [REQUEST_STARTED, INTENTS_ROUTED, REQUEST_FINISHED]
+judge:
+  goal: 基于受治理知识说明套餐模型与额度边界，不得声称已替用户开通或升级。
+metadata:
+  source: builtin TokenPlan knowledge

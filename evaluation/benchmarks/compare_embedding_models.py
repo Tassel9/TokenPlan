@@ -21,12 +21,11 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "backend"))
 
 from mcp.bge_reranker import BGEReranker  # noqa: E402
 from mcp.knowledge_base import KnowledgeBase  # noqa: E402
 
-FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
 MODELS = (
     ("BAAI/bge-small-zh-v1.5", "小模型 512 维 ~24M"),
     ("BAAI/bge-base-zh-v1.5", "项目现有 768 维 ~102M"),
@@ -69,7 +68,7 @@ async def main() -> int:
     report = {}
     for model, note in MODELS:
         os.environ["RAG_EMBEDDING_MODEL"] = model
-        temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-embed-"))
+        temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-embed-"))
         started = time.perf_counter()
         kb = KnowledgeBase(
             chroma_host="127.0.0.1",

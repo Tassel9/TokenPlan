@@ -18,21 +18,21 @@ def _result():
         status="COMPLETED",
         reason_code="answered",
         latency_ms=18.0,
-        agent_type="operations",
-        agent_types=["operations"],
+        agent_type="billing",
+        agent_types=["billing"],
         stage_timings_ms={"few_shot_retrieval_ms": 2.0, "worker_execution_ms": 12.0},
         intent_executions=[{
             "intent_id": "intent-1",
-            "intent": "work_order_withdrawal",
-            "agent_type": "operations",
+            "intent": "refund_handling",
+            "agent_type": "billing",
             "status": "COMPLETED",
             "reason_code": "answered",
             "latency_ms": 12.0,
-            "skill_id": "work-order-return",
+            "skill_id": "refund-policy",
             "skill_version": "1.0.0",
             "evidence_count": 1,
             "routing": {
-                "selected_agent": "operations",
+                "selected_agent": "billing",
                 "reason": "intent_registry",
             },
         }],
@@ -48,7 +48,7 @@ def _result():
         },
         steps=[{
             "intent_id": "intent-1",
-            "agent_type": "operations",
+            "agent_type": "billing",
             "action": "CALL_TOOL",
             "state_after": "RUNNING",
             "tool_name": "knowledge_search",
@@ -73,8 +73,8 @@ class TraceAssemblerTests(unittest.TestCase):
             started_at=utc_now_iso(),
         )
 
-        self.assertEqual("operations", trace.primary_agent)
-        self.assertEqual(["operations"], trace.routing)
+        self.assertEqual("billing", trace.primary_agent)
+        self.assertEqual(["billing"], trace.routing)
         intent_nodes = [node for node in trace.nodes if node.intent_id == "intent-1"]
         self.assertGreaterEqual(len(intent_nodes), 4)
         composition = next(node for node in trace.nodes if node.kind == "composition")

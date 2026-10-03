@@ -1,4 +1,4 @@
-"""Deterministic behavior checks for full-chain UrbanOps sessions."""
+"""Deterministic behavior checks for full-chain TokenPlan sessions."""
 
 from __future__ import annotations
 

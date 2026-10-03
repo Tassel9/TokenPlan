@@ -108,7 +108,7 @@ def _row(
     value,
     effective_at,
     operation="set",
-    memory_key="preference.inspection_shift",
+    memory_key="preference.billing_cycle",
     expires_at=None,
     schema_version=FACT_SCHEMA_VERSION,
 ):
@@ -172,23 +172,23 @@ class LongTermFactPolicyTests(unittest.TestCase):
         self.assertEqual("retract", mutations[0].operation)
 
     def test_admission_uses_allowlist_literal_evidence_and_sensitive_filter(self):
-        user_text = "我更喜欢夜班，我正在使用 高频巡检，我的密码是 secret"
+        user_text = "我更喜欢年付，我正在使用 Pro，我的密码是 secret"
         payload = {
             "facts": [
                 {
-                    "memory_key": "preference.inspection_shift",
-                    "value": "夜班",
+                    "memory_key": "preference.billing_cycle",
+                    "value": "年付",
                     "operation": "set",
-                    "source_text": "我更喜欢夜班",
+                    "source_text": "我更喜欢年付",
                 },
                 {
                     "memory_key": "account.current_plan",
-                    "value": "高频巡检",
+                    "value": "Pro",
                     "operation": "set",
-                    "source_text": "我正在使用 高频巡检",
+                    "source_text": "我正在使用 Pro",
                 },
                 {
-                    "memory_key": "environment.client_device",
+                    "memory_key": "environment.ide",
                     "value": "secret",
                     "operation": "set",
                     "source_text": "我的密码是 secret",
@@ -199,7 +199,7 @@ class LongTermFactPolicyTests(unittest.TestCase):
         accepted = parse_fact_candidates(payload, user_text=user_text)
 
         self.assertEqual(1, len(accepted))
-        self.assertEqual("preference.inspection_shift", accepted[0].memory_key)
+        self.assertEqual("preference.billing_cycle", accepted[0].memory_key)
 
     def test_duplicate_candidates_for_one_key_are_rejected(self):
         accepted = parse_fact_candidates(
@@ -251,28 +251,28 @@ class LongTermFactPolicyTests(unittest.TestCase):
     def test_value_is_canonicalized_only_when_supported_by_source(self):
         normalized = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "preference.inspection_shift",
-                "value": "夜间巡检",
+                "memory_key": "preference.billing_cycle",
+                "value": "按年付款",
                 "operation": "set",
-                "source_text": "我更喜欢夜间巡检",
+                "source_text": "我更喜欢按年付款",
             }]},
-            user_text="我更喜欢夜间巡检",
+            user_text="我更喜欢按年付款",
         )
         contradicted = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "preference.inspection_shift",
-                "value": "白班",
+                "memory_key": "preference.billing_cycle",
+                "value": "月付",
                 "operation": "set",
-                "source_text": "我更喜欢夜班",
+                "source_text": "我更喜欢年付",
             }]},
-            user_text="我更喜欢夜班",
+            user_text="我更喜欢年付",
         )
 
-        self.assertEqual("夜班", normalized[0].value)
+        self.assertEqual("年付", normalized[0].value)
         self.assertEqual([], contradicted)
 
     def test_one_source_can_contain_two_compatible_environment_facts(self):
-        source = "我用 Windows，平时在 手持巡检终端 里开发"
+        source = "我用 Windows，平时在 VS Code 里开发"
         accepted = parse_fact_candidates(
             {"facts": [
                 {
@@ -282,8 +282,8 @@ class LongTermFactPolicyTests(unittest.TestCase):
                     "source_text": source,
                 },
                 {
-                    "memory_key": "environment.client_device",
-                    "value": "手持巡检终端",
+                    "memory_key": "environment.ide",
+                    "value": "vscode",
                     "operation": "set",
                     "source_text": source,
                 },
@@ -294,7 +294,7 @@ class LongTermFactPolicyTests(unittest.TestCase):
         self.assertEqual(
             {
                 ("environment.os", "Windows"),
-                ("environment.client_device", "手持巡检终端"),
+                ("environment.ide", "VS Code"),
             },
             {(item.memory_key, item.value) for item in accepted},
         )
@@ -333,11 +333,11 @@ class LongTermFactPolicyTests(unittest.TestCase):
         self.assertEqual("", retracted[0].value)
 
     def test_context_evidence_allows_anaphoric_update_from_current_turn(self):
-        context = "我一直在用 移动终端 开发"
+        context = "我一直在用 PyCharm 开发"
         accepted = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "environment.client_device",
-                "value": "移动终端",
+                "memory_key": "environment.ide",
+                "value": "PyCharm",
                 "operation": "supersede",
                 "source_text": context,
             }]},
@@ -346,16 +346,16 @@ class LongTermFactPolicyTests(unittest.TestCase):
         )
 
         self.assertEqual(1, len(accepted))
-        self.assertEqual("environment.client_device", accepted[0].memory_key)
-        self.assertEqual("移动终端", accepted[0].value)
+        self.assertEqual("environment.ide", accepted[0].memory_key)
+        self.assertEqual("PyCharm", accepted[0].value)
         self.assertEqual("supersede", accepted[0].operation)
 
     def test_context_evidence_requires_update_or_retract_from_current_turn(self):
-        context = "我一直在用 移动终端 开发"
+        context = "我一直在用 PyCharm 开发"
         no_cue = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "environment.client_device",
-                "value": "移动终端",
+                "memory_key": "environment.ide",
+                "value": "PyCharm",
                 "operation": "supersede",
                 "source_text": context,
             }]},
@@ -364,8 +364,8 @@ class LongTermFactPolicyTests(unittest.TestCase):
         )
         backfill = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "environment.client_device",
-                "value": "移动终端",
+                "memory_key": "environment.ide",
+                "value": "PyCharm",
                 "operation": "set",
                 "source_text": context,
             }]},
@@ -377,10 +377,10 @@ class LongTermFactPolicyTests(unittest.TestCase):
         self.assertEqual([], backfill)
 
     def test_context_retract_requires_current_turn_erase_cue(self):
-        context = "我在用 移动终端"
+        context = "我在用 PyCharm"
         accepted = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "environment.client_device",
+                "memory_key": "environment.ide",
                 "value": "",
                 "operation": "retract",
                 "source_text": context,
@@ -390,7 +390,7 @@ class LongTermFactPolicyTests(unittest.TestCase):
         )
         rejected = parse_fact_candidates(
             {"facts": [{
-                "memory_key": "environment.client_device",
+                "memory_key": "environment.ide",
                 "value": "",
                 "operation": "retract",
                 "source_text": context,
@@ -436,23 +436,23 @@ class LongTermFactPolicyTests(unittest.TestCase):
 
         with_context = build_fact_extraction_prompt(
             user_text="好，那以后就用它了",
-            context_user_text="我一直在用 移动终端 开发",
+            context_user_text="我一直在用 PyCharm 开发",
         )
         self.assertIn("最近用户发言", with_context)
-        self.assertIn("我一直在用 移动终端 开发", with_context)
+        self.assertIn("我一直在用 PyCharm 开发", with_context)
         self.assertIn("当前消息或下面的最近用户发言", with_context)
 
     def test_latest_retract_and_latest_expiry_do_not_fall_back(self):
         first = datetime(2026, 1, 1, tzinfo=timezone.utc)
         retracted = resolve_profile([
-            _row("set", value="白班", effective_at=first),
+            _row("set", value="月付", effective_at=first),
             _row("retract", value="", operation="retract", effective_at=first + timedelta(days=1)),
         ], now=first + timedelta(days=2))
         expired = resolve_profile([
-            _row("old", value="白班", effective_at=first),
+            _row("old", value="月付", effective_at=first),
             _row(
                 "expired",
-                value="夜班",
+                value="年付",
                 operation="supersede",
                 effective_at=first + timedelta(days=1),
                 expires_at=first + timedelta(days=2),
@@ -468,20 +468,20 @@ class LongTermFactPolicyTests(unittest.TestCase):
         resolved = resolve_profile([
             _row(
                 "v1",
-                value="白班",
+                value="月付",
                 effective_at=first,
                 schema_version=LEGACY_FACT_SCHEMA_VERSION,
             ),
             _row(
                 "v2",
-                value="夜班",
+                value="年付",
                 operation="supersede",
                 effective_at=first + timedelta(days=1),
                 schema_version=PREVIOUS_FACT_SCHEMA_VERSION,
             ),
         ], now=first + timedelta(days=2))
 
-        self.assertEqual("夜班", resolved.profile["facts"]["preference.inspection_shift"])
+        self.assertEqual("年付", resolved.profile["facts"]["preference.billing_cycle"])
         self.assertNotIn("needs_confirmation", resolved.profile)
 
 
@@ -498,20 +498,20 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         self.manager.session_store.close()
 
-    def _apply(self, value, operation, when, *, content=None, key="preference.inspection_shift"):
+    def _apply(self, value, operation, when, *, content=None, key="preference.billing_cycle"):
         self.manager._apply_profile_candidates(
             user_id="user-1",
             conv_id="conv-1",
             source_message=Message(
                 role=MsgRole.USER,
-                content=content or f"inspection shift {value}",
+                content=content or f"billing cycle {value}",
                 timestamp=when,
             ),
             candidates=[MemoryFactCandidate(
                 memory_key=key,
                 value=value,
                 operation=operation,
-                source_text=content or value or "forget inspection shift",
+                source_text=content or value or "forget billing cycle",
             )],
         )
 
@@ -649,15 +649,15 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.manager._client = SimpleNamespace(messages=SimpleNamespace(
             create=AsyncMock(return_value=SimpleNamespace(content=json.dumps({
                 "facts": [{
-                    "memory_key": "environment.client_device",
-                    "value": "移动终端",
+                    "memory_key": "environment.ide",
+                    "value": "PyCharm",
                     "operation": "supersede",
-                    "source_text": "我一直在用 移动终端 开发",
+                    "source_text": "我一直在用 PyCharm 开发",
                 }]
             }, ensure_ascii=False)))
         ))
         self._seed_hot_view([
-            (3, "user", "我一直在用 移动终端 开发"),
+            (3, "user", "我一直在用 PyCharm 开发"),
             (4, "assistant", "建议你试试 JetBrains 全家桶"),
             (5, "user", "好，那以后就用它了"),
         ])
@@ -674,10 +674,10 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         prompt = self.manager._client.messages.create.await_args.kwargs[
             "messages"
         ][0]["content"]
-        self.assertIn("我一直在用 移动终端 开发", prompt)
+        self.assertIn("我一直在用 PyCharm 开发", prompt)
         self.assertNotIn("建议你试试 JetBrains 全家桶", prompt)
         profile = await self.manager._get_profile("user-1")
-        self.assertEqual("移动终端", profile["facts"]["environment.client_device"])
+        self.assertEqual("PyCharm", profile["facts"]["environment.ide"])
 
     async def test_worker_without_turn_seq_falls_back_to_content_matching(self):
         self.manager._model = "test-model"
@@ -685,15 +685,15 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.manager._client = SimpleNamespace(messages=SimpleNamespace(
             create=AsyncMock(return_value=SimpleNamespace(content=json.dumps({
                 "facts": [{
-                    "memory_key": "environment.client_device",
-                    "value": "移动终端",
+                    "memory_key": "environment.ide",
+                    "value": "PyCharm",
                     "operation": "supersede",
-                    "source_text": "我一直在用 移动终端 开发",
+                    "source_text": "我一直在用 PyCharm 开发",
                 }]
             }, ensure_ascii=False)))
         ))
         self._seed_hot_view([
-            (0, "user", "我一直在用 移动终端 开发"),
+            (0, "user", "我一直在用 PyCharm 开发"),
             (0, "user", "好，那以后就用它了"),
         ])
 
@@ -706,7 +706,7 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         )
 
         profile = await self.manager._get_profile("user-1")
-        self.assertEqual("移动终端", profile["facts"]["environment.client_device"])
+        self.assertEqual("PyCharm", profile["facts"]["environment.ide"])
 
     async def test_worker_skips_context_when_extraction_flag_is_disabled(self):
         self.manager._model = "test-model"
@@ -715,15 +715,15 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.manager._client = SimpleNamespace(messages=SimpleNamespace(
             create=AsyncMock(return_value=SimpleNamespace(content=json.dumps({
                 "facts": [{
-                    "memory_key": "environment.client_device",
-                    "value": "移动终端",
+                    "memory_key": "environment.ide",
+                    "value": "PyCharm",
                     "operation": "supersede",
-                    "source_text": "我一直在用 移动终端 开发",
+                    "source_text": "我一直在用 PyCharm 开发",
                 }]
             }, ensure_ascii=False)))
         ))
         self._seed_hot_view([
-            (3, "user", "我一直在用 移动终端 开发"),
+            (3, "user", "我一直在用 PyCharm 开发"),
             (5, "user", "好，那以后就用它了"),
         ])
 
@@ -808,20 +808,20 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_supersede_appends_but_plain_conflict_and_duplicate_skip(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
-        self._apply("白班", "set", first)
-        self._apply("夜班", "set", first + timedelta(hours=1))
-        self._apply("白班", "set", first + timedelta(hours=2))
-        self._apply("夜班", "supersede", first + timedelta(days=1))
+        self._apply("月付", "set", first)
+        self._apply("年付", "set", first + timedelta(hours=1))
+        self._apply("月付", "set", first + timedelta(hours=2))
+        self._apply("年付", "supersede", first + timedelta(days=1))
 
         profile = await self.manager._get_profile("user-1")
-        self.assertEqual("夜班", profile["facts"]["preference.inspection_shift"])
+        self.assertEqual("年付", profile["facts"]["preference.billing_cycle"])
         self.assertEqual(2, len(self.manager._profile.rows))
 
     async def test_same_turn_retry_is_idempotent(self):
         when = datetime.now(timezone.utc) - timedelta(days=1)
-        self._apply("夜班", "set", when, content="我更喜欢夜班")
+        self._apply("年付", "set", when, content="我更喜欢年付")
         first_id = next(iter(self.manager._profile.rows))
-        self._apply("夜班", "set", when, content="我更喜欢夜班")
+        self._apply("年付", "set", when, content="我更喜欢年付")
 
         self.assertEqual([first_id], list(self.manager._profile.rows))
         metadata = self.manager._profile.rows[first_id]["metadata"]
@@ -836,8 +836,8 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retract_deletes_values_and_keeps_value_free_marker(self):
         first = datetime.now(timezone.utc) - timedelta(days=2)
-        self._apply("白班", "set", first)
-        self._apply("", "retract", first + timedelta(days=1), content="请忘记巡检班次")
+        self._apply("月付", "set", first)
+        self._apply("", "retract", first + timedelta(days=1), content="请忘记账单周期")
 
         self.assertEqual({}, await self.manager._get_profile("user-1"))
         self.assertEqual(1, len(self.manager._profile.rows))
@@ -847,28 +847,28 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_delayed_old_value_cannot_reappear_after_retract(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
-        self._apply("白班", "set", first)
-        self._apply("", "retract", first + timedelta(days=2), content="请忘记巡检班次")
-        self._apply("夜班", "supersede", first + timedelta(days=1))
+        self._apply("月付", "set", first)
+        self._apply("", "retract", first + timedelta(days=2), content="请忘记账单周期")
+        self._apply("年付", "supersede", first + timedelta(days=1))
 
         self.assertEqual({}, await self.manager._get_profile("user-1"))
         self.assertEqual(1, len(self.manager._profile.rows))
 
     async def test_newer_set_after_retract_becomes_current(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
-        self._apply("白班", "set", first)
-        self._apply("", "retract", first + timedelta(days=1), content="请忘记巡检班次")
-        self._apply("夜班", "set", first + timedelta(days=2))
+        self._apply("月付", "set", first)
+        self._apply("", "retract", first + timedelta(days=1), content="请忘记账单周期")
+        self._apply("年付", "set", first + timedelta(days=2))
 
         profile = await self.manager._get_profile("user-1")
-        self.assertEqual("夜班", profile["facts"]["preference.inspection_shift"])
+        self.assertEqual("年付", profile["facts"]["preference.billing_cycle"])
 
     async def test_recall_uses_only_current_non_global_facts_and_distance_gate(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
-        self._apply("白班", "set", first)
-        self._apply("夜班", "supersede", first + timedelta(days=1))
+        self._apply("月付", "set", first)
+        self._apply("年付", "supersede", first + timedelta(days=1))
         self._apply("Windows", "set", first + timedelta(days=1), key="environment.os")
-        self._apply("手持巡检终端", "set", first + timedelta(days=1), key="environment.client_device")
+        self._apply("VS Code", "set", first + timedelta(days=1), key="environment.ide")
         rows = self.manager._get_profile_rows("user-1")
         resolved = resolve_profile(rows)
         current_by_key = {
@@ -876,9 +876,9 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
             for row in rows
             if row["id"] in resolved.current_event_ids
         }
-        self.manager._profile.query_distances[current_by_key["environment.client_device"]] = 1.1
+        self.manager._profile.query_distances[current_by_key["environment.ide"]] = 1.1
         self.manager._profile.query_distances[
-            current_by_key["preference.inspection_shift"]
+            current_by_key["preference.billing_cycle"]
         ] = 1.1
 
         recalled = await self.manager._search_current_profile_facts(
@@ -889,29 +889,29 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.assertEqual(["environment.os=Windows"], recalled)
-        self.assertFalse(any("白班" in item for item in recalled))
+        self.assertFalse(any("月付" in item for item in recalled))
         self.assertIn(("我使用什么开发环境", True), self.manager._profile_embedding_provider.calls)
 
     async def test_full_injection_mode_includes_all_current_non_global_facts(self):
         first = datetime.now(timezone.utc) - timedelta(days=2)
-        self._apply("白班", "set", first)
+        self._apply("月付", "set", first)
         self._apply("Windows", "set", first, key="environment.os")
-        self._apply("手持巡检终端", "set", first, key="environment.client_device")
+        self._apply("VS Code", "set", first, key="environment.ide")
 
         context = await self.manager.get_long_term_memory("user-1", query="")
 
         self.assertEqual(
             [
-                "environment.client_device=手持巡检终端",
+                "environment.ide=VS Code",
                 "environment.os=Windows",
-                "preference.inspection_shift=白班",
+                "preference.billing_cycle=月付",
             ],
             context.recalled_facts,
         )
 
     async def test_recall_mode_keeps_distance_gated_semantic_recall(self):
         first = datetime.now(timezone.utc) - timedelta(days=2)
-        self._apply("白班", "set", first)
+        self._apply("月付", "set", first)
         self._apply("Windows", "set", first, key="environment.os")
         rows = self.manager._get_profile_rows("user-1")
         resolved = resolve_profile(rows)
@@ -921,7 +921,7 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
             if row["id"] in resolved.current_event_ids
         }
         self.manager._profile.query_distances[
-            current_by_key["preference.inspection_shift"]
+            current_by_key["preference.billing_cycle"]
         ] = 1.1
         self.manager._fact_injection_mode = "recall"
 
@@ -984,8 +984,8 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.manager._profile.add(
             ids=["old", "new"],
             documents=[
-                json.dumps({"preferences": ["白班"]}, ensure_ascii=False),
-                json.dumps({"preferences": ["夜班"]}, ensure_ascii=False),
+                json.dumps({"preferences": ["月付"]}, ensure_ascii=False),
+                json.dumps({"preferences": ["年付"]}, ensure_ascii=False),
             ],
             metadatas=[
                 {"user_id": "user-1", "ts": "2026-01-01T00:00:00"},
@@ -994,10 +994,10 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         )
 
         profile = await self.manager._get_profile("user-1")
-        context = await self.manager.get_long_term_memory("user-1", query="巡检班次偏好")
+        context = await self.manager.get_long_term_memory("user-1", query="账单偏好")
 
-        self.assertEqual(["夜班"], profile["preferences"])
-        self.assertEqual(["夜班"], context.current_profile["preferences"])
+        self.assertEqual(["年付"], profile["preferences"])
+        self.assertEqual(["年付"], context.current_profile["preferences"])
 
     def test_legacy_fact_events_are_copied_into_bge_collection(self):
         legacy = _FakeCollection()
@@ -1034,10 +1034,10 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.manager._client = SimpleNamespace(messages=SimpleNamespace(
             create=AsyncMock(return_value=SimpleNamespace(content=json.dumps({
                 "facts": [{
-                    "memory_key": "preference.inspection_shift",
-                    "value": "夜班",
+                    "memory_key": "preference.billing_cycle",
+                    "value": "年付",
                     "operation": "set",
-                    "source_text": "我更喜欢夜班",
+                    "source_text": "我更喜欢年付",
                 }]
             }, ensure_ascii=False)))
         ))
@@ -1045,9 +1045,9 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         await self.manager.update_profile(
             "user-1",
             "conv-1",
-            user_message="我更喜欢夜班",
+            user_message="我更喜欢年付",
             effective_at=datetime.now(timezone.utc),
         )
 
         profile = await self.manager._get_profile("user-1")
-        self.assertEqual("夜班", profile["facts"]["preference.inspection_shift"])
+        self.assertEqual("年付", profile["facts"]["preference.billing_cycle"])

@@ -288,7 +288,7 @@ _VERDICT_LINE = {
 def render_text(checks: Sequence[Check], verdict_value: str) -> str:
     icons = {OK: "[ok]  ", WARN: "[warn]", FAIL: "[fail]"}
     width = max((len(c.key) for c in checks), default=4)
-    lines = ["UrbanOps 配置自检", "=" * 60]
+    lines = ["TokenPlan 配置自检", "=" * 60]
     for check in checks:
         lines.append(f"{icons.get(check.status, '[?]')} {check.key.ljust(width)}  {check.detail}")
         if check.hint and check.status in {WARN, FAIL}:

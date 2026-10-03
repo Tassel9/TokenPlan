@@ -6,7 +6,7 @@ import yaml
 
 from evaluation.live_eval.assertions import run_checks
 from evaluation.live_eval.loader import load_scenario, load_scenarios, select_scenarios
-from evaluation.live_eval.judge import URBANOPS_JUDGE_SYSTEM
+from evaluation.live_eval.judge import TOKENPLAN_JUDGE_SYSTEM
 from evaluation.live_eval.records import EvalCheckRecord, EvalSampleRecord, EvalSuiteReport
 from evaluation.live_eval.reporting import compare_reports
 from evaluation.live_eval.run_suite import scenario_digest
@@ -26,11 +26,11 @@ def scenario_payload():
         "name": "test routing",
         "group": "routing",
         "tier": "smoke",
-        "turns": ["查询泵站巡检规范"],
+        "turns": ["查询 Pro 套餐支持的模型和额度"],
         "expect": {
-            "answer": {"contains_any": ["设施编号"]},
+            "answer": {"contains_any": ["套餐"]},
             "route": {
-                "intents_exact": ["inspection_standard_query"],
+                "intents_exact": ["subscription_info_query"],
                 "agents_exact": ["rag_knowledge"],
                 "status_any": ["COMPLETED"],
             },
@@ -49,18 +49,18 @@ def passing_session():
         "duration_ms": 12.5,
         "turns": [
             {
-                "response": "应记录设施编号和现场状态。",
+                "response": "Pro 套餐的模型与额度以当前套餐规则为准。",
                 "status": "COMPLETED",
                 "reason_code": "answer",
                 "response_action": "FINAL",
                 "overall_status": "RESOLVED",
                 "escalated": False,
-                "intents": ["inspection_standard_query"],
+                "intents": ["subscription_info_query"],
                 "agent_types": ["rag_knowledge"],
                 "tool_events": [
                     {"tool_name": "knowledge_search", "success": True}
                 ],
-                "evidence_ids": ["inspection-guidelines#0"],
+                "evidence_ids": ["plan-benefits#0"],
                 "trace_events": [
                     {"event_type": "REQUEST_STARTED"},
                     {"event_type": "REQUEST_FINISHED"},
@@ -172,9 +172,9 @@ class LiveEvalScenarioTests(unittest.TestCase):
             self.assertNotIn("$ref", keys)
             self.assertNotIn("$defs", keys)
 
-    def test_live_eval_judge_uses_urbanops_identity(self):
-        self.assertIn("UrbanOps", URBANOPS_JUDGE_SYSTEM)
-        self.assertIn("智慧路灯", URBANOPS_JUDGE_SYSTEM)
+    def test_live_eval_judge_uses_tokenplan_identity(self):
+        self.assertIn("TokenPlan", TOKENPLAN_JUDGE_SYSTEM)
+        self.assertIn("订阅", TOKENPLAN_JUDGE_SYSTEM)
 
 
 class LiveEvalAssertionTests(unittest.TestCase):
@@ -188,7 +188,7 @@ class LiveEvalAssertionTests(unittest.TestCase):
 
     def test_exact_route_rejects_an_unwanted_extra_intent(self):
         session = passing_session()
-        session["turns"][0]["intents"].append("alert_report")
+        session["turns"][0]["intents"].append("payment_issue")
         checks, passed = run_checks(self.scenario, session)
         route = next(item for item in checks if item.name == "route")
         self.assertFalse(passed)

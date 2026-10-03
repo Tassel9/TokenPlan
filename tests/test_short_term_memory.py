@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from memory.conversation_memory import MemoryManager, Message, MsgRole
-from memory.conversation_state import OperationsCase
+from memory.conversation_state import CustomerServiceCase
 from memory.sqlite_session_store import SQLiteSessionStore
 from runtime.conversation_turn_gate import ConversationLeaseLostError
 
@@ -122,7 +122,7 @@ class ShortTermMemoryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_owned_turn_commits_once_with_case_state(self):
         _, token, seq, _ = self.manager.session_store.acquire("u", "c", 30000)
-        state = OperationsCase.from_dict({"case_id": "case-1", "stage": "ready"},
+        state = CustomerServiceCase.from_dict({"case_id": "case-1", "stage": "ready"},
                                               user_id="u", conv_id="c")
         await self.manager.commit_turn(
             "u", "c", user_content="u0", assistant_content="a0",

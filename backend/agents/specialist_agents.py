@@ -29,24 +29,23 @@ from skills.registry import SkillBinding, SkillRegistry, SkillRegistryError
 logger = logging.getLogger(__name__)
 
 _RETRIEVAL_ENTITY_KEYS = (
-    "permission_scope", "location", "asset_type", "alert_code", "date",
-    "error_code",
+    "plan", "model", "ide", "date", "error_code", "amount",
 )
 _CHINESE_FULL_DATE = re.compile(
     r"^(?P<year>\d{4})年(?P<month>\d{1,2})月(?P<day>\d{1,2})日?$"
 )
 _INTENT_SKILLS = {
-    "inspection_standard_query": "inspection-standards",
-    "inspection_task_create": "work-order-process",
-    "inspection_task_update": "work-order-process",
-    "inspection_task_cancel": "work-order-process",
-    "alert_report": "work-order-process",
-    "work_order_handling": "work-order-process",
-    "work_order_withdrawal": "work-order-return",
-    "terminal_access_issue": "streetlight-security",
-    "terminal_security_request": "streetlight-security",
-    "operations_permission_change": "inspection-standards",
-    "facility_troubleshooting": "facility-troubleshooting",
+    "subscription_info_query": "plan-benefits",
+    "subscription_purchase": "billing-policy",
+    "subscription_change": "billing-policy",
+    "subscription_cancel": "billing-policy",
+    "payment_issue": "billing-policy",
+    "invoice_handling": "billing-policy",
+    "refund_handling": "refund-policy",
+    "account_login_issue": "account-security",
+    "account_security_request": "account-security",
+    "entitlement_change_request": "plan-benefits",
+    "technical_troubleshooting": "technical-troubleshooting",
 }
 
 
@@ -155,14 +154,14 @@ class BaseAgent:
     )
     backend_required_patterns: tuple[re.Pattern[str], ...] = ()
     backend_unavailable_message = (
-        "当前未接入对应市政业务平台，无法核验具体状态，建议转人工运维人员继续处理。"
+        "当前未接入对应业务后台，无法核验具体状态，建议转人工客服继续处理。"
     )
     public_policy_question = re.compile(
         r"(?:怎么|如何|什么条件|哪些条件|规则|政策|流程|步骤|需要什么|"
         r"需要哪些|能否|可以申请吗|多久)"
     )
     personal_record_question = re.compile(
-        r"(?:当前设备|该设施|这个点位|这台设备|我的工单|巡检记录|告警记录|处理进度)"
+        r"(?:我的|本人|当前账号|我的订阅|我的套餐|我的额度|我的账单|我的退款|我的工作区|处理进度)"
     )
 
     def __init__(
@@ -270,7 +269,7 @@ class BaseAgent:
                 return self._finish(
                     req,
                     status=AgentRunStatus.HANDOFF.value,
-                    conclusion="当前意图所需的受控能力尚未接入，建议转人工运维人员继续处理。",
+                    conclusion="当前意图所需的受控能力尚未接入，建议转人工客服继续处理。",
                     reason_code="intent_tools_unavailable",
                     started=started,
                     escalated=True,
@@ -429,7 +428,7 @@ class BaseAgent:
             return self._finish(
                 req,
                 status=AgentRunStatus.FAILED.value,
-                conclusion="该意图暂时处理失败，请稍后重试或转人工运维人员。",
+                conclusion="该意图暂时处理失败，请稍后重试或转人工客服。",
                 reason_code="agent_execution_failed",
                 started=started,
                 skill_selection_status="fallback",
@@ -552,39 +551,38 @@ class RAGKnowledgeAgent(BaseAgent):
         r"(?:怎么|如何|什么条件|哪些条件|规则|政策|流程|步骤|需要什么|多久)"
     )
     personal_record_question = re.compile(
-        r"(?:当前设备|该设施|这个点位|这台设备|我的工单|巡检记录|告警记录|处理进度)"
+        r"(?:我的|本人|当前账户|我的订阅|我的套餐|我的额度|我的账单|我的退款|处理进度)"
     )
     backend_required_patterns = (
         re.compile(
-            r"(?:当前|这个|该|我负责的|我辖区的).{0,24}"
-            r"(?:设备|设施|点位|巡检|告警|工单).{0,16}"
+            r"(?:我的|本人|当前账户).{0,24}"
+            r"(?:订阅|套餐|额度|工作区|账户|订单|账单|退款).{0,16}"
             r"(?:状态|进度|剩余|明细|结果|什么时候)"
         ),
         re.compile(
             r"(?:帮我|请把|请为|我要).{0,24}"
-            r"(?:导出|修改|暂停|提交|生成|创建|派发|转派|关闭|撤回|授权)"
+            r"(?:导出|修改|暂停|提交|生成|邀请|解锁|注销|购买|退款|开票)"
         ),
     )
     backend_unavailable_message = (
-        "知识库只能回答运维规范和设备说明，无法核验或修改实时设备、巡检、告警或工单状态，"
+        "知识库只能回答公开规则，无法核验或修改用户的订单、账单、退款、订阅或账户状态，"
         "请交给对应的数据查询或业务办理能力。"
     )
     system_prompt = (
-        "你是 UrbanOps RAG 知识库执行单元，只负责基于检索证据回答巡检规范、设备说明、应急预案和故障排查知识。"
-        "不得把公开知识推断成实时设备、巡检、告警或工单状态，也不得执行写操作。"
+        "你是 TokenPlan RAG 知识库执行单元，只负责基于检索证据回答公开规则、产品说明和故障排查知识。"
+        "不得把公开知识推断成用户本人的订单、账单、退款、订阅或账户状态，也不得执行写操作。"
         "用户要求“简单说/简短重述/再简单点”时，输出精简要点（保留结论与关键步骤），不得重复上一条的完整细节。"
         "问题涉及团队/多人场景时，结合并发占用、共享凭据与配置、网络侧因素给出针对性分析。"
         "多轮排查中，用户说明已尝试某些步骤或追问“接下来怎么办”时，先一句话逐项承接已排除项（每一轮都要写）；"
         "不要整段重复上一轮的步骤清单，也不要让用户复查已排除项或其同义写法（如用户已排除“检查环境变量”，就不要再列“确认插件读取的是哪个环境变量”）；"
         "随后给出尚未排除、且与上一轮不同角度的新动作（如对比插件实际发出的请求与命令行请求的差异、检查项目或工作区级设置是否覆盖插件配置），并说明如何判断结果。"
-        "证据不完整或检索不可用时，先在结论中给出已确认的安全处置步骤与规范来源，"
-        "再说明需现场或人工核验的剩余部分，不得只写“转人工”。"
+        "证据不完整或检索不可用时，先在结论中给出已确认的公开信息与官方自助路径（如官方重置入口、订阅页说明），"
+        "再说明需人工核验的剩余部分，不得只写“转人工”。"
         "委派消息同时包含多个子诉求（多个意图）时，必须逐一回应每个子诉求的核心问题，不得只回答其中一部分。"
-        "描述情景或可能性时，不要使用“已创建工单”“已关闭设备”“已完成派单”等“已+写操作动词”的措辞（会被安全护栏视为声称操作完成），"
-        "改用“工单创建后”“现场确认后”等中性表达。"
+        "描述情景或可能性时，不要使用“已退款”“已取消订阅”“已提交退款”等“已+写操作动词”的措辞（会被安全护栏视为声称操作完成），"
+        "改用“退款完成后”“退订生效后”等中性表达。"
         "涉及缓存、限额、时效等机制说明时，明确其尽力而为、非持久或不保证的特性，以官方文档与实际响应为准，不夸大效果。"
-        "指引核验设备、告警或工单状态时，给出具体操作入口（如监控平台、设施台账或工单页面），不要只让用户“确认状态”。"
-        "需要用户自行办理时给出明确的官方自助路径；没有可靠入口时不要编造链接。"
+        "指引核验账户、套餐或计费状态时，给出具体操作入口（如官方控制台、账单或套餐页面），不要只让用户“确认状态”。"
         "超出知识检索边界时必须 HANDOFF，不得猜测。"
         "只返回结构化动作，不输出内部推理。"
     )
@@ -600,12 +598,12 @@ class BusinessDataQueryAgent(BaseAgent):
     )
     backend_required_patterns = (re.compile(r".", re.DOTALL),)
     backend_unavailable_message = (
-        "当前尚未接入只读市政业务数据后端，无法核验设施状态、巡检记录、告警或工单进度，"
-        "请转人工运维人员继续处理。"
+        "当前尚未接入只读业务数据查询后端，无法核验用户的订单、账单、退款或账户状态，"
+        "请转人工客服继续处理。"
     )
     system_prompt = (
-        "你是 UrbanOps 结构化信息查询执行单元，只负责通过受控只读工具查询设施、巡检、告警和工单数据。"
-        "不得把知识库规范当作实时设备或工单状态。"
+        "你是 TokenPlan 结构化信息查询执行单元，只负责通过受控只读工具查询用户自己的业务数据。"
+        "不得把知识库规则当作用户的真实订单、账单、退款或账户状态。"
         "没有可验证的数据查询结果时必须 HANDOFF，不得猜测。"
         "只返回结构化动作，不输出内部推理。"
     )
@@ -621,11 +619,11 @@ class BusinessOperationAgent(BaseAgent):
     )
     backend_required_patterns = (re.compile(r".", re.DOTALL),)
     backend_unavailable_message = (
-        "当前尚未接入可审计的市政业务办理后端，无法创建、派发、转派或关闭工单，"
-        "请转人工运维人员继续处理。"
+        "当前尚未接入可审计的业务办理后端，无法执行订阅、退款、发票或账户变更，"
+        "请转人工客服继续处理。"
     )
     system_prompt = (
-        "你是 UrbanOps 业务办理执行单元，只负责通过受控工具执行会改变巡检或工单状态的操作。"
+        "你是 TokenPlan 业务办理执行单元，只负责通过受控工具执行会改变业务状态的操作。"
         "执行前必须满足工具侧身份、权限、确认和幂等约束。"
         "没有可验证的执行回执时必须 HANDOFF，不得声称操作成功。"
         "只返回结构化动作，不输出内部推理。"

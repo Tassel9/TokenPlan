@@ -52,7 +52,7 @@ def _job():
     return ProfileUpdateJob.create(
         user_id="user-1",
         conv_id="conv-1",
-        user_message="以后请优先推荐年付巡检方案",
+        user_message="以后请优先推荐年付套餐",
         effective_at=datetime(2026, 9, 7, 8, 0, tzinfo=timezone.utc),
     )
 
@@ -124,21 +124,21 @@ class ProfileUpdateQueueTests(unittest.IsolatedAsyncioTestCase):
         published = await self.queue.enqueue(
             user_id="user-1",
             conv_id="conv-1",
-            user_message="工单撤回怎么申请？",
+            user_message="退款怎么申请？",
             effective_at=datetime.now(timezone.utc),
         )
 
         self.assertTrue(published)
         self.assertEqual(1, len(self.exchange.published))
         staged = self.stage_handler.await_args.kwargs
-        self.assertEqual("工单撤回怎么申请？", staged["user_message"])
+        self.assertEqual("退款怎么申请？", staged["user_message"])
         self.assertTrue(staged["event_id"])
 
     async def test_enqueue_publishes_persistent_confirmed_message(self):
         published = await self.queue.enqueue(
             user_id="user-1",
             conv_id="conv-1",
-            user_message="以后请优先推荐年付巡检方案",
+            user_message="以后请优先推荐年付套餐",
             effective_at=datetime.now(timezone.utc),
         )
 
@@ -150,7 +150,7 @@ class ProfileUpdateQueueTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, message.headers["x-attempt"])
         payload = json.loads(message.body.decode("utf-8"))
         self.assertEqual(PROFILE_UPDATE_SCHEMA, payload["schema_version"])
-        self.assertEqual("以后请优先推荐年付巡检方案", payload["user_message"])
+        self.assertEqual("以后请优先推荐年付套餐", payload["user_message"])
 
     async def test_consumer_acks_only_after_handler_success(self):
         message = _IncomingMessage(_job().to_body(), headers={"x-attempt": 1})

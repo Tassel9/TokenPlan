@@ -83,7 +83,7 @@ def compare_reports(
 def render_report(report: EvalSuiteReport) -> str:
     report.refresh_completeness()
     lines = [
-        "# UrbanOps Live Eval Report",
+        "# TokenPlan Live Eval Report",
         "",
         "> Offline controlled evaluation. This is not production evidence.",
         "",
@@ -171,7 +171,7 @@ def render_report(report: EvalSuiteReport) -> str:
 
 def render_comparison(comparison: EvalComparison) -> str:
     lines = [
-        "# UrbanOps Baseline Comparison",
+        "# TokenPlan Baseline Comparison",
         "",
         f"- Result: {'BLOCKED' if comparison.blocked else 'PASS'}",
         f"- Sample pass-rate delta: {comparison.pass_rate_delta:+.1%}",

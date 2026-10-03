@@ -17,11 +17,10 @@ os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "backend"))
 
 from mcp.knowledge_base import KnowledgeBase  # noqa: E402
 
-FIXTURE = ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+FIXTURE = ROOT / "evaluation" / "fixtures" / "agentic_rag_ragas_cases_campuscare_v1.json"
 
 
 def _time(fn, repeats=3):
@@ -50,7 +49,7 @@ async def main() -> int:
 
     fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
     cases = [c for c in fixture["cases"] if c["split"] == "holdout"][:40]
-    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="urbanops-probe-"))
+    temp_root = pathlib.Path(tempfile.mkdtemp(prefix="tokenplan-probe-"))
     kb = KnowledgeBase(
         chroma_host="127.0.0.1",
         chroma_port=1,

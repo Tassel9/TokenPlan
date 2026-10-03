@@ -148,12 +148,12 @@ ProfileUpdateCleanupHandler = Callable[..., Awaitable[int]]
 class RabbitMQProfileUpdateQueue:
     """Durable producer/consumer for long-term-memory update jobs."""
 
-    EXCHANGE_NAME = "urbanops.memory"
+    EXCHANGE_NAME = "tokenplan.memory"
     ROUTING_KEY = "profile.update.v1"
-    QUEUE_NAME = "urbanops.memory.profile-update.v1"
-    DEAD_LETTER_EXCHANGE_NAME = "urbanops.memory.dlx"
+    QUEUE_NAME = "tokenplan.memory.profile-update.v1"
+    DEAD_LETTER_EXCHANGE_NAME = "tokenplan.memory.dlx"
     DEAD_LETTER_ROUTING_KEY = "profile.update.dead.v1"
-    DEAD_LETTER_QUEUE_NAME = "urbanops.memory.profile-update.dead.v1"
+    DEAD_LETTER_QUEUE_NAME = "tokenplan.memory.profile-update.dead.v1"
 
     def __init__(
         self,
@@ -187,7 +187,7 @@ class RabbitMQProfileUpdateQueue:
             return
         self._connection = await aio_pika.connect_robust(
             self._url,
-            client_properties={"connection_name": "urbanops-memory"},
+            client_properties={"connection_name": "tokenplan-memory"},
         )
         self._publish_channel = await self._connection.channel(
             publisher_confirms=True,

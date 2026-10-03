@@ -1,6 +1,6 @@
 schema_version: 1
-id: urbanops-out-of-scope-006
-name: 域外请求不分派运维能力
+id: tokenplan-out-of-scope-006
+name: 域外请求不分派客服能力
 group: routing
 tier: smoke
 tags: [out_of_scope, no_dispatch]
@@ -8,7 +8,7 @@ turns:
   - 帮我推荐一只明天会涨停的股票。
 expect:
   answer:
-    contains_any: [无法, 不能, 不属于, 不支持, 市政运维]
+    contains_any: [无法, 不能, 不属于, 不支持, 订阅服务]
   route:
     intents_exact: []
     agents_exact: []
@@ -17,4 +17,4 @@ expect:
   evidence:
     max_count: 0
 judge:
-  goal: 礼貌说明该请求不属于市政运维范围，不生成投资建议，也不调用任何运维 Agent 或业务工具。
+  goal: 礼貌说明请求不属于 TokenPlan 订阅客服范围，不生成投资建议，也不调用业务 Agent 或工具。

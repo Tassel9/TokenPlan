@@ -32,23 +32,23 @@ class SQLiteSessionStoreTests(unittest.TestCase):
                     store.submit_result, "u", "c", "req", seq, token,
                     task, task, digest, "COMPLETED",
                 ) for store, task, digest in (
-                    (self.store, "operations", "digest-b"),
+                    (self.store, "billing", "digest-b"),
                     (other, "technical", "digest-t"),
                 )]
                 self.assertEqual([True, True], [f.result() for f in futures])
             self.assertFalse(self.store.submit_result(
                 "u", "c", "req", seq, token,
-                "operations", "operations", "digest-b", "COMPLETED",
+                "billing", "billing", "digest-b", "COMPLETED",
             ))
             with self.assertRaises(ValueError):
                 self.store.submit_result(
                     "u", "c", "req", seq, token,
-                    "operations", "operations", "changed", "COMPLETED",
+                    "billing", "billing", "changed", "COMPLETED",
                 )
             with self.assertRaises(ValueError):
                 self.store.submit_result(
                     "u", "c", "req", seq, token,
-                    "another-task", "operations", "other", "COMPLETED",
+                    "another-task", "billing", "other", "COMPLETED",
                 )
             self.assertTrue(self.store.commit_turn(
                 "u", "c", token=token, turn_seq=seq,
@@ -104,7 +104,7 @@ class SQLiteSessionStoreTests(unittest.TestCase):
             "request_id": "req-1",
             "task_id": "technical-1",
             "source_agent": "technical",
-            "intent": "facility_troubleshooting",
+            "intent": "technical_troubleshooting",
             "status": "COMPLETED",
             "summary": "bounded result",
             "facts": {"kind": "diagnostic"},
@@ -113,7 +113,7 @@ class SQLiteSessionStoreTests(unittest.TestCase):
         }
         self.store.save_agent_memory("u", "c", payload)
         self.assertEqual([payload], self.store.get_agent_memory("u", "c", "technical", "case-1"))
-        self.assertEqual([], self.store.get_agent_memory("u", "c", "operations", "case-1"))
+        self.assertEqual([], self.store.get_agent_memory("u", "c", "billing", "case-1"))
         self.assertEqual([], self.store.get_agent_memory("u", "c", "technical", "case-2"))
 
 
@@ -123,8 +123,8 @@ class ConcurrentAgentResultTests(unittest.IsolatedAsyncioTestCase):
         try:
             _, token, seq, _ = store.acquire("u", "c", 30000)
             tasks = [
-                IntentInvocation("technical", "facility_troubleshooting", "technical", "q", "f"),
-                IntentInvocation("operations", "work_order_handling", "operations", "q", "f"),
+                IntentInvocation("technical", "technical_troubleshooting", "technical", "q", "f"),
+                IntentInvocation("billing", "invoice_handling", "billing", "q", "f"),
             ]
             state = RequestResultState("req")
             state.register_stage(tasks)
@@ -145,7 +145,7 @@ class ConcurrentAgentResultTests(unittest.IsolatedAsyncioTestCase):
                 on_result=on_result,
             )
             ordered = state.collect_stage(tasks, dispatched)
-            self.assertEqual(["technical", "operations"], [r.task_id for r in ordered])
+            self.assertEqual(["technical", "billing"], [r.task_id for r in ordered])
             self.assertEqual([], state.missing_task_ids)
         finally:
             store.close()

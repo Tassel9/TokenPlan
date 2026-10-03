@@ -37,9 +37,9 @@ CompletionReviewProvider = Callable[[Dict[str, Any]], Union[Awaitable[Any], Any]
 class BoundedAgentRuntime:
     """Run an auditable Decide -> Tool -> Observe loop with governed tools."""
 
-    PROMPT_VERSION = "urbanops-agent-loop-v8"
+    PROMPT_VERSION = "customer-service-agent-loop-v8"
     RETRIEVAL_REFLECTION_PROMPT_VERSION = (
-        "urbanops-agent-loop-v9-retrieval-reflection"
+        "customer-service-agent-loop-v9-retrieval-reflection"
     )
 
     def __init__(
@@ -1098,7 +1098,7 @@ JSON格式：
                 "\n上一次FINAL未通过完成性校验。本轮是唯一补救决策，"
                 "不得调用工具；只能返回修正后的FINAL、ASK_USER或HANDOFF。"
             )
-        if agent_type == "rag_knowledge":
+        if agent_type == "technical":
             prompt += (
                 "\nWhen FINAL contains a technical diagnosis, also return "
                 '"diagnostic":{"kind":"diagnostic","findings":[...],'
@@ -1216,7 +1216,7 @@ JSON格式：
         terminal_artifact = artifact
         if (
             action.action == ActionType.FINAL
-            and agent_type == "rag_knowledge"
+            and agent_type == "technical"
             and isinstance(action.diagnostic, DiagnosticPayload)
         ):
             terminal_artifact = IntentArtifact(

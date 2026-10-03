@@ -49,6 +49,9 @@ docs/assets/*-agent-result.png
 docs/assets/*-multi-turn.png
 docs/assets/*-workbench.png
 docs/assets/urbanops-*.png
+!docs/assets/tokenplan-workbench.png
+!docs/assets/tokenplan-agent-result.png
+!docs/assets/tokenplan-multi-turn.png
 
 # 本地工具临时目录
 .lark-tmp/

@@ -1,5 +1,5 @@
 schema_version: 1
-id: urbanops-ambiguous-cancel-005
+id: tokenplan-ambiguous-cancel-005
 name: 无上下文取消请求应澄清
 group: routing
 tier: regression
@@ -8,7 +8,7 @@ turns:
   - 帮我把它取消掉。
 expect:
   answer:
-    contains_any: [请问, 哪个, 巡检任务, 工单, 补充]
+    contains_any: [请问, 哪个, 订阅, 订单, 补充]
   route:
     intents_exact: []
     agents_exact: []
@@ -17,4 +17,4 @@ expect:
   tools:
     max_total: 0
 judge:
-  goal: 在对象无法确定时提出最少且明确的澄清问题，不得擅自取消巡检任务、工单或其他对象。
+  goal: 对象无法确定时提出最少且明确的澄清问题，不得擅自取消订阅、订单或退款申请。

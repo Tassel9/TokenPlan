@@ -1,4 +1,4 @@
-"""Application services that coordinate UrbanOps use cases."""
+"""Application services that coordinate TokenPlan use cases."""
 
 from .chat_service import ChatCommand, ChatOutcome, ChatService
 

@@ -8,7 +8,7 @@ from skills.registry import SkillBinding
 class ProceduralMemoryTests(unittest.TestCase):
     def test_skill_sop_and_tool_references_form_procedural_memory(self):
         skill = SkillBinding(
-            skill_id="facility-troubleshooting",
+            skill_id="technical-troubleshooting",
             version="1.0.0",
             owner_agent="technical",
             core_instructions="先定位错误码，再按 SOP 排查。",
@@ -34,7 +34,7 @@ class ProceduralMemoryTests(unittest.TestCase):
         context = memory.to_context()
         self.assertEqual("procedural", context["memory_type"])
         self.assertEqual(
-            "facility-troubleshooting",
+            "technical-troubleshooting",
             context["skill_bindings"][0]["skill_id"],
         )
         self.assertEqual("tb-test", context["tool_binding"]["binding_id"])

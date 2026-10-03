@@ -10,26 +10,26 @@
   ],
   "scenarios": [
     {
-      "id": "inspection-shift-preference",
+      "id": "billing-preference",
       "title": "偏好陈述 → 跨会话回答体现偏好",
-      "ingest": ["我以后都按夜班吧。"],
-      "query": "帮我推荐一下符合我班次偏好的巡检任务。",
-      "final_contains": ["夜班"],
-      "final_not_contains": ["白班"],
-      "no_memory_not_contains": ["夜班"],
+      "ingest": ["我以后都按年付吧。"],
+      "query": "帮我推荐一下最适合我的套餐方案。",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "no_memory_not_contains": ["年付"],
       "stale_ingest": null
     },
     {
-      "id": "inspection-shift-update",
-      "title": "知识更新：白班 → 夜班，问『现在』",
-      "ingest": ["我的巡检班次先选白班吧。", "算了，巡检班次还是改成夜班吧。"],
-      "stale_ingest": ["我的巡检班次先选白班吧。"],
-      "query": "我现在是偏好什么巡检班次？",
-      "final_contains": ["夜班"],
-      "final_not_contains": ["白班"],
-      "stale_contains": ["白班"],
-      "stale_not_contains": ["夜班"],
-      "no_memory_not_contains": ["夜班"]
+      "id": "billing-update",
+      "title": "知识更新：月付 → 年付，问『现在』",
+      "ingest": ["我的账单先按月付吧。", "算了，账单还是改成按年付吧。"],
+      "stale_ingest": ["我的账单先按月付吧。"],
+      "query": "我现在是按什么周期付费？",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "stale_contains": ["月付"],
+      "stale_not_contains": ["年付"],
+      "no_memory_not_contains": ["年付"]
     },
     {
       "id": "ide-update",
@@ -65,7 +65,7 @@
       "id": "style-length",
       "title": "回答长度偏好：跨会话遵循『简短』",
       "ingest": ["以后回答请简短一点，不要太长。"],
-      "query": "介绍一下你们的智慧路灯巡检流程。",
+      "query": "介绍一下你们的企业版。",
       "final_contains": [],
       "final_not_contains": [],
       "max_chars": 120,
@@ -81,29 +81,29 @@
       "no_memory_not_contains": ["PyCharm"]
     },
     {
-      "id": "retract-inspection-shift",
-      "title": "撤回：用户要求忘记巡检班次偏好",
-      "ingest": ["巡检班次选夜班。", "忘记我的巡检班次偏好吧。"],
-      "query": "我现在是白班还是夜班？",
+      "id": "retract-billing",
+      "title": "撤回：用户要求忘记账单周期偏好",
+      "ingest": ["账单按年付。", "忘记我的账单周期偏好吧。"],
+      "query": "我现在是月付还是年付？",
       "final_contains": [],
       "final_not_contains": [],
       "judge": {
-        "question": "待判定回答是否明确声称知道用户当前的巡检班次（例如『你是夜班』『你按白班』）？只输出 AFFIRM 或 DENY。",
+        "question": "待判定回答是否明确声称知道用户当前的账单周期（例如『你是年付』『你按月付』）？只输出 AFFIRM 或 DENY。",
         "pass_code": "DENY"
       },
       "no_memory_not_contains": []
     },
     {
-      "id": "inspection-shift-update-phrase",
-      "title": "知识更新（不同措辞）：下个季度改成夜班",
-      "ingest": ["巡检班次是白班。", "下个排班周期开始改成夜班。"],
-      "stale_ingest": ["巡检班次是白班。"],
-      "query": "我下个周期会安排什么巡检班次？",
-      "final_contains": ["夜班"],
-      "final_not_contains": ["白班"],
-      "stale_contains": ["白班"],
+      "id": "billing-update-phrase",
+      "title": "知识更新（不同措辞）：下个季度改成年付",
+      "ingest": ["账单周期是月付。", "下个季度开始改成年付。"],
+      "stale_ingest": ["账单周期是月付。"],
+      "query": "我下个周期会按什么方式付费？",
+      "final_contains": ["年付"],
+      "final_not_contains": ["月付"],
+      "stale_contains": ["月付"],
       "stale_not_contains": [],
-      "no_memory_not_contains": ["夜班"]
+      "no_memory_not_contains": ["年付"]
     }
   ]
 }

@@ -12,7 +12,7 @@ from runtime.agent_health import AgentHealthTracker
 from runtime.intent_execution import IntentResult
 
 
-QUERY = "先排查控制器报401，再核查重复告警"
+QUERY = "先排查插件报401，再核查重复扣款"
 
 
 def analysis_payload(query=QUERY):
@@ -29,15 +29,15 @@ def analysis_payload(query=QUERY):
         },
         "intents": [
             {
-                "intent_id": "intent-1-facility_troubleshooting",
-                "label": "facility_troubleshooting",
-                "supporting_text": ["排查控制器报401"],
+                "intent_id": "intent-1-technical_troubleshooting",
+                "label": "technical_troubleshooting",
+                "supporting_text": ["排查插件报401"],
                 "tree_score": 0.95,
             },
             {
-                "intent_id": "intent-2-alert_report",
-                "label": "alert_report",
-                "supporting_text": ["核查重复告警"],
+                "intent_id": "intent-2-payment_issue",
+                "label": "payment_issue",
+                "supporting_text": ["核查重复扣款"],
                 "tree_score": 0.96,
             },
         ],
@@ -92,7 +92,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
         serialized = outcome.to_dict()
         self.assertEqual(QUERY, serialized["original_query"])
         self.assertEqual(
-            ["排查控制器报401"],
+            ["排查插件报401"],
             serialized["recognized_intents"][0]["source_spans"],
         )
         self.assertNotIn("team", seen[0])
@@ -113,8 +113,8 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_success",
                     "messages": [{
                         "recipient": "rag_knowledge",
-                        "content": "先排查控制器报401",
-                        "intent_ids": ["intent-1-facility_troubleshooting"],
+                        "content": "先排查插件报401",
+                        "intent_ids": ["intent-1-technical_troubleshooting"],
                     }],
                     "reason_code": "first_stage",
                 }
@@ -124,8 +124,8 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_success",
                     "messages": [{
                         "recipient": "business_data_query",
-                        "content": "根据前序结果核查重复告警",
-                        "intent_ids": ["intent-2-alert_report"],
+                        "content": "根据前序结果核查重复扣款",
+                        "intent_ids": ["intent-2-payment_issue"],
                     }],
                     "reason_code": "second_stage",
                 }
@@ -175,7 +175,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                 "messages": [{
                     "recipient": "rag_knowledge",
                     "content": "排查",
-                    "intent_ids": ["intent-1-facility_troubleshooting"],
+                    "intent_ids": ["intent-1-technical_troubleshooting"],
                 }],
                 "reason_code": "illegal_relabel",
             }
@@ -207,10 +207,10 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
 
         def recognize(payload):
             recognition_payloads.append(payload)
-            recognized = analysis_payload("控制器报401")
+            recognized = analysis_payload("插件报401")
             recognized["intents"] = [{
                 **analysis_payload()["intents"][0],
-                "supporting_text": ["控制器报401"],
+                "supporting_text": ["插件报401"],
             }]
             recognized["reason_code"] = "technical"
             return {"analysis": recognized}
@@ -223,8 +223,8 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled",
                     "messages": [{
                         "recipient": "rag_knowledge",
-                        "content": "排查控制器报401",
-                        "intent_ids": ["intent-1-facility_troubleshooting"],
+                        "content": "排查插件报401",
+                        "intent_ids": ["intent-1-technical_troubleshooting"],
                     }],
                     "reason_code": "dispatch",
                 }
@@ -247,14 +247,14 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             supervisor_decision_provider=plan,
             single_intent_fast_path_enabled=False,
         )
-        result = await orchestrator.run(Request("控制器报401", "u1", "c1"))
+        result = await orchestrator.run(Request("插件报401", "u1", "c1"))
 
         self.assertEqual("COMPLETED", result.status)
         self.assertEqual(1, len(recognition_payloads))
         self.assertGreaterEqual(len(planning_payloads), 2)
         self.assertFalse(planning_payloads[0]["analysis_required"])
         self.assertEqual(
-            ["控制器报401"],
+            ["插件报401"],
             planning_payloads[0]["intent_recognition"]["recognized_intents"][0][
                 "source_spans"
             ],

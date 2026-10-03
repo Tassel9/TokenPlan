@@ -49,7 +49,6 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 会话、摘要、CaseState 和并发提交记录的本地文件 |
-| `LOCAL_BACKEND_DB_PATH` | `./data/local/urbanops_local.sqlite3` | 本地 SQLite 夹具；仅验证用户隔离、审批、幂等和审计边界，不是真实市政平台 |
 | `SESSION_HISTORY_MAX_MESSAGES` | `100` | 每会话保留的原始归档消息上限 |
 | `SESSION_HISTORY_PAGE_SIZE` | `50` | 历史读取默认条数 |
 | `SESSION_HOT_MEMORY_MAX_MESSAGES` | `40` | 摘要持续失败时的近期对话硬上限 |
@@ -72,7 +71,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RABBITMQ_URL` | `amqp://urbanops:urbanops123@rabbitmq:5672/` | 容器内地址 |
+| `RABBITMQ_URL` | `amqp://tokenplan:tokenplan123@rabbitmq:5672/` | 容器内地址 |
 | `LONG_TERM_MEMORY_QUEUE_ENABLED` | `true` | 置 `false` 只关闭长期记忆写入（在线问答不受影响），也是"不想跑 MQ"的降级开关 |
 | `LONG_TERM_MEMORY_WORKER_ENABLED` | `true` | API 与 Worker 暂同进程；拆独立 Worker 后 API 侧置 `false` |
 | `LONG_TERM_MEMORY_WORKER_PREFETCH` | `1` | 预取数 |
@@ -87,8 +86,8 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `CHROMA_HOST` / `CHROMA_PORT` | `chromadb` / `8000` | 容器内地址；本地用 `localhost` / `8001` |
 | `CHROMA_PERSIST_DIRECTORY` | `/app/data/chroma` | 容器内路径；本地用 `./data/chroma` |
 | `MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK` | `false` | 置 `true` 允许内嵌 ChromaDB 降级（生产默认连接失败即停止启动） |
-| `RAG_CHROMA_COLLECTION_NAME` | `urbanops_knowledge_base_chroma_v1` | 知识库集合名 |
-| `RAG_LEXICAL_INDEX_PATH` | 跟随 `CHROMA_PERSIST_DIRECTORY` 下的 `urbanops_lexical_v1.sqlite3` | 复用旧 FTS5 索引时显式指定 |
+| `RAG_CHROMA_COLLECTION_NAME` | `tokenplan_knowledge_base_v2` | 知识库集合名 |
+| `RAG_LEXICAL_INDEX_PATH` | 跟随 `CHROMA_PERSIST_DIRECTORY` 下的 `tokenplan_lexical_v2.sqlite3` | 复用旧 FTS5 索引时显式指定 |
 | `LONG_TERM_MEMORY_EMBEDDING_MODEL` | `BAAI/bge-base-zh-v1.5` | BGE 模型 |
 | `LONG_TERM_MEMORY_EMBEDDING_REVISION` | 固定 revision | 与知识库索引保持一致 |
 | `LONG_TERM_MEMORY_EMBEDDING_DEVICE` | 跟随 Supervisor 的 `SUPERVISOR_FEW_SHOT_EMBEDDING_DEVICE` | `cpu` / `cuda` |
@@ -132,7 +131,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `SUPERVISOR_JEV_RECOMMENDATION_THRESHOLD` | `0.80` | 高概率提示阈值；Supervisor 仍需校验范围、原文证据和最小标签集合 |
 | `SUPERVISOR_JEV_TIMEOUT_SECONDS` | `10` | Jev 请求超时秒数 |
 
-启用 Jev 前额外安装 `pip install -r requirements/intent-jev.txt`。当前消息、受限最近历史和 CaseState 意图上下文会发送给 TypeSafe API，应按部署环境的数据策略决定是否启用。
+启用 Jev 前额外安装 `pip install -r requirements-intent-jev.txt`。当前消息、受限最近历史和 CaseState 意图上下文会发送给 TypeSafe API，应按部署环境的数据策略决定是否启用。
 
 默认主链路会同时启动 Embedding 多源打分和 LLM 意图树推理；两路完成后先分别做 Platt 校准，再按逐标签融合分进入 `CLEAR / AMBIGUOUS / LOW`。四个校准参数的默认值只是恒等映射，用于保证链路可运行，不代表已经完成统计校准。当前仓库中的旧意图报告是在改造前生成的，不能直接作为该融合策略的效果结论；修改校准参数、`α` 或两个阈值后必须重新运行独立冻结测试集。
 
@@ -144,7 +143,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RAG_EMBEDDING_BACKEND` | `bge` | 向量通道编码器：`bge`（中文 BGE）或 `chroma-default`（Chroma 内置英文 MiniLM，旧集合） |
 | `RAG_EMBEDDING_MODEL` | `BAAI/bge-small-zh-v1.5` | BGE 模型；改 `bge-base-zh-v1.5` 可与意图识别共用同一编码器（单条编码 5 ms → 23 ms） |
 | `RAG_EMBEDDING_DEVICE` / `_CACHE_SIZE` / `_REVISION` | 空 / `512` / 空 | 编码设备、查询向量 LRU 容量、模型 revision（留空按模型默认） |
-| `RAG_CHROMA_COLLECTION_NAME` | 按后端自动 | `bge` → `urbanops_knowledge_base_v1`；`chroma-default` → `urbanops_knowledge_base_chroma_v1`（维数不同不可共用） |
+| `RAG_CHROMA_COLLECTION_NAME` | 按后端自动 | `bge` → `tokenplan_knowledge_base_v3`；`chroma-default` → `..._v2`（维数不同不可共用） |
 | `RAG_HYBRID_RRF_K` | `20` | RRF 融合常数 |
 | `RAG_RERANK_CANDIDATE_LIMIT` | `8` | 送入重排的候选数；实测 12/8/6 召回同为 0.980，候选减半重排成本线性下降（96→69→58 ms） |
 | `RAG_RERANKER_BACKEND` | `bge` | 重排后端 |
@@ -161,7 +160,6 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `AGENT_INITIAL_RETRIEVAL_ENABLED` | `true` | 首检索前置（Runtime 先检索再决策） |
 | `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | 检索后的结构化证据判断 |
 | `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 每请求最多检索次数 |
-| `SINGLE_INTENT_FAST_PATH_ENABLED` | `true` | 单意图知识问题（巡检规范 / 终端接入 / 设备故障排查）跳过 Supervisor 的派发+收口两次 LLM 规划，直接委派知识型 Agent；`false` 回退全量编排 |
 
 ## 12. Trace、健康检查与可观测性
 
@@ -182,9 +180,9 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 
 | 变量 | compose 默认值 |
 |---|---|
-| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `urbanops` / `urbanops123` |
-| `IMAGE_NAME` / `VERSION` / `REGISTRY` | 见 `scripts/build-image.sh`、`scripts/run-image.sh` |
-| `CONFIG_DIR` / `DATA_DIR` / `LOGS_DIR` | 见 `scripts/run-image.sh` |
+| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `tokenplan` / `tokenplan123` |
+| `IMAGE_NAME` / `VERSION` / `REGISTRY` | 见 `build-image.sh`、`run-image.sh` |
+| `CONFIG_DIR` / `DATA_DIR` / `LOGS_DIR` | 见 `run-image.sh` |
 
 > 如果改了 `RABBITMQ_*`，请同步修改 `RABBITMQ_URL`。
 
@@ -204,7 +202,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 cp .env.example .env          # 填 DEEPSEEK_API_KEY 即可
 docker compose up -d chromadb rabbitmq
 python backend/cli.py doctor          # 应输出 ok / degraded
-python backend/cli.py "泵站 3 号泵出现高温告警，应该怎么排查"
+python backend/cli.py "我的账单为什么多了 20 元"
 ```
 
 **B. 全容器**

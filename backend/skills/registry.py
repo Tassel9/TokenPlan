@@ -32,8 +32,8 @@ _FRONTMATTER_FIELDS = {
 }
 _METADATA_FIELDS = {
     "version",
-    "urbanops-owner-agent",
-    "urbanops-enabled",
+    "token-plan-owner-agent",
+    "token-plan-enabled",
 }
 _RESOURCE_DIRS = {"references": "reference", "assets": "asset"}
 _RUNTIME_CORE_HEADING = "核心契约"
@@ -366,7 +366,7 @@ class SkillRegistry:
             )
         version = _metadata_string(metadata, "version")
         owner_agent = _metadata_string(
-            metadata, "urbanops-owner-agent"
+            metadata, "token-plan-owner-agent"
         ).lower()
         if not _VERSION.fullmatch(version):
             raise SkillRegistryError(
@@ -374,7 +374,7 @@ class SkillRegistry:
             )
         if owner_agent not in _ALLOWED_AGENTS:
             raise SkillRegistryError(
-                f"Invalid metadata.urbanops-owner-agent in {skill_path}: "
+                f"Invalid metadata.token-plan-owner-agent in {skill_path}: "
                 f"{owner_agent!r}"
             )
 
@@ -405,7 +405,7 @@ class SkillRegistry:
             version=version,
             owner_agent=owner_agent,
             enabled=_metadata_bool(
-                metadata, "urbanops-enabled", default=True
+                metadata, "token-plan-enabled", default=True
             ),
             required_capabilities=required_capabilities,
             body=body,

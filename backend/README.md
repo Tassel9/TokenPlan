@@ -1,6 +1,6 @@
 # Backend 模块说明
 
-`backend/` 是 UrbanOps 的 Python 运行时源码根目录。按职责可分为：
+`backend/` 是 TokenPlan 的 Python 运行时源码根目录。按职责可分为：
 
 | 分组 | 模块 | 职责 |
 |---|---|---|

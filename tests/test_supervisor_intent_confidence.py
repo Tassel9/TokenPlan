@@ -26,10 +26,7 @@ class _Agent:
 def _registry():
     return AgentRegistry(
         AgentRegistration(name, f"{name} work", _Agent(name), name)
-        for name in (
-            "general", "technical", "operations", "rag_knowledge",
-            "business_data_query", "business_operation",
-        )
+        for name in ("general", "technical", "billing")
     )
 
 
@@ -109,13 +106,13 @@ class _Scores:
 
 class SupervisorIntentConfidencePolicyTests(unittest.IsolatedAsyncioTestCase):
     async def test_thresholds_apply_to_each_label_without_a_count_cap(self):
-        query = "买巡检方案、补维修工单、查工单撤回、改密码"
+        query = "买套餐、补发票、查退款、改密码"
         analysis = SupervisorDecisionValidator.validate_analysis(
             _analysis(query, [
-                ("inspection_task_create", "买巡检方案"),
-                ("work_order_handling", "补维修工单"),
-                ("work_order_withdrawal", "查工单撤回"),
-                ("terminal_security_request", "改密码"),
+                ("subscription_purchase", "买套餐"),
+                ("invoice_handling", "补发票"),
+                ("refund_handling", "查退款"),
+                ("account_security_request", "改密码"),
             ]),
             original_query=query,
         )
@@ -130,12 +127,12 @@ class SupervisorIntentConfidencePolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(4, len(result.confirmed))
         self.assertEqual([], list(result.clarification_candidates))
 
-    async def test_explicitly_negated_withdrawal_is_rejected_even_with_high_score(self):
-        query = "我不是来工单撤回的，我要个说法"
+    async def test_explicitly_negated_refund_is_rejected_even_with_high_score(self):
+        query = "我不是来退款的，我要个说法"
         analysis = SupervisorDecisionValidator.validate_analysis(
             _analysis(query, [
-                ("work_order_withdrawal", "工单撤回"),
-                ("operations_complaint", "要个说法"),
+                ("refund_handling", "退款"),
+                ("service_complaint", "要个说法"),
             ]),
             original_query=query,
         )
@@ -149,10 +146,10 @@ class SupervisorIntentConfidencePolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("explicit_negation_conflict", result.decisions[0].reason_code)
         self.assertEqual(IntentConfidenceBand.CONFIRMED, result.decisions[1].band)
 
-    async def test_unreceived_withdrawal_status_is_not_treated_as_intent_negation(self):
-        query = "查询未到账的工单撤回"
+    async def test_unreceived_refund_status_is_not_treated_as_intent_negation(self):
+        query = "查询未到账的退款"
         analysis = SupervisorDecisionValidator.validate_analysis(
-            _analysis(query, [("work_order_withdrawal", "未到账的工单撤回")]),
+            _analysis(query, [("refund_handling", "未到账的退款")]),
             original_query=query,
         )
         result = await SupervisorIntentConfidencePolicy(
@@ -163,26 +160,26 @@ class SupervisorIntentConfidencePolicyTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(IntentConfidenceBand.CONFIRMED, result.decisions[0].band)
 
     async def test_missing_label_score_fails_closed(self):
-        query = "查工单撤回并补维修工单"
+        query = "查退款并补发票"
         analysis = SupervisorDecisionValidator.validate_analysis(
             _analysis(query, [
-                ("work_order_withdrawal", "查工单撤回"),
-                ("work_order_handling", "补维修工单"),
+                ("refund_handling", "查退款"),
+                ("invoice_handling", "补发票"),
             ]),
             original_query=query,
         )
         result = await SupervisorIntentConfidencePolicy(
             _Scores()
         ).assess(query, analysis, await _Scores(
-            [0.90], labels=["work_order_withdrawal"]
+            [0.90], labels=["refund_handling"]
         ).retrieve(query))
         self.assertEqual("failed", result.status)
         self.assertIn("coverage mismatch", result.error)
 
     async def test_channel_scores_are_calibrated_before_weighted_fusion(self):
-        query = "查询工单撤回进度"
+        query = "查询退款进度"
         analysis = SupervisorDecisionValidator.validate_analysis(
-            _analysis(query, [("work_order_withdrawal", "工单撤回进度", 0.60)]),
+            _analysis(query, [("refund_handling", "退款进度", 0.60)]),
             original_query=query,
         )
         result = await SupervisorIntentConfidencePolicy(
@@ -192,7 +189,7 @@ class SupervisorIntentConfidencePolicyTests(unittest.IsolatedAsyncioTestCase):
             embedding_calibration_scale=3.0,
             tree_calibration_scale=3.0,
         ).assess(query, analysis, await _Scores(
-            [0.60], labels=["work_order_withdrawal"]
+            [0.60], labels=["refund_handling"]
         ).retrieve(query))
 
         decision = result.decisions[0]
@@ -212,7 +209,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         return SupervisorContext("test", base_url="https://example.invalid")
 
     async def test_embedding_and_llm_tree_channels_start_in_parallel(self):
-        query = "智慧路灯重复告警"
+        query = "银行卡重复扣款"
         embedding_started = asyncio.Event()
         release_embedding = asyncio.Event()
 
@@ -226,7 +223,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             if payload["round_index"] > 1:
                 return {
                     "action": "FINAL",
-                    "message": "告警已核对",
+                    "message": "扣款已核对",
                     "reason_code": "completed",
                 }
             await embedding_started.wait()
@@ -235,13 +232,13 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
                 "action": "SEND_MESSAGES",
                 "analysis": _analysis(
                     query,
-                    [("alert_report", "重复告警", 0.95)],
+                    [("payment_issue", "重复扣款", 0.95)],
                 ),
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "operations",
-                    "content": "核对重复告警",
-                    "intent_ids": ["intent-1-alert_report"],
+                    "recipient": "billing",
+                    "content": "核对重复扣款",
+                    "intent_ids": ["intent-1-payment_issue"],
                 }],
                 "reason_code": "dispatch",
             }
@@ -250,9 +247,9 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             return [
                 IntentResult(
                     messages[0].message_id,
-                    "alert_report",
+                    "payment_issue",
                     "COMPLETED",
-                    "告警已核对",
+                    "扣款已核对",
                 )
             ]
 
@@ -260,7 +257,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             self.context(),
             agent_registry=_registry(),
             few_shot_retriever=_ConcurrentScores(
-                [0.90], labels=("alert_report",)
+                [0.90], labels=("payment_issue",)
             ),
             decision_provider=decide,
         ).run(query, dispatch), timeout=1.0)
@@ -272,17 +269,17 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         )
 
     async def test_confirmed_intent_executes_while_medium_intent_waits_for_clarification(self):
-        query = "设备出现高温，我可能还想撤回工单"
+        query = "重复扣款，我可能还想退款"
         analysis = _analysis(query, [
-            ("alert_report", "设备出现高温", 0.90),
-            ("work_order_withdrawal", "可能还想撤回工单", 0.35),
+            ("payment_issue", "重复扣款", 0.90),
+            ("refund_handling", "可能还想退款", 0.35),
         ])
 
         def decide(payload):
             if payload["round_index"] > 1:
                 return {
                     "action": "FINAL",
-                    "message": "告警已经记录",
+                    "message": "退款进度已查询",
                     "reason_code": "completed",
                 }
             return {
@@ -290,11 +287,11 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
                 "analysis": analysis,
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "business_data_query",
-                    "content": "核对设备高温并撤回工单",
+                    "recipient": "billing",
+                    "content": "核对重复扣款并办理退款",
                     "intent_ids": [
-                        "intent-1-alert_report",
-                        "intent-2-work_order_withdrawal",
+                        "intent-1-payment_issue",
+                        "intent-2-refund_handling",
                     ],
                 }],
                 "reason_code": "dispatch",
@@ -305,13 +302,13 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         async def dispatch(messages, locked_analysis):
             dispatched.extend(messages)
             self.assertEqual(
-                ["alert_report"],
+                ["payment_issue"],
                 [item.label.value for item in locked_analysis.intents],
             )
-            self.assertEqual(("intent-1-alert_report",), messages[0].intent_ids)
-            self.assertNotIn("撤回工单", messages[0].content)
+            self.assertEqual(("intent-1-payment_issue",), messages[0].intent_ids)
+            self.assertNotIn("退款", messages[0].content)
             return [
-                IntentResult(message.message_id, "alert_report", "COMPLETED", "高温告警已核对")
+                IntentResult(message.message_id, "payment_issue", "COMPLETED", "扣款已核对")
                 for message in messages
             ]
 
@@ -320,14 +317,14 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             agent_registry=_registry(),
             few_shot_retriever=_Scores(
                 [0.80, 0.37],
-                labels=("alert_report", "work_order_withdrawal"),
+                labels=("payment_issue", "refund_handling"),
             ),
             decision_provider=decide,
         ).run(query, dispatch)
         self.assertEqual(SupervisorAction.ASK_USER, result.action)
-        self.assertEqual({"intent-1-alert_report"}, result.confirmed_intent_ids)
+        self.assertEqual({"intent-1-payment_issue"}, result.confirmed_intent_ids)
         self.assertEqual(1, len(dispatched))
-        self.assertIn("撤回", result.response)
+        self.assertIn("处理退款", result.response)
 
     async def test_third_consecutive_unmatched_turn_hands_off(self):
         query = "我就想问一下"
@@ -335,12 +332,12 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         def decide(_payload):
             return {
                 "action": "SEND_MESSAGES",
-                "analysis": _analysis(query, [("operations_feedback", "问一下", 0.20)]),
+                "analysis": _analysis(query, [("service_feedback", "问一下", 0.20)]),
                 "barrier": "all_settled",
                 "messages": [{
                     "recipient": "general",
                     "content": "处理咨询",
-                    "intent_ids": ["intent-1-operations_feedback"],
+                    "intent_ids": ["intent-1-service_feedback"],
                 }],
                 "reason_code": "dispatch",
             }
@@ -352,7 +349,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             self.context(),
             agent_registry=_registry(),
             few_shot_retriever=_Scores(
-                [0.20], labels=("operations_feedback",)
+                [0.20], labels=("service_feedback",)
             ),
             decision_provider=decide,
         ).run(
@@ -364,17 +361,17 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         self.assertEqual("intent_unmatched_handoff", result.reason_code)
 
     async def test_embedding_failure_is_system_failure_not_semantic_unmatched(self):
-        query = "查询工单撤回进度"
+        query = "查询退款进度"
 
         def decide(_payload):
             return {
                 "action": "SEND_MESSAGES",
-                "analysis": _analysis(query, [("work_order_withdrawal", "工单撤回进度")]),
+                "analysis": _analysis(query, [("refund_handling", "退款进度")]),
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "operations",
-                    "content": "查询工单撤回进度",
-                    "intent_ids": ["intent-1-work_order_withdrawal"],
+                    "recipient": "billing",
+                    "content": "查询退款进度",
+                    "intent_ids": ["intent-1-refund_handling"],
                 }],
                 "reason_code": "dispatch",
             }
@@ -386,7 +383,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             self.context(),
             agent_registry=_registry(),
             few_shot_retriever=_Scores(
-                broken=True, labels=("work_order_withdrawal",)
+                broken=True, labels=("refund_handling",)
             ),
             decision_provider=decide,
         ).run(query, dispatch)
@@ -395,23 +392,23 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         self.assertNotEqual("intent_unmatched", result.reason_code)
 
     async def test_llm_tree_channel_is_not_pruned_by_embedding_top_n(self):
-        query = "查询工单撤回进度"
+        query = "查询退款进度"
 
         def decide(payload):
             if payload["round_index"] > 1:
                 return {
                     "action": "FINAL",
-                    "message": "工单撤回进度已查询",
+                    "message": "退款进度已查询",
                     "reason_code": "completed",
                 }
             return {
                 "action": "SEND_MESSAGES",
-                "analysis": _analysis(query, [("work_order_withdrawal", "工单撤回进度")]),
+                "analysis": _analysis(query, [("refund_handling", "退款进度")]),
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "operations",
-                    "content": "查询工单撤回进度",
-                    "intent_ids": ["intent-1-work_order_withdrawal"],
+                    "recipient": "billing",
+                    "content": "查询退款进度",
+                    "intent_ids": ["intent-1-refund_handling"],
                 }],
                 "reason_code": "dispatch",
             }
@@ -420,9 +417,9 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             return [
                 IntentResult(
                     messages[0].message_id,
-                    "work_order_withdrawal",
+                    "refund_handling",
                     "COMPLETED",
-                    "工单撤回进度已查询",
+                    "退款进度已查询",
                 )
             ]
 
@@ -431,24 +428,24 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             agent_registry=_registry(),
             few_shot_retriever=_Scores(
                 [0.90, 0.20],
-                labels=("work_order_withdrawal", "alert_report"),
-                candidates=("alert_report",),
+                labels=("refund_handling", "payment_issue"),
+                candidates=("payment_issue",),
             ),
             decision_provider=decide,
         ).run(query, dispatch)
         self.assertEqual(SupervisorAction.FINAL, result.action)
-        self.assertEqual({"intent-1-work_order_withdrawal"}, result.confirmed_intent_ids)
+        self.assertEqual({"intent-1-refund_handling"}, result.confirmed_intent_ids)
 
     async def test_unknown_label_is_still_rejected_before_dispatch(self):
-        query = "查询工单撤回进度"
+        query = "查询退款进度"
 
         def decide(_payload):
             return {
                 "action": "SEND_MESSAGES",
-                "analysis": _analysis(query, [("totally_unknown_label", "工单撤回进度")]),
+                "analysis": _analysis(query, [("totally_unknown_label", "退款进度")]),
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "operations",
+                    "recipient": "billing",
                     "content": "处理请求",
                     "intent_ids": ["intent-1-totally_unknown_label"],
                 }],
@@ -461,7 +458,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         result = await SupervisorLead(
             self.context(),
             agent_registry=_registry(),
-            few_shot_retriever=_Scores([0.90], candidates=("work_order_withdrawal",)),
+            few_shot_retriever=_Scores([0.90], candidates=("refund_handling",)),
             decision_provider=decide,
         ).run(query, dispatch)
         self.assertEqual(SupervisorAction.HANDOFF, result.action)
@@ -469,22 +466,22 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
         self.assertTrue(result.decision_errors)
 
     async def test_first_round_llm_channel_uses_complete_tree_without_embedding_output(self):
-        query = "智慧路灯重复告警"
+        query = "银行卡重复扣款"
         pair = {
-            "candidate_intent": "alert_report",
-            "candidate_domain": "告警与账务",
-            "candidate_definition": "告警失败、重复告警或告警状态异常",
+            "candidate_intent": "payment_issue",
+            "candidate_domain": "支付与账务",
+            "candidate_definition": "支付失败、重复扣款或支付状态异常",
             "positive_few_shot": {
                 "id": "positive-payment",
-                "query": "工单扣了两次钱",
-                "correct_intents": ["alert_report"],
+                "query": "订单扣了两次钱",
+                "correct_intents": ["payment_issue"],
             },
             "hard_negative_few_shot": {
                 "id": "negative-payment",
-                "query": "工单撤回什么时候到账",
-                "correct_intents": ["work_order_withdrawal"],
-                "excluded_intent": "alert_report",
-                "confusion_intents": ["work_order_withdrawal"],
+                "query": "退款什么时候到账",
+                "correct_intents": ["refund_handling"],
+                "excluded_intent": "payment_issue",
+                "confusion_intents": ["refund_handling"],
             },
         }
 
@@ -492,7 +489,7 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             if payload["round_index"] > 1:
                 return {
                     "action": "FINAL",
-                    "message": "告警已核对",
+                    "message": "扣款已核对",
                     "reason_code": "completed",
                 }
             self.assertEqual(
@@ -508,12 +505,12 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             self.assertEqual(5, len(payload["candidate_intent_tree"]))
             return {
                 "action": "SEND_MESSAGES",
-                "analysis": _analysis(query, [("alert_report", "重复告警")]),
+                "analysis": _analysis(query, [("payment_issue", "重复扣款")]),
                 "barrier": "all_settled",
                 "messages": [{
-                    "recipient": "operations",
-                    "content": "核对重复告警",
-                    "intent_ids": ["intent-1-alert_report"],
+                    "recipient": "billing",
+                    "content": "核对重复扣款",
+                    "intent_ids": ["intent-1-payment_issue"],
                 }],
                 "reason_code": "dispatch",
             }
@@ -522,9 +519,9 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             return [
                 IntentResult(
                     messages[0].message_id,
-                    "alert_report",
+                    "payment_issue",
                     "COMPLETED",
-                    "告警已核对",
+                    "扣款已核对",
                 )
             ]
 
@@ -533,8 +530,8 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
             agent_registry=_registry(),
             few_shot_retriever=_Scores(
                 [0.90],
-                labels=("alert_report",),
-                candidates=("alert_report",),
+                labels=("payment_issue",),
+                candidates=("payment_issue",),
                 candidate_few_shots=(pair,),
             ),
             decision_provider=decide,
@@ -544,11 +541,11 @@ class SupervisorIntentConfidenceIntegrationTests(unittest.IsolatedAsyncioTestCas
     def test_candidate_tree_keeps_cross_domain_leaf_intents(self):
         self.assertEqual(
             [
-                {"domain": "巡检管理", "intents": ["inspection_task_cancel"]},
-                {"domain": "异常与工单", "intents": ["work_order_withdrawal"]},
+                {"domain": "订阅管理", "intents": ["subscription_cancel"]},
+                {"domain": "支付与账务", "intents": ["refund_handling"]},
             ],
             SupervisorLead._candidate_intent_tree(
-                ["inspection_task_cancel", "work_order_withdrawal"]
+                ["subscription_cancel", "refund_handling"]
             ),
         )
 

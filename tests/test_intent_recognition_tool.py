@@ -34,7 +34,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
         answers = {
             label: {"type": "noul", "noul": probability}
             for label, probability in jev_scores(
-                work_order_withdrawal=0.93,
+                refund_handling=0.93,
             ).items()
         }
         response = MagicMock()
@@ -52,7 +52,7 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             result = await JevIntentRecognitionTool(
                 api_key="test-secret",
                 base_url="https://typesafe.example/",
-            ).recognize("帮我退掉这笔工单")
+            ).recognize("帮我退掉这笔订单")
 
         self.assertEqual("ok", result.status)
         request = client.post.await_args
@@ -74,8 +74,8 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             captured["state"] = state
             captured["questions"] = questions
             return jev_scores(
-                facility_troubleshooting=0.94,
-                alert_report=0.73,
+                technical_troubleshooting=0.94,
+                payment_issue=0.73,
             )
 
         tool = JevIntentRecognitionTool(
@@ -85,18 +85,18 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             request_provider=provide,
         )
         result = await tool.recognize(
-            "控制器报401，而且重复告警",
-            history=[{"role": "user", "content": "这是 UrbanOps 的问题"}],
-            case_state={"last_intents": ["facility_troubleshooting"]},
+            "插件报401，而且重复扣款",
+            history=[{"role": "user", "content": "这是 TokenPlan 的问题"}],
+            case_state={"last_intents": ["technical_troubleshooting"]},
         )
 
         self.assertEqual("ok", result.status)
         self.assertEqual(
-            ("facility_troubleshooting", "alert_report"),
+            ("technical_troubleshooting", "payment_issue"),
             result.candidate_intents,
         )
         self.assertEqual(
-            ("facility_troubleshooting",),
+            ("technical_troubleshooting",),
             result.recommended_intents,
         )
         self.assertEqual(len(INTENT_SPECS), len(captured["questions"]))
@@ -105,18 +105,18 @@ class JevIntentRecognitionToolTests(unittest.IsolatedAsyncioTestCase):
             for question in captured["questions"].values()
         ))
         self.assertEqual(
-            "控制器报401，而且重复告警",
+            "插件报401，而且重复扣款",
             captured["state"]["current_message"],
         )
 
     async def test_missing_answer_fails_closed_inside_tool_result(self):
         async def provide(_state, _questions):
-            return {"facility_troubleshooting": 0.95}
+            return {"technical_troubleshooting": 0.95}
 
         result = await JevIntentRecognitionTool(
             api_key="",
             request_provider=provide,
-        ).recognize("控制器报401")
+        ).recognize("插件报401")
 
         self.assertEqual("failed", result.status)
         self.assertEqual("ValueError", result.error_code)
@@ -133,8 +133,8 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
     async def test_supervisor_calls_intent_tool_before_decision(self):
         async def provide(_state, _questions):
             return jev_scores(
-                facility_troubleshooting=0.96,
-                alert_report=0.92,
+                technical_troubleshooting=0.96,
+                payment_issue=0.92,
             )
 
         first = {
@@ -145,8 +145,8 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 "recipient": "technical",
                 "content": "处理两个独立诉求",
                 "intent_ids": [
-                    "intent-1-facility_troubleshooting",
-                    "intent-2-alert_report",
+                    "intent-1-technical_troubleshooting",
+                    "intent-2-payment_issue",
                 ],
             }],
             "reason_code": "dispatch",
@@ -175,12 +175,12 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 api_key="",
                 request_provider=provide,
             ),
-        ).run("控制器报401，而且重复告警", dispatch)
+        ).run("插件报401，而且重复扣款", dispatch)
 
         self.assertEqual("FINAL", result.action.value)
         self.assertEqual("ok", result.intent_recognition["status"])
         self.assertEqual(
-            ["facility_troubleshooting", "alert_report"],
+            ["technical_troubleshooting", "payment_issue"],
             result.intent_recognition["recommended_intents"],
         )
         calls = self.context.client.messages.create.await_args_list
@@ -198,7 +198,7 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_supervisor_cannot_add_label_outside_jev_candidates(self):
         async def provide(_state, _questions):
-            return jev_scores(facility_troubleshooting=0.96)
+            return jev_scores(technical_troubleshooting=0.96)
 
         invalid = {
             "action": "SEND_MESSAGES",
@@ -208,8 +208,8 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 "recipient": "technical",
                 "content": "处理请求",
                 "intent_ids": [
-                    "intent-1-facility_troubleshooting",
-                    "intent-2-alert_report",
+                    "intent-1-technical_troubleshooting",
+                    "intent-2-payment_issue",
                 ],
             }],
             "reason_code": "dispatch",
@@ -230,7 +230,7 @@ class SupervisorIntentToolCallTests(unittest.IsolatedAsyncioTestCase):
                 api_key="",
                 request_provider=provide,
             ),
-        ).run("控制器报401，而且重复告警", dispatch)
+        ).run("插件报401，而且重复扣款", dispatch)
 
         self.assertEqual("HANDOFF", result.action.value)
         self.assertTrue(any(

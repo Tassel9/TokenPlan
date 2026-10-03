@@ -29,7 +29,7 @@ def write_skill_with_resource(
         "description": "Unit-test Skill with one Markdown resource.",
         "metadata": {
             "version": "1.0.0",
-            "urbanops-owner-agent": owner_agent,
+            "token-plan-owner-agent": owner_agent,
         },
     }
     yaml_text = yaml.safe_dump(frontmatter, allow_unicode=True, sort_keys=False)
@@ -46,7 +46,7 @@ def write_skill_with_resource(
 
 
 def bind_plan_benefits(registry: SkillRegistry):
-    return registry.bind_for_agent("rag_knowledge", ["inspection-standards"])[0]
+    return registry.bind_for_agent("rag_knowledge", ["plan-benefits"])[0]
 
 
 def binding_context(binding, *, owner_agent: str | None = None) -> dict[str, str]:
@@ -115,7 +115,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
         )
         asset = await self.manager.call(
             SKILL_RESOURCE_TOOL,
-            {"resource_id": "assets/inspection-standard-template.md"},
+            {"resource_id": "assets/plan-comparison-template.md"},
             context=self.context,
         )
 
@@ -140,7 +140,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
             ),
             (
                 self.context,
-                "../streetlight-security/SKILL.md",
+                "../account-security/SKILL.md",
                 "not available",
             ),
         )
@@ -167,7 +167,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_multi_skill_resource_read_requires_selected_skill_id(self):
         account = self.registry.bind_for_agent(
             "rag_knowledge",
-            ["streetlight-security"],
+            ["account-security"],
         )[0]
         context = {
             "agent_type": "rag_knowledge",
@@ -217,7 +217,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
         result = await runtime.run(
             agent_type="rag_knowledge",
             system_prompt=self.binding.prompt_fragment,
-            message="团队版巡检方案权益是什么？",
+            message="团队版套餐权益是什么？",
             tool_binding=ToolBroker(self.manager).bind(
                 intent_id="resource-intent",
                 agent_type="rag_knowledge",

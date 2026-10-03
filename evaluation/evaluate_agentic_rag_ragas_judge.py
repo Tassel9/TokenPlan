@@ -1,4 +1,4 @@
-"""Score an UrbanOps Agentic RAG pipeline report with RAGAS metrics.
+"""Score a TokenPlan Agentic RAG pipeline report with RAGAS metrics.
 
 The ``context_precision`` profile evaluates answerable retrieval cases with
 RAGAS Context Precision as the primary metric and Context Recall as its recall
@@ -7,7 +7,7 @@ backward-compatible end-to-end diagnostics.  Reports include paired deltas and
 deterministic bootstrap 95% confidence intervals.
 
 Run this module in the dedicated Python 3.10 environment described by
-``requirements/ragas.txt``.  The judge uses DeepSeek through its OpenAI-
+``requirements-ragas.txt``.  The judge uses DeepSeek through its OpenAI-
 compatible endpoint with thinking disabled because RAGAS relies on structured
 tool output.
 """
@@ -37,13 +37,13 @@ DEFAULT_OUTPUT = (
     _ROOT / "evaluation" / "reports" / "agentic_rag_ragas_judge_report.json"
 )
 DEFAULT_DATASET = (
-    _ROOT / "evaluation" / "fixtures" / "urbanops_agentic_rag_ragas_cases_v1.json"
+    _ROOT / "evaluation" / "fixtures" / "tokenplan_agentic_rag_ragas_cases_v1.json"
 )
-DATASET_SCHEMA = "urbanops-agentic-rag-ragas-dataset-v1"
+DATASET_SCHEMA = "tokenplan-agentic-rag-ragas-dataset-v1"
 INPUT_SCHEMAS = {
-    "urbanops-agentic-rag-ragas-pipeline-report-v1",
+    "tokenplan-agentic-rag-ragas-pipeline-report-v1",
 }
-REPORT_SCHEMA = "urbanops-agentic-rag-ragas-judge-report-v1"
+REPORT_SCHEMA = "tokenplan-agentic-rag-ragas-judge-report-v1"
 METRICS = (
     "context_recall",
     "faithfulness",
@@ -148,9 +148,9 @@ def load_context_precision_dataset(
         raise AgenticRagJudgeError(
             "context-precision dataset must declare production_evidence=false"
         )
-    if metadata.get("business_domain") != "urbanops_streetlight_operations":
+    if metadata.get("business_domain") != "token_plan_subscription":
         raise AgenticRagJudgeError(
-            "context-precision dataset must declare the UrbanOps streetlight operations business domain"
+            "context-precision dataset must declare the TokenPlan business domain"
         )
     if payload.get("metadata_sha256") != _canonical_sha256(metadata):
         raise AgenticRagJudgeError(
@@ -440,7 +440,7 @@ def _load_ragas_components() -> Dict[str, Any]:
     if sys.version_info < (3, 10):
         raise AgenticRagJudgeError(
             "RAGAS judge requires the dedicated Python >=3.10 environment "
-            "from requirements/ragas.txt"
+            "from requirements-ragas.txt"
         )
     try:
         from openai import AsyncOpenAI
@@ -453,7 +453,7 @@ def _load_ragas_components() -> Dict[str, Any]:
         )
     except ImportError as ex:
         raise AgenticRagJudgeError(
-            "RAGAS dependencies are unavailable; install requirements/ragas.txt"
+            "RAGAS dependencies are unavailable; install requirements-ragas.txt"
         ) from ex
     return {
         "AsyncOpenAI": AsyncOpenAI,

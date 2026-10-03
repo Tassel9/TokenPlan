@@ -13,7 +13,7 @@ from runtime.agent_health import AgentHealthTracker
 from runtime.intent_execution import IntentResult
 
 
-QUERY = "巡检方案和免费试用有什么区别"
+QUERY = "套餐和免费试用有什么区别"
 
 
 def _retrieval():
@@ -134,7 +134,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
             raise AssertionError("Supervisor planning must be skipped")
 
         orchestrator, agents = _build(
-            _Recognizer(_outcome(["inspection_standard_query"])),
+            _Recognizer(_outcome(["subscription_info_query"])),
             plan,
         )
         result = await orchestrator.run(Request(QUERY, "u1", "c1"))
@@ -154,7 +154,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(stage["barrier_satisfied"])
         self.assertEqual("rag_knowledge", stage["messages"][0]["recipient"])
         self.assertEqual(
-            ["inspection_standard_query"],
+            ["subscription_info_query"],
             [item.value for item in result.intents],
         )
 
@@ -170,10 +170,10 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "查询巡检方案差异并排查登录问题",
+                            "content": "查询套餐差异并排查登录问题",
                             "intent_ids": [
-                                "intent-1-inspection_standard_query",
-                                "intent-2-terminal_access_issue",
+                                "intent-1-subscription_info_query",
+                                "intent-2-account_login_issue",
                             ],
                         },
                     ],
@@ -187,7 +187,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
 
         orchestrator, agents = _build(
             _Recognizer(
-                _outcome(["inspection_standard_query", "terminal_access_issue"])
+                _outcome(["subscription_info_query", "account_login_issue"])
             ),
             plan,
         )
@@ -203,7 +203,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_non_knowledge_intent_keeps_supervisor_planning(self):
         plan_calls = []
-        query = "工单撤回怎么办理"
+        query = "退款怎么办理"
 
         def plan(payload):
             plan_calls.append(payload)
@@ -214,20 +214,20 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "工单撤回办理说明",
-                            "intent_ids": ["intent-1-work_order_withdrawal"],
+                            "content": "退款办理说明",
+                            "intent_ids": ["intent-1-refund_handling"],
                         },
                     ],
                     "reason_code": "dispatch",
                 }
             return {
                 "action": "FINAL",
-                "message": "工单撤回问题已答复。",
+                "message": "退款问题已答复。",
                 "reason_code": "done",
             }
 
         orchestrator, _ = _build(
-            _Recognizer(_outcome(["work_order_withdrawal"], query=query)),
+            _Recognizer(_outcome(["refund_handling"], query=query)),
             plan,
         )
         result = await orchestrator.run(Request(query, "u1", "c1"))
@@ -238,7 +238,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_personal_data_request_blocks_fast_path(self):
-        message = "我的工单WO-9现在什么状态"
+        message = "我的额度还剩多少"
         plan_calls = []
 
         def plan(payload):
@@ -250,8 +250,8 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "business_data_query",
-                            "content": "核查工单WO-9状态",
-                            "intent_ids": ["intent-1-work_order_handling"],
+                            "content": "核查个人额度",
+                            "intent_ids": ["intent-1-subscription_info_query"],
                         },
                     ],
                     "reason_code": "dispatch",
@@ -264,7 +264,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
 
         orchestrator, _ = _build(
             _Recognizer(
-                _outcome(["work_order_handling"], query=message)
+                _outcome(["subscription_info_query"], query=message)
             ),
             plan,
         )
@@ -287,20 +287,20 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "messages": [
                         {
                             "recipient": "rag_knowledge",
-                            "content": "查询巡检方案差异",
-                            "intent_ids": ["intent-1-inspection_standard_query"],
+                            "content": "查询套餐差异",
+                            "intent_ids": ["intent-1-subscription_info_query"],
                         },
                     ],
                     "reason_code": "dispatch",
                 }
             return {
                 "action": "FINAL",
-                "message": "巡检方案问题已答复。",
+                "message": "套餐问题已答复。",
                 "reason_code": "done",
             }
 
         orchestrator, agents = _build(
-            _Recognizer(_outcome(["inspection_standard_query"])),
+            _Recognizer(_outcome(["subscription_info_query"])),
             plan,
             fast_path_enabled=False,
         )

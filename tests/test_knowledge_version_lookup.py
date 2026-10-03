@@ -8,7 +8,7 @@ def version_metadata(
     document_id,
     chunk_index,
     *,
-    knowledge_key="streetlight.account.password_reset",
+    knowledge_key="subscription.account.password_reset",
 ):
     return {
         "document_id": document_id,
@@ -17,7 +17,7 @@ def version_metadata(
         "total_chunks": 2,
         "title": f"policy {document_id}",
         "source_uri": f"policy://{document_id}",
-        "source_provider": "urbanops-support",
+        "source_provider": "tokenplan-support",
         "section": "account_security",
         "heading_path": "account > password",
         "page_start": 1,
@@ -66,7 +66,7 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
             (
                 "other-0",
                 "wrong key",
-                version_metadata("doc-a", 0, knowledge_key="streetlight.other"),
+                version_metadata("doc-a", 0, knowledge_key="subscription.other"),
             ),
             ("a-0", "first chunk", version_metadata("doc-a", 0)),
         ]
@@ -74,8 +74,8 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
 
         result = knowledge_base.lookup_knowledge_versions(
             [
-                " streetlight.account.password_reset ",
-                "streetlight.account.password_reset",
+                " subscription.account.password_reset ",
+                "subscription.account.password_reset",
             ],
             allowed_document_ids=["doc-a", "doc-a"],
         )
@@ -85,7 +85,7 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
         ])
         self.assertEqual({"doc-a"}, {item["document_id"] for item in result})
         self.assertTrue(all(
-            item["knowledge_key"] == "streetlight.account.password_reset"
+            item["knowledge_key"] == "subscription.account.password_reset"
             for item in result
         ))
         self.assertEqual("public", result[0]["scope"])
@@ -95,7 +95,7 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
         self.assertEqual(90, result[0]["freshness_ttl_days"])
         self.assertEqual({
             "$and": [
-                {"knowledge_key": "streetlight.account.password_reset"},
+                {"knowledge_key": "subscription.account.password_reset"},
                 {"document_id": {"$in": ["doc-a"]}},
             ]
         }, knowledge_base._collection.get_calls[0]["where"])
@@ -106,7 +106,7 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
         ])
 
         result = knowledge_base.lookup_knowledge_versions(
-            "streetlight.account.password_reset",
+            "subscription.account.password_reset",
             allowed_document_ids=[],
         )
 
@@ -118,32 +118,32 @@ class KnowledgeVersionLookupTests(unittest.TestCase):
             (
                 "b-0",
                 "second key",
-                version_metadata("doc-b", 0, knowledge_key="streetlight.rule.b"),
+                version_metadata("doc-b", 0, knowledge_key="subscription.rule.b"),
             ),
             (
                 "a-0",
                 "first key",
-                version_metadata("doc-a", 0, knowledge_key="streetlight.rule.a"),
+                version_metadata("doc-a", 0, knowledge_key="subscription.rule.a"),
             ),
             (
                 "c-0",
                 "not requested",
-                version_metadata("doc-c", 0, knowledge_key="streetlight.rule.c"),
+                version_metadata("doc-c", 0, knowledge_key="subscription.rule.c"),
             ),
         ]
         knowledge_base = self.build_knowledge_base(rows)
 
         result = knowledge_base.lookup_knowledge_versions([
-            "streetlight.rule.b", "streetlight.rule.a",
+            "subscription.rule.b", "subscription.rule.a",
         ])
 
         self.assertEqual(
-            ["streetlight.rule.a", "streetlight.rule.b"],
+            ["subscription.rule.a", "subscription.rule.b"],
             [item["knowledge_key"] for item in result],
         )
         self.assertEqual({
             "knowledge_key": {
-                "$in": ["streetlight.rule.b", "streetlight.rule.a"]
+                "$in": ["subscription.rule.b", "subscription.rule.a"]
             }
         }, knowledge_base._collection.get_calls[0]["where"])
 
@@ -157,7 +157,7 @@ class KnowledgeVersionLookupAsyncTests(unittest.IsolatedAsyncioTestCase):
         ])
 
         result = await knowledge_base.lookup_knowledge_versions_async(
-            "streetlight.account.password_reset",
+            "subscription.account.password_reset",
             allowed_document_ids=["doc-b"],
         )
 
@@ -209,8 +209,8 @@ class ApplicabilityMetadataTests(unittest.TestCase):
         knowledge_base.add_documents([{
             "document_id": "doc-a",
             "title": "password reset policy",
-            "content": "reset through the official UrbanOps security flow",
-            "knowledge_key": "streetlight.account.password_reset",
+            "content": "reset through the official TokenPlan security flow",
+            "knowledge_key": "subscription.account.password_reset",
             "fact_value": "official-portal",
             "authority": "official",
             "scope": "public",

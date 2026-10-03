@@ -1,4 +1,4 @@
-"""Structured cross-turn state for UrbanOps municipal operations."""
+"""Structured cross-turn state for TokenPlan service conversations."""
 from __future__ import annotations
 
 import hashlib
@@ -11,16 +11,14 @@ from runtime.intent_execution import CaseUpdatePayload
 
 CaseUpdateMode = Literal["preserve", "continue", "replace"]
 
-_PRIMARY_ENTITY_KEYS = (
-    "facility_id", "work_order_id", "inspection_task_id", "terminal_id",
-)
+_PRIMARY_ENTITY_KEYS = ("order_id", "account_email", "workspace_id")
 _ACTION_PATTERNS = {
     "check_status": ("处理进度", "处理到哪", "进度怎么样", "审核进度"),
     "submit_material": ("提交材料", "提交截图", "上传材料", "补交材料", "提供材料"),
 }
 @dataclass
-class OperationsCase:
-    """The active municipal-operations task for one conversation."""
+class CustomerServiceCase:
+    """The active customer-service task for one conversation."""
 
     case_id: str
     stage: str = "new"
@@ -34,7 +32,7 @@ class OperationsCase:
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     @classmethod
-    def new(cls, user_id: str, conv_id: str) -> "OperationsCase":
+    def new(cls, user_id: str, conv_id: str) -> "CustomerServiceCase":
         digest = hashlib.sha256(f"{user_id}:{conv_id}".encode("utf-8")).hexdigest()[:16]
         return cls(case_id=f"case-{digest}")
 
@@ -45,7 +43,7 @@ class OperationsCase:
         *,
         user_id: str,
         conv_id: str,
-    ) -> "OperationsCase":
+    ) -> "CustomerServiceCase":
         if not isinstance(data, dict):
             return cls.new(user_id, conv_id)
         state = cls.new(user_id, conv_id)
@@ -90,7 +88,7 @@ class OperationsCase:
 
 
 def decide_case_update(
-    state: OperationsCase,
+    state: CustomerServiceCase,
     *,
     rewrite_status: str = "",
     intents: Optional[List[str]] = None,
@@ -132,7 +130,7 @@ def decide_case_update(
 
 
 def merge_case_state(
-    state: OperationsCase,
+    state: CustomerServiceCase,
     *,
     mode: CaseUpdateMode,
     message: str,
@@ -142,21 +140,21 @@ def merge_case_state(
     verified_updates: Optional[Iterable[CaseUpdatePayload]] = None,
     status: str = "",
     reason_code: str = "",
-) -> OperationsCase:
+) -> CustomerServiceCase:
     """Apply one turn using explicit field rules instead of a generic deep merge."""
     if mode == "preserve":
-        return OperationsCase.from_dict(
+        return CustomerServiceCase.from_dict(
             state.to_dict(), user_id="state", conv_id=state.case_id,
         )
     if mode not in {"continue", "replace"}:
         raise ValueError(f"unsupported case update mode: {mode}")
 
     current = (
-        OperationsCase.from_dict(
+        CustomerServiceCase.from_dict(
             state.to_dict(), user_id="state", conv_id=state.case_id,
         )
         if mode == "continue"
-        else OperationsCase(case_id=state.case_id)
+        else CustomerServiceCase(case_id=state.case_id)
     )
     text = str(message or "").strip()
     normalized_intents = _unique_strings([
@@ -217,12 +215,9 @@ def merge_case_state(
         current.consecutive_unmatched_turns += 1
     elif normalized_intents:
         current.consecutive_unmatched_turns = 0
-    if (
-        "missing_work_order" in reason_codes
-        and "work_order_id" not in current.pending_slots
-    ):
-        current.pending_slots.append("work_order_id")
-        current.unresolved_question = "请补充 UrbanOps 维修工单号"
+    if "missing_order" in reason_codes and "order_id" not in current.pending_slots:
+        current.pending_slots.append("order_id")
+        current.unresolved_question = "请补充 TokenPlan 订单号"
         current.stage = "collecting_info"
     current.updated_at = datetime.now().isoformat()
     return current
@@ -236,15 +231,15 @@ def _detect_action(text: str) -> str:
     return ""
 
 
-def _pending_slots(state: OperationsCase, intents: List[str]) -> List[str]:
+def _pending_slots(state: CustomerServiceCase, intents: List[str]) -> List[str]:
     required: List[str] = []
     if (
-        set(intents) & {"work_order_withdrawal", "alert_report", "work_order_handling"}
+        set(intents) & {"refund_handling", "payment_issue", "invoice_handling"}
         and state.last_action == "check_status"
     ):
-        required.append("work_order_id")
-    elif "inspection_task_update" in intents and state.last_action == "submit_material":
-        required.append("inspection_task_id")
+        required.append("order_id")
+    elif "subscription_change" in intents and state.last_action == "submit_material":
+        required.append("plan")
     return [slot for slot in required if not state.entities.get(slot)]
 
 

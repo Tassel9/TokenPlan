@@ -1,4 +1,4 @@
-"""Versioned, lazily loaded runtime skills for the UrbanOps operations Agent."""
+"""Versioned, lazily loaded runtime skills for the TokenPlan support Agent."""
 
 from skills.registry import (
     SkillBinding,

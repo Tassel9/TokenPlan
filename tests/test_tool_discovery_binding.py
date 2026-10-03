@@ -48,7 +48,7 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
     def test_discovery_matches_capability_and_agent_policy(self):
         registry = ToolRegistry()
         registry.register(_tool(
-            "urbanops_kb_query",
+            "tokenplan_kb_query",
             KNOWLEDGE_RETRIEVE,
             allowed_agents=["rag_knowledge"],
         ))
@@ -64,7 +64,7 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
             required_capabilities=[KNOWLEDGE_RETRIEVE],
         )
 
-        self.assertEqual(("urbanops_kb_query",), general.tool_names)
+        self.assertEqual(("tokenplan_kb_query",), general.tool_names)
         self.assertTrue(general.complete)
         self.assertEqual((), technical.tool_names)
         self.assertEqual((KNOWLEDGE_RETRIEVE,), technical.missing_capabilities)
@@ -149,11 +149,11 @@ class SkillCapabilityIntegrationTests(unittest.IsolatedAsyncioTestCase):
             (folder / "SKILL.md").write_text(
                 """---
 name: general-knowledge
-description: Public UrbanOps streetlight guidance.
+description: Public TokenPlan subscription guidance.
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  urbanops-owner-agent: rag_knowledge
+  token-plan-owner-agent: rag_knowledge
 ---
 
 # General knowledge
@@ -167,13 +167,13 @@ Use the bound public-knowledge capability.
             skills = SkillRegistry(Path(tmp))
             tools = ToolRegistry()
             tools.register(_tool(
-                "urbanops_kb_query_v2",
+                "tokenplan_kb_query_v2",
                 KNOWLEDGE_RETRIEVE,
             ))
 
             async def provider(payload):
                 self.assertEqual(
-                    ["urbanops_kb_query_v2"],
+                    ["tokenplan_kb_query_v2"],
                     payload["allowed_tools"],
                 )
                 return json.dumps({
@@ -199,15 +199,15 @@ Use the bound public-knowledge capability.
             ).run(
                 agent_type="rag_knowledge",
                 system_prompt=skill_binding.prompt_fragment,
-                message="UrbanOps 巡检方案权益规则",
-                focus="解释巡检方案权益规则",
+                message="TokenPlan 套餐权益规则",
+                focus="解释套餐权益规则",
                 tool_binding=tool_binding,
                 intent_id="intent-1",
             )
 
             self.assertTrue(result.success)
             self.assertEqual((KNOWLEDGE_RETRIEVE,), tool_binding.required_capabilities)
-            self.assertEqual(("urbanops_kb_query_v2",), tool_binding.tool_names)
+            self.assertEqual(("tokenplan_kb_query_v2",), tool_binding.tool_names)
             self.assertTrue(tool_binding.binding_id.startswith("tb-"))
 
 

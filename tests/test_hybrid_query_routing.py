@@ -13,7 +13,7 @@ class _VectorCollection:
         self.query_options = dict(options)
         return {
             "ids": [["chunk-a"]],
-            "documents": [["高频巡检 withdrawal evidence"]],
+            "documents": [["Pro refund evidence"]],
             "metadatas": [[{
                 "document_id": "doc-a",
                 "chunk_id": "chunk-a",
@@ -48,17 +48,17 @@ class HybridQueryRoutingTests(unittest.TestCase):
             side_effect=lambda query, items: items,
         ):
             results = knowledge_base.search(
-                "工单撤回规则",
+                "退款规则",
                 top_k=1,
-                lexical_query="工单撤回规则 高频巡检 ERR-42",
+                lexical_query="退款规则 Pro ERR-42",
             )
 
         self.assertEqual(
-            ["工单撤回规则"],
+            ["退款规则"],
             knowledge_base._collection.query_options["query_texts"],
         )
         self.assertEqual(
-            "工单撤回规则 高频巡检 ERR-42",
+            "退款规则 Pro ERR-42",
             knowledge_base._lexical_index.query,
         )
         self.assertEqual("chunk-a", results[0]["chunk_id"])
@@ -113,7 +113,7 @@ class HybridQueryRoutingTests(unittest.TestCase):
             "mcp.knowledge_base.annotate_retrieval_results",
             side_effect=lambda query, items: items,
         ):
-            results = knowledge_base.search("withdrawal", top_k=3)
+            results = knowledge_base.search("refund", top_k=3)
 
         self.assertEqual("shared", results[0]["chunk_id"])
         self.assertEqual(2, results[0]["vector_rank"])

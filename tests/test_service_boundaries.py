@@ -37,7 +37,7 @@ class RuntimeToolBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 return json.dumps({
                     "action": "CALL_TOOL",
                     "tool_name": "knowledge_search",
-                    "arguments": {"query": "withdrawal"},
+                    "arguments": {"query": "refund"},
                     "reason_code": "need_evidence",
                 })
             return json.dumps({
@@ -56,7 +56,7 @@ class RuntimeToolBoundaryTests(unittest.IsolatedAsyncioTestCase):
         result = await runtime.run(
             agent_type="general",
             system_prompt="test",
-            message="withdrawal",
+            message="refund",
             tool_binding=ToolBinding(
                 binding_id="tb-service-boundary",
                 intent_id="boundary-intent",
@@ -166,14 +166,14 @@ class KnowledgeServiceBoundaryTests(unittest.IsolatedAsyncioTestCase):
             reranker_config=RerankerConfig(backend="disabled"),
         )
         try:
-            first = await service.search_with_rewrite("withdrawal", top_k=2)
-            second = await service.search_with_rewrite("withdrawal", top_k=2)
+            first = await service.search_with_rewrite("refund", top_k=2)
+            second = await service.search_with_rewrite("refund", top_k=2)
             self.assertEqual("fast_path_rrf", first.metadata["retrieval_strategy"])
             self.assertEqual("pipeline_cache", second.metadata["retrieval_strategy"])
             self.assertEqual(1, kb.search_calls)
 
             await service.add_documents_async([{"content": "new"}])
-            third = await service.search_with_rewrite("withdrawal", top_k=2)
+            third = await service.search_with_rewrite("refund", top_k=2)
             self.assertEqual("fast_path_rrf", third.metadata["retrieval_strategy"])
             self.assertEqual(2, kb.search_calls)
         finally:
@@ -185,10 +185,11 @@ class KnowledgeServiceBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("._tools", source)
         self.assertEqual(
             {
+                # 业务数据查询服务（business_data_query 能力的数据源）尚未接入，
+                # 接入后在此同步补充字段断言。
                 "config", "knowledge_base", "knowledge_search", "memory",
                 "tools", "orchestrator", "skills",
-                "agent_health", "traces", "chat_service", "local_backend",
-                "resource_limits",
+                "agent_health", "traces", "chat_service", "resource_limits",
                 "profile_updates",
                 "request_rate_limiter", "conversation_turn_gate",
             },

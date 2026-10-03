@@ -1,4 +1,4 @@
-"""UrbanOps-specific semantic judge built on the legacy validated parser."""
+"""TokenPlan-specific semantic judge built on the legacy validated parser."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from evaluation.benchmarks.end_to_end_judge import (
 from evaluation.benchmarks.end_to_end_judge import judge_session as _judge_session
 
 
-URBANOPS_JUDGE_SYSTEM = LEGACY_JUDGE_SYSTEM
+TOKENPLAN_JUDGE_SYSTEM = LEGACY_JUDGE_SYSTEM
 
 
 async def judge_session(
@@ -22,7 +22,7 @@ async def judge_session(
     request_options: Dict[str, Any],
     max_tokens: int = 1200,
 ) -> Dict[str, Any]:
-    """Run the shared judge protocol with the UrbanOps evaluator identity."""
+    """Run the shared judge protocol with the TokenPlan evaluator identity."""
 
     return await _judge_session(
         client,
@@ -31,5 +31,5 @@ async def judge_session(
         session,
         request_options=request_options,
         max_tokens=max_tokens,
-        system_prompt=URBANOPS_JUDGE_SYSTEM,
+        system_prompt=TOKENPLAN_JUDGE_SYSTEM,
     )

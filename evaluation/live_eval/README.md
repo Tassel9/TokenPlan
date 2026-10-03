@@ -1,7 +1,7 @@
-# UrbanOps Live Eval
+# TokenPlan Live Eval
 
-这是 UrbanOps 当前统一的端到端评测入口。它参考 TaskMind 的场景化 Live Eval 结构，复用
-UrbanOps 已有的真实 `ChatService`、Trace、工具事件和 Token 采集链路。
+这是 TokenPlan 当前统一的端到端评测入口。它参考 TaskMind 的场景化 Live Eval 结构，复用
+TokenPlan 已有的真实 `ChatService`、Trace、工具事件和 Token 采集链路。
 
 ## 评测契约
 
@@ -23,25 +23,25 @@ UrbanOps 已有的真实 `ChatService`、Trace、工具事件和 Token 采集链
 
 ```yaml
 schema_version: 1
-id: urbanops-inspection-standard-001
-name: 泵站巡检规范查询
+id: tokenplan-plan-benefits-001
+name: 套餐权益查询
 group: retrieval
 tier: smoke
 tags: [single_turn, knowledge]
 turns:
-  - 泵站日常巡检需要记录哪些基础信息？
+  - Pro 套餐支持哪些模型和额度？
 expect:
   answer:
-    contains_any: [设施编号, 点位, 时间]
+    contains_any: [Pro, 模型, 额度, 权益]
   route:
-    intents_exact: [inspection_standard_query]
+    intents_exact: [subscription_info_query]
     agents_exact: [rag_knowledge]
   tools:
     successful: [knowledge_search]
   evidence:
     min_count: 1
 judge:
-  goal: 回答巡检记录要求，不得声称已经完成现场巡检。
+  goal: 查询并引用现有套餐规则，不得声称已经替用户开通、升级或修改订阅。
 ```
 
 `intents_exact` / `agents_exact` 会阻止“必需路由命中了，但又多派了无关能力”的假通过。
@@ -78,6 +78,6 @@ $py = ".\.venv-win\Scripts\python.exe"
 
 ## 与旧评测的关系
 
-- `evaluation/benchmarks/evaluate_end_to_end_tasks.py` 保留为历史 v1 运行器和兼容适配层；其冻结题集仍是迁移前业务语料，不代表当前 UrbanOps 效果。
-- `evaluation/live_eval/` 是当前市政运维场景的统一回归入口。
+- `evaluation/benchmarks/evaluate_end_to_end_tasks.py` 保留为历史 v1 运行器和兼容适配层。
+- `evaluation/live_eval/` 是当前 TokenPlan 订阅客服场景的统一回归入口。
 - 检索微基准、意图专项集和记忆专项实验仍保留在原位置；它们回答局部机制问题，不等同于端到端任务成功率。

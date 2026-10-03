@@ -1,4 +1,4 @@
-"""Strict contracts for scenario-driven UrbanOps live evaluations."""
+"""Strict contracts for scenario-driven TokenPlan live evaluations."""
 
 from __future__ import annotations
 

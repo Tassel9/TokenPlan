@@ -11,7 +11,7 @@ from core.supervisor_decision import INTENT_SPECS
 INTENT_RECOGNITION_TOOL = {
     "name": "recognize_intents",
     "description": (
-        "识别当前用户消息中仍然成立的 UrbanOps 市政运维诉求，返回逐意图概率候选。"
+        "识别当前用户消息中仍然成立的 TokenPlan 诉求，返回逐意图概率候选。"
         "该工具只做意图识别，不负责改写、业务执行或 Agent 委派。"
     ),
     "input_schema": {
@@ -171,7 +171,7 @@ class JevIntentRecognitionTool:
             import httpx
         except ImportError as ex:  # pragma: no cover - exercised in deployment
             raise RuntimeError(
-                "httpx is not installed; install requirements/intent-jev.txt"
+                "httpx is not installed; install requirements-intent-jev.txt"
             ) from ex
         async with httpx.AsyncClient(timeout=self.timeout_s) as client:
             response = await client.post(

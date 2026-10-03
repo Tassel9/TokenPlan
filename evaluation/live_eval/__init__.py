@@ -1,4 +1,4 @@
-"""UrbanOps scenario-driven live evaluation framework."""
+"""TokenPlan scenario-driven live evaluation framework."""
 
 from .assertions import run_checks
 from .loader import load_scenario, load_scenarios, select_scenarios

@@ -2,7 +2,7 @@ import json
 import unittest
 
 from memory.conversation_memory import MemoryManager
-from memory.conversation_state import OperationsCase
+from memory.conversation_state import CustomerServiceCase
 from memory.sqlite_session_store import SQLiteSessionStore
 
 
@@ -11,10 +11,10 @@ class CaseStatePersistenceTests(unittest.IsolatedAsyncioTestCase):
         manager = MemoryManager.__new__(MemoryManager)
         manager._session_store = SQLiteSessionStore(":memory:")
         try:
-            state = OperationsCase.from_dict({
+            state = CustomerServiceCase.from_dict({
                 "case_id": "case-1", "stage": "ready",
-                "entities": {"work_order_id": ["12345"]},
-                "last_intents": ["work_order_withdrawal"], "version": 8,
+                "entities": {"order_id": ["12345"]},
+                "last_intents": ["refund_handling"], "version": 8,
                 "active_skill_bindings": [{"skill_id": "legacy"}],
             }, user_id="u1", conv_id="c1")
             saved = await manager.save_case_state("u1", "c1", state=state)

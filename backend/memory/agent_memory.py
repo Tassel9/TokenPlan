@@ -20,33 +20,33 @@ from runtime.intent_execution import IntentInvocation, IntentResult
 # entities needed by its own frozen intent, never the complete request entity
 # bag or another Agent's prompt.
 _INTENT_ENTITY_KEYS: Dict[str, set[str]] = {
-    "inspection_standard_query": {"facility_id", "asset_type", "location", "date"},
-    "inspection_task_create": {"facility_id", "inspection_task_id", "operator_id", "team_id", "location", "date"},
-    "inspection_task_update": {"inspection_task_id", "facility_id", "operator_id", "team_id", "location", "date"},
-    "inspection_task_cancel": {"inspection_task_id", "facility_id", "date"},
-    "alert_report": {"facility_id", "terminal_id", "alert_code", "location", "date"},
-    "work_order_handling": {"work_order_id", "facility_id", "operator_id", "team_id", "date"},
-    "work_order_withdrawal": {"work_order_id", "facility_id", "date"},
-    "terminal_access_issue": {"terminal_id", "facility_id", "location", "error_code", "date"},
-    "terminal_security_request": {"terminal_id", "facility_id", "permission_scope"},
-    "operations_permission_change": {"operator_id", "team_id", "facility_id", "permission_scope"},
-    "facility_troubleshooting": {"facility_id", "terminal_id", "asset_type", "location", "alert_code", "error_code", "date"},
-    "operations_complaint": {"work_order_id", "facility_id", "team_id", "date", "error_code"},
-    "operations_feedback": {"facility_id", "asset_type", "location", "team_id"},
+    "subscription_info_query": {"plan", "model"},
+    "subscription_purchase": {"account_email", "workspace_id", "plan", "amount", "date"},
+    "subscription_change": {"account_email", "workspace_id", "plan", "date"},
+    "subscription_cancel": {"account_email", "workspace_id", "plan", "date"},
+    "payment_issue": {"order_id", "account_email", "amount", "date"},
+    "invoice_handling": {"order_id", "account_email", "amount", "date"},
+    "refund_handling": {"order_id", "account_email", "amount", "date"},
+    "account_login_issue": {"account_email", "workspace_id", "error_code", "date"},
+    "account_security_request": {"account_email", "workspace_id"},
+    "entitlement_change_request": {"account_email", "workspace_id", "plan", "model"},
+    "technical_troubleshooting": {"workspace_id", "model", "ide", "error_code", "date"},
+    "service_complaint": {"order_id", "workspace_id", "amount", "date", "error_code"},
+    "service_feedback": {"plan", "model", "ide"},
 }
 
 # These are business relationships, not an execution dependency graph.  The
 # relation is directional only to make the minimum-privilege projection easy
 # to audit (for symmetric cases both directions are listed).
 _INTENT_RELATIONS = frozenset({
-    ("facility_troubleshooting", "alert_report"),
-    ("alert_report", "facility_troubleshooting"),
-    ("work_order_withdrawal", "operations_complaint"),
-    ("operations_complaint", "work_order_withdrawal"),
-    ("inspection_task_update", "operations_permission_change"),
-    ("operations_permission_change", "inspection_task_update"),
-    ("terminal_access_issue", "terminal_security_request"),
-    ("terminal_security_request", "terminal_access_issue"),
+    ("technical_troubleshooting", "payment_issue"),
+    ("payment_issue", "technical_troubleshooting"),
+    ("refund_handling", "service_complaint"),
+    ("service_complaint", "refund_handling"),
+    ("subscription_change", "entitlement_change_request"),
+    ("entitlement_change_request", "subscription_change"),
+    ("account_login_issue", "account_security_request"),
+    ("account_security_request", "account_login_issue"),
 })
 
 def _bounded_value(value: Any, *, depth: int = 0) -> Any:

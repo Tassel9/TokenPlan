@@ -97,6 +97,17 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("team", seen[0])
         self.assertNotIn("observations", seen[0])
+        self.assertNotIn("few_shot_examples", seen[0])
+        self.assertNotIn("intent_tool", seen[0])
+        tree_labels = {
+            label
+            for domain in seen[0]["candidate_intent_tree"]
+            for label in domain["intents"]
+        }
+        self.assertEqual(13, len(tree_labels))
+        self.assertIn("embedding_channel", serialized)
+        self.assertIn("fusion", serialized)
+        self.assertNotIn("few_shot_retrieval", serialized)
 
     async def test_supervisor_consumes_frozen_analysis_without_relabeling(self):
         frozen = SupervisorDecisionValidator.validate_analysis(
@@ -260,6 +271,39 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             ],
         )
         self.assertIn("intent_recognition_ms", result.stage_timings_ms)
+
+    async def test_ambiguous_fusion_stops_before_supervisor_dispatch(self):
+        planning_payloads = []
+
+        def recognize(_payload):
+            recognized = analysis_payload("插件报401")
+            recognized["intents"] = [{
+                **analysis_payload()["intents"][0],
+                "supporting_text": ["插件报401"],
+                "tree_score": 0.50,
+            }]
+            return {"analysis": recognized}
+
+        def plan(payload):
+            planning_payloads.append(payload)
+            raise AssertionError("ambiguous intent must not reach Supervisor")
+
+        orchestrator = IntentOrchestrator(
+            "test",
+            base_url="https://example.invalid",
+            agent_registry=registry(),
+            agent_health=AgentHealthTracker(),
+            supervisor_context=self.context(),
+            intent_decision_provider=recognize,
+            supervisor_decision_provider=plan,
+            single_intent_fast_path_enabled=False,
+        )
+
+        result = await orchestrator.run(Request("插件报401", "u1", "c1"))
+
+        self.assertEqual("WAITING_USER", result.status)
+        self.assertEqual("intent_fusion_clarification", result.reason_code)
+        self.assertEqual([], planning_payloads)
 
 
 if __name__ == "__main__":

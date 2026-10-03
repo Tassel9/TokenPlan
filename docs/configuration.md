@@ -90,7 +90,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RAG_LEXICAL_INDEX_PATH` | 跟随 `CHROMA_PERSIST_DIRECTORY` 下的 `tokenplan_lexical_v2.sqlite3` | 复用旧 FTS5 索引时显式指定 |
 | `LONG_TERM_MEMORY_EMBEDDING_MODEL` | `BAAI/bge-base-zh-v1.5` | BGE 模型 |
 | `LONG_TERM_MEMORY_EMBEDDING_REVISION` | 固定 revision | 与知识库索引保持一致 |
-| `LONG_TERM_MEMORY_EMBEDDING_DEVICE` | 跟随 Supervisor 的 `SUPERVISOR_FEW_SHOT_EMBEDDING_DEVICE` | `cpu` / `cuda` |
+| `LONG_TERM_MEMORY_EMBEDDING_DEVICE` | 跟随意图通道的 `INTENT_EMBEDDING_DEVICE` | `cpu` / `cuda` |
 | `LONG_TERM_MEMORY_CONTEXT_EXTRACTION_ENABLED` | `true` | 抽取时附带同会话最近用户发言用于消解指代；置 `false` 回到仅看当前消息的旧行为 |
 | `LONG_TERM_MEMORY_CONTEXT_TURNS` | `3` | 附带的最大用户发言条数 |
 | `LONG_TERM_MEMORY_CONTEXT_MAX_CHARS` | `1200` | 附带上下文的字符预算 |
@@ -106,34 +106,19 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `SKILL_CATALOG_PATH` | `<仓库>/backend/skills/catalog` | 相对 `backend/core/doctor.py` 解析，与工作目录无关；容器内为 `/app/backend/skills/catalog` |
 | `KNOWLEDGE_API_INGEST_AUTHORITY` | `unknown` | 知识入库接口的调用方标识白名单 |
 
-## 10. Supervisor 意图识别
+## 10. 意图识别
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `SUPERVISOR_FEW_SHOT_PATH` | `evaluation/fixtures/supervisor_few_shots_v1.json` | 正反例素材 |
-| `SUPERVISOR_INTENT_CANDIDATE_TOP_N` | 跟随 `SUPERVISOR_FEW_SHOT_TOP_K`（`6`） | Embedding 通道输出的候选数；LLM 通道独立遍历完整意图树，不使用该 Top-N 剪枝 |
-| `SUPERVISOR_FEW_SHOT_TOP_K` | `6` | Embedding 通道候选与诊断素材上限 |
-| `SUPERVISOR_FEW_SHOT_MAX_CHARS` | `8000` | Embedding 候选携带的诊断素材预算；不注入独立 LLM 意图树通道 |
-| `SUPERVISOR_FEW_SHOT_EMBEDDING_MODEL` / `_REVISION` / `_DEVICE` | `BAAI/bge-base-zh-v1.5` / 固定 revision / 自动 | BGE 编码器 |
-| `SUPERVISOR_FEW_SHOT_EMBEDDING_CACHE_SIZE` | 内置默认 | 编码结果 LRU 大小 |
-| `SUPERVISOR_FEW_SHOT_PRELOAD` | `true` | 启动时预热模型 |
-| `SUPERVISOR_INTENT_EMBEDDING_CALIBRATION_SCALE` / `_BIAS` | `1.0` / `0.0` | Embedding 原始分的 Platt 校准参数；默认恒等映射，需在开发校准集拟合后冻结 |
-| `SUPERVISOR_INTENT_TREE_CALIBRATION_SCALE` / `_BIAS` | `1.0` / `0.0` | LLM 意图树原始分的 Platt 校准参数；默认恒等映射，需与 Embedding 通道分别拟合 |
-| `SUPERVISOR_INTENT_FUSION_ALPHA` | `0.50` | `final_score = α × emb_score + (1-α) × tree_score` 中的 Embedding 权重；必须在校准集上选择后冻结 |
-| `SUPERVISOR_INTENT_RECALL_THRESHOLD` | `0.40` | 融合分达到该值且存在 LLM 原文证据 → `CLEAR` |
-| `SUPERVISOR_INTENT_RECOMMENDATION_THRESHOLD` | `0.34` | 融合分位于该值与 CLEAR 阈值之间 → `AMBIGUOUS`；更低 → `LOW` |
-| `SUPERVISOR_UNMATCHED_HANDOFF_TURNS` | `3` | 连续未匹配轮次达到该值 → 转人工 |
-| `SUPERVISOR_INTENT_TOOL_BACKEND` | `disabled` | 默认关闭；`jev` 是保留的对照实验模式，启用后不走默认的 Embedding + LLM 意图树并行融合主链路 |
-| `TYPESAFE_API_KEY` | 空 | Jev Tool 凭据；仅在 backend=`jev` 时必填，不写入日志 |
-| `TYPESAFE_BASE_URL` | `https://api.typesafe.ai` | TypeSafe API 根地址；Tool 调用 `POST /v1/systemone` |
-| `SUPERVISOR_JEV_MODEL` | `jev-1.13.0` | 固定 Jev 版本，避免模型别名更新后阈值漂移 |
-| `SUPERVISOR_JEV_CANDIDATE_THRESHOLD` | `0.20` | 单标签概率达到该值后进入 Supervisor 可选候选集；上线前必须用独立中文样本校准 |
-| `SUPERVISOR_JEV_RECOMMENDATION_THRESHOLD` | `0.80` | 高概率提示阈值；Supervisor 仍需校验范围、原文证据和最小标签集合 |
-| `SUPERVISOR_JEV_TIMEOUT_SECONDS` | `10` | Jev 请求超时秒数 |
+| `INTENT_EMBEDDING_TOP_K` | `6` | 全标签 Embedding 分数中保留的诊断候选数；不裁剪 LLM 意图树 |
+| `INTENT_EMBEDDING_MODEL` / `_REVISION` / `_DEVICE` | `BAAI/bge-base-zh-v1.5` / 固定 revision / 自动 | 意图相似度编码器；每个意图只缓存一个定义向量 |
+| `INTENT_EMBEDDING_CACHE_SIZE` | 内置默认 | 编码结果 LRU 大小 |
+| `INTENT_EMBEDDING_PRELOAD` | `true` | 启动时预热 13 个意图定义向量 |
+| `INTENT_FUSION_ALPHA` | `0.10` | `final_score = α × embedding_score + (1-α) × tree_score` 中的 Embedding 权重 |
+| `INTENT_CLEAR_THRESHOLD` | `0.70` | 融合分达到该值且 LLM 给出原文证据时冻结执行 |
+| `INTENT_LOW_THRESHOLD` | `0.40` | 融合分位于该值与 CLEAR 阈值之间时向用户澄清；更低视为未匹配 |
 
-启用 Jev 前额外安装 `pip install -r requirements-intent-jev.txt`。当前消息、受限最近历史和 CaseState 意图上下文会发送给 TypeSafe API，应按部署环境的数据策略决定是否启用。
-
-默认主链路会同时启动 Embedding 多源打分和 LLM 意图树推理；两路完成后先分别做 Platt 校准，再按逐标签融合分进入 `CLEAR / AMBIGUOUS / LOW`。四个校准参数的默认值只是恒等映射，用于保证链路可运行，不代表已经完成统计校准。当前仓库中的旧意图报告是在改造前生成的，不能直接作为该融合策略的效果结论；修改校准参数、`α` 或两个阈值后必须重新运行独立冻结测试集。
+默认主链路同时启动全标签 Embedding 和 LLM 完整意图树推理，然后只做一次逐标签融合。Embedding 不生成可执行意图，也不裁剪 LLM 的标签空间；LLM 通道失败时系统不会仅凭相似度自动执行。历史 few-shot、Platt 校准和 Jev 模块保留给离线对照评测，不接入默认应用装配。当前仓库中的旧意图报告是在改造前生成的，不能直接作为该策略的效果结论；修改 `α` 或两个阈值后必须重新运行开发集校准与独立冻结测试集。
 
 ## 11. RAG 检索与重排
 
@@ -159,7 +144,13 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RAG_VECTOR_CANDIDATE_MULTIPLIER` / `_MIN` | `4` / `20` | 向量候选数 = max(倍数×top_k, 下限) |
 | `AGENT_INITIAL_RETRIEVAL_ENABLED` | `true` | 首检索前置（Runtime 先检索再决策） |
 | `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | 检索后的结构化证据判断 |
-| `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 每请求最多检索次数 |
+| `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 没有系统首轮检索时的总调用上限，范围 1–3；有系统首轮检索时使用下述请求级预算 |
+
+系统首轮知识检索最多执行 3 个子查询，Runtime 为该请求额外预留 1 次缺口补检索：
+首轮 1 / 2 / 3 次对应总上限 2 / 3 / 4 次。预算只统计已授权的知识检索工具，
+其他只读工具不增加额度；证据完整时直接作答，不要求用完预算。
+模型提示与执行前检查使用同一个请求级上限，关闭结构化反思也不会绕过预算。
+Trace 和检索上下文仍记录真实调用次数；预算保存在单次运行内，不影响并发请求。
 
 ## 12. Trace、健康检查与可观测性
 

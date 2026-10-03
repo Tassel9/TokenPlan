@@ -63,17 +63,17 @@
 
 ### 4.2 需要留意的约束
 
-`tests/test_supervisor_intent_latest_manifest.py` 把 `.env.example` 与评测报告锁在一起：
+`tests/test_supervisor_intent_latest_manifest.py` 继续锁定历史报告使用的 dataset、few-shots、候选数和 SHA256，但不再把旧运行参数写回当前 `.env.example`。
 
 ```python
-self.assertIn("SUPERVISOR_INTENT_CANDIDATE_TOP_N=6", env_example)
+self.assertEqual(6, manifest["runtime_config"]["candidate_top_n"])
 ```
 
-这是证据链（manifest 同时锁定 dataset / few_shots / report 的 sha256）。因此该行**保留在示例中**并注明“被报告锁定，改动需重跑评测并更新 manifest”，不要为了精简删掉它。
+这样既保留旧报告的可复现证据链，也明确它不能验证新的在线融合策略。当前默认变量是 `INTENT_EMBEDDING_TOP_K`、`INTENT_FUSION_ALPHA`、`INTENT_CLEAR_THRESHOLD` 和 `INTENT_LOW_THRESHOLD`。
 
 ## 5. 不砍清单（证据三支柱）
 
-1. **候选召回 + 置信度门控**：90 条冻结集 EM 94.4% / Macro-F1 95.6%（`evaluation/reports/supervisor_intent_final_live_top6.json`）
+1. **意图证据与安全门控**：保留上下文消解、多意图、原文证据、否定冲突和 fail-closed；旧 90 条报告只作为历史基线，不作为新在线融合策略的效果结论
 2. **评测体系**：`evaluation/` 6 个脚本 + 冻结集 + 报告
 3. **Skill 治理与 handoff 测试**：`tests/test_dynamic_skills.py`、`tests/test_conversation_case_state.py`
 

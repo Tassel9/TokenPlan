@@ -67,7 +67,12 @@ sequenceDiagram
     App->>Memory: 读取近期对话、摘要、CaseState 与相关长期事实
     Memory-->>App: 返回受控上下文
     App->>Recognizer: 提交原始消息与受控上下文
-    Recognizer->>Recognizer: 识别意图、校验证据并冻结语义
+    par 全标签 Embedding
+        Recognizer->>Recognizer: 计算 13 个定义相似度
+    and LLM 完整意图树
+        Recognizer->>Recognizer: 上下文消解、范围判断、多意图与原文证据
+    end
+    Recognizer->>Recognizer: 一次融合并冻结可执行语义
     Recognizer->>Supervisor: 完整原句 + Frozen Intent[] + Source Spans
     Supervisor->>Supervisor: 判断并发、顺序、澄清或转人工
     Supervisor->>Agent: 按任务所需能力分派执行任务
@@ -88,11 +93,11 @@ sequenceDiagram
 
 订阅客服场景天然是复合诉求、多轮指代、规则分散且操作敏感的。TokenPlan 的能力设计围绕这一背景展开，可以概括为六个方面。
 
-### 🧭 多意图识别（语义召回 + 意图树）
+### 🧭 多意图识别（全标签 Embedding + 意图树）
 
-先识别、后调度：候选意图经语义召回与意图树推理收敛成冻结的意图集合，调度只消费、不重判。
+先识别、后调度：全标签 Embedding 与 LLM 完整意图树并行计算，经一次融合形成冻结意图集合，调度只消费、不重判。
 
-- 冻结语义 — IntentRecognizer 以语义召回 + 意图树推理独立完成上下文消解、产品范围判断、多意图识别、原文证据提取和置信度门控，输出不可变的意图集合。
+- 冻结语义 — IntentRecognizer 独立完成上下文消解、产品范围判断、多意图识别、原文证据提取和一次置信度融合，输出不可变的意图集合；Embedding 只提供弱辅助分，不单独触发执行。
 - 证据可追溯 — 每个意图携带用户原句中的 `source_spans`；同时保留完整原句，让 Supervisor 能判断“先……再……”等跨意图关系。
 - 单向边界 — Supervisor 只能基于冻结结果决定并发、顺序、澄清、兜底或转人工，不能新增、删除或改写意图标签。
 

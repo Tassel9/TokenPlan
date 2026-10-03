@@ -6,14 +6,12 @@ import inspect
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
 
 from core.deepseek_client import deepseek_request_options
-from core.intent_recognition_tool import (
-    IntentRecognitionResult as ToolIntentRecognitionResult,
-    IntentRecognitionTool,
-)
+from core.intent_embedding import IntentEmbeddingIndex, IntentEmbeddingResult
+from core.intent_fusion import IntentFusionAssessment, IntentFusionPolicy
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
     INTENT_DEFINITIONS,
@@ -23,14 +21,7 @@ from core.supervisor_decision import (
     ScopeStatus,
     SupervisorAnalysis,
     SupervisorDecisionValidator,
-)
-from core.supervisor_few_shot_retriever import (
-    FewShotRetrieval,
-    SupervisorFewShotRetriever,
-)
-from core.supervisor_intent_confidence import (
-    IntentConfidenceAssessment,
-    SupervisorIntentConfidencePolicy,
+    SupervisorRewrite,
 )
 from runtime.resource_limits import optional_slot
 
@@ -55,9 +46,9 @@ INTENT_ANALYSIS_TOOL = {
 class IntentRecognitionOutcome:
     """Validated semantic envelope consumed by the Supervisor.
 
-    ``analysis`` preserves the recognizer's complete, source-grounded result.
-    ``execution_analysis`` contains only confidence-confirmed intents and is the
-    immutable set that the Supervisor may delegate.
+    ``analysis`` keeps the complete source-grounded result.  The immutable
+    ``execution_analysis`` contains only labels confirmed by the single fusion
+    policy and is the only semantic set that may be delegated.
     """
 
     original_query: str
@@ -65,9 +56,8 @@ class IntentRecognitionOutcome:
     execution_analysis: Optional[SupervisorAnalysis]
     status: str
     reason_code: str
-    retrieval: FewShotRetrieval
-    confidence: Optional[IntentConfidenceAssessment] = None
-    tool_result: Dict[str, Any] = field(default_factory=dict)
+    retrieval: IntentEmbeddingResult
+    confidence: Optional[IntentFusionAssessment] = None
     latency_ms: float = 0.0
     decision_latency_ms: float = 0.0
     decision_errors: tuple[Dict[str, Any], ...] = ()
@@ -76,32 +66,35 @@ class IntentRecognitionOutcome:
     def ok(self) -> bool:
         return self.analysis is not None and self.status != "failed"
 
+    @property
+    def embedding(self) -> IntentEmbeddingResult:
+        return self.retrieval
+
+    @property
+    def fusion(self) -> Optional[IntentFusionAssessment]:
+        return self.confidence
+
     def to_dict(self) -> Dict[str, Any]:
         proposed = []
         if self.analysis is not None:
             proposed = [
-                {
-                    **item.to_dict(),
-                    "source_spans": list(item.supporting_text),
-                }
+                {**item.to_dict(), "source_spans": list(item.supporting_text)}
                 for item in self.analysis.intents
             ]
         recognized = []
         if self.execution_analysis is not None:
             recognized = [
-                {
-                    **item.to_dict(),
-                    "source_spans": list(item.supporting_text),
-                }
+                {**item.to_dict(), "source_spans": list(item.supporting_text)}
                 for item in self.execution_analysis.intents
             ]
         return {
-            "policy_version": "intent-recognizer-v3",
+            "policy_version": IntentRecognizer.POLICY_VERSION,
             "status": self.status,
             "reason_code": self.reason_code,
             "original_query": self.original_query,
             "effective_query": (
-                self.analysis.rewrite.effective_query if self.analysis else self.original_query
+                self.analysis.rewrite.effective_query
+                if self.analysis else self.original_query
             ),
             "analysis": self.analysis.to_dict() if self.analysis else {},
             "proposed_intents": proposed,
@@ -110,9 +103,8 @@ class IntentRecognitionOutcome:
                 [item.intent_id for item in self.execution_analysis.intents]
                 if self.execution_analysis else []
             ),
-            "confidence": self.confidence.to_dict() if self.confidence else {},
-            "few_shot_retrieval": self.retrieval.to_dict(),
-            "intent_tool": dict(self.tool_result),
+            "embedding_channel": self.retrieval.to_dict(),
+            "fusion": self.confidence.to_dict() if self.confidence else {},
             "latency_ms": round(self.latency_ms, 3),
             "decision_latency_ms": round(self.decision_latency_ms, 3),
             "decision_errors": list(self.decision_errors),
@@ -120,53 +112,39 @@ class IntentRecognitionOutcome:
 
 
 class IntentRecognizer:
-    """Freeze business semantics without knowing the executable Agent team."""
+    """Run a full-label embedding channel and an LLM intent tree in parallel."""
 
-    POLICY_VERSION = "intent-recognizer-v3"
+    POLICY_VERSION = "intent-recognizer-v4-simple-fusion"
 
     def __init__(
         self,
         context: SupervisorContext,
         *,
-        few_shot_retriever: Optional[SupervisorFewShotRetriever] = None,
-        intent_recognition_tool: Optional[IntentRecognitionTool] = None,
+        embedding_index: Optional[IntentEmbeddingIndex] = None,
+        fusion_policy: Optional[IntentFusionPolicy] = None,
         decision_provider: Optional[IntentRecognitionProvider] = None,
         llm_bulkhead: Any = None,
-        intent_recall_threshold: float = 0.40,
-        intent_recommendation_threshold: float = 0.34,
-        intent_fusion_alpha: float = 0.50,
-        intent_embedding_calibration_scale: float = 1.0,
-        intent_embedding_calibration_bias: float = 0.0,
-        intent_tree_calibration_scale: float = 1.0,
-        intent_tree_calibration_bias: float = 0.0,
+        intent_fusion_alpha: float = 0.10,
+        intent_clear_threshold: float = 0.70,
+        intent_low_threshold: float = 0.40,
     ) -> None:
         self._context = context
-        self._few_shot_retriever = few_shot_retriever
-        self._intent_recognition_tool = intent_recognition_tool
+        self._embedding_index = embedding_index
         self._decision_provider = decision_provider
         self._llm_bulkhead = llm_bulkhead
-        self._confidence_policy = (
-            SupervisorIntentConfidencePolicy(
-                few_shot_retriever,
-                recall_threshold=intent_recall_threshold,
-                recommendation_threshold=intent_recommendation_threshold,
-                fusion_alpha=intent_fusion_alpha,
-                embedding_calibration_scale=intent_embedding_calibration_scale,
-                embedding_calibration_bias=intent_embedding_calibration_bias,
-                tree_calibration_scale=intent_tree_calibration_scale,
-                tree_calibration_bias=intent_tree_calibration_bias,
-            )
-            if few_shot_retriever is not None
-            else None
+        self._fusion_policy = fusion_policy or IntentFusionPolicy(
+            alpha=intent_fusion_alpha,
+            clear_threshold=intent_clear_threshold,
+            low_threshold=intent_low_threshold,
         )
 
     @property
-    def few_shot_retriever(self) -> Optional[SupervisorFewShotRetriever]:
-        return self._few_shot_retriever
+    def embedding_index(self) -> Optional[IntentEmbeddingIndex]:
+        return self._embedding_index
 
     @property
-    def confidence_policy(self) -> Optional[SupervisorIntentConfidencePolicy]:
-        return self._confidence_policy
+    def fusion_policy(self) -> IntentFusionPolicy:
+        return self._fusion_policy
 
     async def recognize(
         self,
@@ -180,145 +158,109 @@ class IntentRecognizer:
         state = dict(case_state or {})
         errors: List[Dict[str, Any]] = []
         decision_latency_ms = 0.0
-        retrieval = self._unavailable_retrieval()
-        tool_result: Optional[ToolIntentRecognitionResult] = None
-        try:
-            if self._intent_recognition_tool is None:
-                if self._few_shot_retriever is not None:
-                    retrieval_task = asyncio.create_task(self._retrieve(
-                        query, history=history, case_state=state
-                    ))
-                    recognition_task = asyncio.create_task(self._recognize_with_llm(
-                        query,
-                        history=history,
-                        case_state=state,
-                        context=context,
-                        retrieval=self._tree_channel_retrieval(),
-                        tool_result=None,
-                        errors=errors,
-                    ))
-                    try:
-                        (analysis, llm_latency), retrieval = await asyncio.gather(
-                            recognition_task,
-                            retrieval_task,
-                        )
-                    except BaseException:
-                        for task in (recognition_task, retrieval_task):
-                            if not task.done():
-                                task.cancel()
-                        await asyncio.gather(
-                            recognition_task, retrieval_task, return_exceptions=True
-                        )
-                        raise
-                    decision_latency_ms += llm_latency
-                else:
-                    analysis, llm_latency = await self._recognize_with_llm(
-                        query,
-                        history=history,
-                        case_state=state,
-                        context=context,
-                        retrieval=self._tree_channel_retrieval(),
-                        tool_result=None,
-                        errors=errors,
-                    )
-                    decision_latency_ms += llm_latency
-            else:
-                retrieval_task = asyncio.create_task(self._retrieve(
-                    query, history=history, case_state=state
-                ))
-                tool_task = asyncio.create_task(self._intent_recognition_tool.recognize(
-                    query,
-                    history=self._context.select_history(history),
-                    case_state=state,
-                ))
-                try:
-                    retrieval, tool_result = await asyncio.gather(
-                        retrieval_task,
-                        tool_task,
-                    )
-                except BaseException:
-                    for task in (retrieval_task, tool_task):
-                        if not task.done():
-                            task.cancel()
-                    await asyncio.gather(retrieval_task, tool_task, return_exceptions=True)
-                    raise
-                analysis, llm_latency = await self._recognize_with_llm(
-                    query,
-                    history=history,
-                    case_state=state,
-                    context=context,
-                    retrieval=retrieval,
-                    tool_result=tool_result,
-                    errors=errors,
-                )
-                decision_latency_ms += llm_latency
 
-            confidence = None
-            execution_analysis = analysis
-            if self._confidence_policy is not None:
-                confidence = await self._confidence_policy.assess(
-                    query,
-                    analysis,
-                    retrieval,
-                )
-                if confidence.status == "ok":
-                    execution_analysis = SupervisorAnalysis(
-                        rewrite=analysis.rewrite,
-                        intents=confidence.confirmed,
-                        scope_status=analysis.scope_status,
-                        reason_code=analysis.reason_code,
-                    )
-                elif confidence.status == "failed":
-                    execution_analysis = SupervisorAnalysis(
-                        rewrite=analysis.rewrite,
-                        intents=(),
-                        scope_status=analysis.scope_status,
-                        reason_code=analysis.reason_code,
-                    )
-            status, reason_code = self._status_for(
-                analysis,
-                execution_analysis=execution_analysis,
-                confidence=confidence,
-            )
-            return IntentRecognitionOutcome(
-                original_query=query,
-                analysis=analysis,
-                execution_analysis=execution_analysis,
-                status=status,
-                reason_code=reason_code,
-                retrieval=retrieval,
-                confidence=confidence,
-                tool_result=tool_result.to_dict() if tool_result else {},
-                latency_ms=(time.monotonic() - started) * 1000,
-                decision_latency_ms=decision_latency_ms,
-                decision_errors=tuple(errors),
+        embedding_task = asyncio.create_task(self._score_embedding(query))
+        tree_task = asyncio.create_task(self._recognize_with_llm(
+            query,
+            history=history,
+            case_state=state,
+            context=context,
+            errors=errors,
+        ))
+        try:
+            embedding_value, tree_value = await asyncio.gather(
+                embedding_task,
+                tree_task,
+                return_exceptions=True,
             )
         except asyncio.CancelledError:
+            for task in (embedding_task, tree_task):
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(
+                embedding_task, tree_task, return_exceptions=True
+            )
             raise
-        except Exception as ex:
-            logger.warning("IntentRecognizer failed closed: %s", ex)
-            errors.append({
-                "attempt": len(errors) + 1,
-                "error_type": type(ex).__name__,
-                "reason": str(ex)[:240],
-            })
+
+        if isinstance(embedding_value, BaseException):
+            embedding = self._unavailable_embedding(str(embedding_value))
+        else:
+            embedding = embedding_value
+
+        if isinstance(tree_value, BaseException):
+            logger.warning("IntentRecognizer tree channel failed closed: %s", tree_value)
+            if not errors:
+                errors.append({
+                    "attempt": 1,
+                    "error_type": type(tree_value).__name__,
+                    "reason": str(tree_value)[:240],
+                })
+            if embedding.status != "ok":
+                return IntentRecognitionOutcome(
+                    original_query=query,
+                    analysis=None,
+                    execution_analysis=None,
+                    status="failed",
+                    reason_code="intent_recognition_failed",
+                    retrieval=embedding,
+                    latency_ms=(time.monotonic() - started) * 1000,
+                    decision_latency_ms=decision_latency_ms,
+                    decision_errors=tuple(errors),
+                )
+            # Embedding is only a similarity signal.  It must never create an
+            # executable intent when the source-grounded tree channel failed.
+            fallback = SupervisorAnalysis(
+                rewrite=SupervisorRewrite(
+                    status=RewriteStatus.NOT_NEEDED,
+                    effective_query=query,
+                    reason_code="intent_tree_unavailable",
+                ),
+                intents=(),
+                scope_status=ScopeStatus.UNCERTAIN,
+                reason_code="intent_tree_unavailable",
+            )
             return IntentRecognitionOutcome(
                 original_query=query,
-                analysis=None,
-                execution_analysis=None,
-                status="failed",
-                reason_code="intent_recognition_failed",
-                retrieval=retrieval,
-                tool_result=tool_result.to_dict() if tool_result else {},
+                analysis=fallback,
+                execution_analysis=fallback,
+                status="needs_clarification",
+                reason_code="intent_tree_unavailable",
+                retrieval=embedding,
                 latency_ms=(time.monotonic() - started) * 1000,
                 decision_latency_ms=decision_latency_ms,
                 decision_errors=tuple(errors),
             )
 
-    async def _retrieve(self, query: str, **kwargs: Any) -> FewShotRetrieval:
-        if self._few_shot_retriever is None:
-            return self._unavailable_retrieval()
-        return await self._few_shot_retriever.retrieve(query, **kwargs)
+        analysis, decision_latency_ms = tree_value
+        fusion = self._fusion_policy.assess(query, analysis, embedding)
+        execution_analysis = SupervisorAnalysis(
+            rewrite=analysis.rewrite,
+            intents=fusion.confirmed if fusion.status == "ok" else (),
+            scope_status=analysis.scope_status,
+            reason_code=analysis.reason_code,
+        )
+        status, reason_code = self._status_for(
+            analysis,
+            execution_analysis=execution_analysis,
+            fusion=fusion,
+        )
+        return IntentRecognitionOutcome(
+            original_query=query,
+            analysis=analysis,
+            execution_analysis=execution_analysis,
+            status=status,
+            reason_code=reason_code,
+            retrieval=embedding,
+            confidence=fusion,
+            latency_ms=(time.monotonic() - started) * 1000,
+            decision_latency_ms=decision_latency_ms,
+            decision_errors=tuple(errors),
+        )
+
+    async def _score_embedding(self, query: str) -> IntentEmbeddingResult:
+        if self._embedding_index is None:
+            return self._unavailable_embedding("intent embedding index is not configured")
+        return await self._embedding_index.score(query)
 
     async def _recognize_with_llm(
         self,
@@ -327,54 +269,23 @@ class IntentRecognizer:
         history: Optional[List[Dict[str, str]]],
         case_state: Mapping[str, Any],
         context: str,
-        retrieval: FewShotRetrieval,
-        tool_result: Optional[ToolIntentRecognitionResult],
         errors: List[Dict[str, Any]],
     ) -> tuple[SupervisorAnalysis, float]:
         started = time.monotonic()
-        tool_ok = tool_result is not None and tool_result.status == "ok"
-        independent_tree_channel = retrieval.strategy == "llm_intent_tree_v1"
-        candidate_labels = (
-            list(tool_result.candidate_intents)
-            if tool_ok
-            else list(retrieval.candidate_intents)
-        )
-        candidate_source = "jev" if tool_ok else (
-            "intent_tree" if independent_tree_channel else (
-                "bge" if retrieval.candidate_intents else "definitions"
-            )
-        )
-        visible_definitions = (
-            {
-                label: INTENT_DEFINITIONS[next(
-                    intent for intent in INTENT_DEFINITIONS if intent.value == label
-                )]
-                for label in candidate_labels
-            }
-            if candidate_labels
-            else {key.value: value for key, value in INTENT_DEFINITIONS.items()}
-        )
-        prompt_few_shots = (
-            []
-            if tool_ok or independent_tree_channel
-            else list(retrieval.candidate_few_shots or retrieval.examples)
-        )
-        tree_labels = candidate_labels or [intent.value for intent in INTENT_DEFINITIONS]
+        labels = [intent.value for intent in INTENT_DEFINITIONS]
         payload: Dict[str, Any] = {
             "policy_version": self.POLICY_VERSION,
             "original_query": query,
             "structured_context": self._context.clean_text(context)[:4000],
             "case_state": dict(case_state),
             "recent_history": self._context.select_history(history),
-            "candidate_intents": candidate_labels,
-            "candidate_intent_tree": self._candidate_intent_tree(tree_labels),
-            "intent_candidate_source": candidate_source,
-            "intent_tool": tool_result.to_dict() if tool_result else {},
-            "intent_definitions": visible_definitions,
-            "few_shot_examples": prompt_few_shots,
+            "candidate_intent_tree": self._candidate_intent_tree(labels),
+            "intent_definitions": {
+                key.value: value for key, value in INTENT_DEFINITIONS.items()
+            },
             "instruction": (
-                "只识别并冻结意图、对应原文片段、上下文改写、实体和范围；"
-                "意图表示用户目标，不编码执行能力；不要选择 Agent，不要生成执行步骤。"
+                "遍历完整意图树，只识别并冻结意图、对应原文片段、上下文改写、"
+                "实体和范围；不要选择 Agent，不要生成执行步骤。"
             ),
         }
         attempts = 1 if self._decision_provider is not None else 2
@@ -389,26 +300,6 @@ class IntentRecognizer:
                     case_state=case_state,
                     history=history or [],
                 )
-                shortlist = (
-                    set(tool_result.candidate_intents)
-                    if tool_ok and tool_result is not None
-                    else (
-                        set(retrieval.candidate_intents)
-                        if not independent_tree_channel else set()
-                    )
-                )
-                shortlist_is_binding = tool_ok or (
-                    not independent_tree_channel and bool(retrieval.candidate_intents)
-                )
-                proposed = {item.label.value for item in analysis.intents}
-                off_shortlist = (
-                    sorted(proposed - shortlist) if shortlist_is_binding else []
-                )
-                if off_shortlist:
-                    raise ValueError(
-                        "intent recognition proposed labels outside the bound candidate set: "
-                        + ", ".join(off_shortlist)
-                    )
                 return analysis, (time.monotonic() - started) * 1000
             except (ValueError, TypeError) as ex:
                 errors.append({
@@ -421,8 +312,8 @@ class IntentRecognizer:
                 error_text = str(ex)[:240]
                 if "not grounded in its source" in error_text:
                     error_text += (
-                        "；mention 与 value 必须逐字复制所引用 source（case.路径或 history[n]）"
-                        "中的原文（仅大小写与空白可不同），不得改写、翻译或概括"
+                        "；mention 与 value 必须逐字复制所引用 source 中的原文，"
+                        "不得改写、翻译或概括"
                     )
                 elif "requires a changed query" in error_text:
                     error_text += (
@@ -459,7 +350,7 @@ class IntentRecognizer:
         analysis: SupervisorAnalysis,
         *,
         execution_analysis: SupervisorAnalysis,
-        confidence: Optional[IntentConfidenceAssessment],
+        fusion: IntentFusionAssessment,
     ) -> tuple[str, str]:
         if analysis.rewrite.status == RewriteStatus.AMBIGUOUS:
             return "needs_clarification", "intent_rewrite_ambiguous"
@@ -467,14 +358,12 @@ class IntentRecognizer:
             return "needs_clarification", "intent_scope_uncertain"
         if analysis.scope_status == ScopeStatus.OUT_OF_SCOPE:
             return "out_of_scope", "intent_out_of_scope"
-        if confidence is not None and confidence.status == "failed":
-            return "failed", "intent_confidence_system_failure"
+        if fusion.status == "failed":
+            return "failed", "intent_fusion_system_failure"
+        if fusion.clarification_candidates:
+            return "needs_clarification", "intent_fusion_clarification"
         if execution_analysis.intents:
             return "ready", "intent_frozen"
-        if confidence is not None and confidence.status == "ok":
-            if confidence.clarification_candidates:
-                return "needs_clarification", "intent_confidence_clarification"
-            return "unmatched", "intent_unmatched"
         return "unmatched", "intent_unmatched"
 
     @staticmethod
@@ -491,20 +380,8 @@ class IntentRecognizer:
         ]
 
     @staticmethod
-    def _tree_channel_retrieval() -> FewShotRetrieval:
-        return FewShotRetrieval(
-            examples=(),
-            status="independent",
-            latency_ms=0.0,
-            example_ids=(),
-            candidate_intents=tuple(intent.value for intent in INTENT_DEFINITIONS),
-            candidate_few_shots=(),
-            strategy="llm_intent_tree_v1",
-        )
-
-    @staticmethod
-    def _unavailable_retrieval() -> FewShotRetrieval:
-        return FewShotRetrieval((), "unavailable", 0.0, ())
+    def _unavailable_embedding(error: str = "") -> IntentEmbeddingResult:
+        return IntentEmbeddingResult((), "degraded", 0.0, error=error)
 
     @staticmethod
     def _parse_json_object(raw: Any) -> Mapping[str, Any]:
@@ -544,18 +421,17 @@ class IntentRecognizer:
 
 【固定判定顺序】
 1. 先解析当前 Query 中的指代与省略。当前消息优先于旧上下文；只能继承 case_state 或 recent_history 中逐字存在的事实。
-2. 再判断产品范围。只有请求对象明确属于 TokenPlan，或当前会话上下文能可靠确认属于 TokenPlan，才允许 scope_status=in_scope。GLM、DeepSeek 等模型通道为 TokenPlan 订阅用户提供编码服务：通道的调用错误码（如 1302/1305/1308/1309/1310/1311/429/401/1261）、额度、Key、Base URL 与客户端配置问题属于 TokenPlan 服务范围，必须 in_scope。只有与本订阅无关的其他产品、平台、银行、物流、电商、IDE 厂商或云服务的独立业务请求才判 out_of_scope 且 intents=[]；对象无法确定且会影响标签时必须 uncertain。
-3. 最后沿 candidate_intent_tree 从业务域比较到叶子意图，并保持最小标签集合。intent_candidate_source=intent_tree 时，candidate_intents 是完整叶子集合，本通道不得依赖或猜测 Embedding 通道结果；intent_candidate_source=jev 或 bge 时，candidate_intents 是绑定候选，不得自行扩展。
-4. 一条消息可以包含多个独立诉求。每个标签必须对应用户要求回答或完成的一个结果；名称、金额、套餐、错误码、操作参数和背景描述不能单独激活标签。每个 intent 都要输出只基于意图树边界与原文证据的 tree_score。同一标签在 intents 中至多出现一次：多个诉求共享同一标签时合并为一条 intent，supporting_text 放入全部逐字片段。
+2. 再判断产品范围。只有请求对象明确属于 TokenPlan，或当前会话上下文能可靠确认属于 TokenPlan，才允许 scope_status=in_scope。GLM、DeepSeek 等模型通道为 TokenPlan 订阅用户提供编码服务：通道的调用错误码、额度、Key、Base URL 与客户端配置问题属于 TokenPlan 服务范围。其他产品、平台、银行、物流、电商、IDE 厂商或云服务的独立业务请求判 out_of_scope 且 intents=[]；对象无法确定且会影响标签时必须 uncertain。
+3. 最后遍历完整 candidate_intent_tree，从业务域比较到叶子意图，并保持最小标签集合。
+4. 一条消息可以包含多个独立诉求。每个标签必须对应用户要求回答或完成的一个结果；名称、金额、套餐、错误码、操作参数和背景描述不能单独激活标签。每个 intent 都要输出基于意图树边界与原文证据的 tree_score。同一标签至多出现一次；多个诉求共享标签时合并 supporting_text。
 
 【证据契约】
-- supporting_text 必须逐字引用 original_query；不得引用历史、effective_query 或自行概括。Supervisor 会同时收到完整 original_query 和这些原文片段，前者只用于判断意图间先后关系，后者限定每个意图的语义范围。
+- supporting_text 必须逐字引用 original_query；不得引用历史、effective_query 或自行概括。
 - 否定对象、假设、引用、示例、日志和背景内容本身不构成意图；但用户明确要求处理其中的问题时，可以作为证据。
-- few_shot_examples 只说明标签边界，不是当前用户事实，不得复制其中的实体或标签。
 
 【相邻标签边界】
 - 明确购买订阅时，套餐名、价格和周期只是购买参数；只有同时要求查询、解释或比较规则时才增加 subscription_info_query。
-- account_login_issue 覆盖无法进入账号、账号锁定、认证失败和登录后回跳；只有另有一项非登录技术故障及独立证据时才增加 technical_troubleshooting。
+- account_login_issue 覆盖无法进入账号、账号锁定、认证失败和登录后回跳；只有另有非登录技术故障及独立证据时才增加 technical_troubleshooting。
 - payment_issue 只覆盖付款动作或扣款结果异常；付款成功后的 API、IDE、索引或模型调用故障不属于支付问题。
 - subscription_info_query 查询现有权益；明确要求增加额度、席位或开通模型权限使用 entitlement_change_request。
 - subscription_cancel 停止现有订阅或续费；撤销购买并退回款项使用 refund_handling。
@@ -563,7 +439,7 @@ class IntentRecognizer:
 
 【改写与实体契约】
 - not_needed：effective_query 必须逐字复制 original_query，references、inherited_entities、ambiguity_candidates 均为空。
-- resolved：effective_query 必须改变，并为每个继承事实提供 mention/source/value；source 只能是 case.<路径>、case.<路径>[n] 或 history[n]。history[n] 的 n 是从 0 开始的近轮历史下标，value 必须逐字出现在该条历史内容中；不确定时不要输出该 reference。
+- resolved：effective_query 必须改变，并为每个继承事实提供 mention/source/value；source 只能是 case.<路径>、case.<路径>[n] 或 history[n]。value 必须逐字出现在对应来源中。
 - ambiguous：保留 original_query，ambiguity_candidates 每个字段至少两个候选，并给出 clarification_question；不得输出 intents。
 - extracted_entities 只放当前消息中逐字出现的值；来自历史或 case_state 的值放 inherited_entities。
 - 实体键只能是 order_id、account_email、workspace_id、plan、model、ide、date、amount、error_code；每个实体值必须是字符串数组。

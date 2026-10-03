@@ -17,8 +17,8 @@ from core.embedding_provider import (
     BGEEmbeddingProvider,
     DEFAULT_EMBEDDING_CACHE_SIZE,
 )
+from core.intent_embedding import IntentEmbeddingIndex
 from core.supervisor_context import SupervisorContext
-from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from mcp.knowledge_base import KnowledgeBase
 from mcp.knowledge_search_service import KnowledgeSearchService
 from mcp.tool_registry import Tool, ToolRegistry
@@ -73,13 +73,18 @@ class AppServices:
         if self.knowledge_search.reranker_config.preload:
             status = await self.knowledge_search.preload_reranker()
             logger.info("RAG reranker 预热完成: %s", status)
-        retriever = self.orchestrator.supervisor_lead.few_shot_retriever
-        if retriever is not None and _env_bool("SUPERVISOR_FEW_SHOT_PRELOAD", True):
+        recognizer = self.orchestrator.intent_recognizer
+        embedding_index = (
+            recognizer.embedding_index if recognizer is not None else None
+        )
+        if embedding_index is not None and _env_bool(
+            "INTENT_EMBEDDING_PRELOAD", True
+        ):
             try:
-                await retriever.preload()
-                logger.info("Supervisor Few-shot Embedding 预热完成")
+                await embedding_index.preload()
+                logger.info("Intent 全标签 Embedding 索引预热完成")
             except Exception as ex:
-                logger.warning("Supervisor Few-shot Embedding 预热失败: %s", ex)
+                logger.warning("Intent 全标签 Embedding 索引预热失败: %s", ex)
 
     async def close(self) -> None:
         if self.profile_updates is not None:
@@ -329,11 +334,9 @@ def build_app_services(
     supervisor_context = SupervisorContext(
         api_key=cfg["api_key"], base_url=cfg.get("base_url"), model=cfg["model"],
     )
-    few_shot_retriever = SupervisorFewShotRetriever(
-        supervisor_options["few_shot_path"],
+    intent_embedding_index = IntentEmbeddingIndex(
         embedding_provider=supervisor_embedding_provider,
         top_k=supervisor_options["top_k"],
-        max_chars=supervisor_options["max_chars"],
     )
     orchestrator = IntentOrchestrator(
         api_key=cfg["api_key"],
@@ -344,12 +347,10 @@ def build_app_services(
         agent_health=resolved_agent_health,
         resource_limits=resource_limits,
         supervisor_context=supervisor_context,
-        few_shot_retriever=few_shot_retriever,
-        intent_recall_threshold=supervisor_options["intent_recall_threshold"],
-        intent_recommendation_threshold=supervisor_options[
-            "intent_recommendation_threshold"
-        ],
-        unmatched_handoff_turns=supervisor_options["unmatched_handoff_turns"],
+        intent_embedding_index=intent_embedding_index,
+        intent_fusion_alpha=supervisor_options["intent_fusion_alpha"],
+        intent_clear_threshold=supervisor_options["intent_clear_threshold"],
+        intent_low_threshold=supervisor_options["intent_low_threshold"],
         agent_initial_retrieval_enabled=_env_bool(
             "AGENT_INITIAL_RETRIEVAL_ENABLED",
             True,
@@ -392,36 +393,28 @@ def build_app_services(
 
 
 def _supervisor_semantic_options() -> Dict[str, Any]:
-    root = pathlib.Path(__file__).parent
     return {
-        "few_shot_path": os.getenv(
-            "SUPERVISOR_FEW_SHOT_PATH",
-            str(root / "evaluation" / "fixtures" / "supervisor_few_shots_v1.json"),
-        ),
         "top_k": _env_int(
-            "SUPERVISOR_INTENT_CANDIDATE_TOP_N",
-            _env_int("SUPERVISOR_FEW_SHOT_TOP_K", 6),
+            "INTENT_EMBEDDING_TOP_K", 6,
         ),
-        "max_chars": _env_int("SUPERVISOR_FEW_SHOT_MAX_CHARS", 8000),
         "embedding_model": os.getenv(
-            "SUPERVISOR_FEW_SHOT_EMBEDDING_MODEL", BGE_DEFAULT_MODEL
+            "INTENT_EMBEDDING_MODEL", BGE_DEFAULT_MODEL,
         ).strip(),
         "embedding_revision": os.getenv(
-            "SUPERVISOR_FEW_SHOT_EMBEDDING_REVISION", BGE_DEFAULT_REVISION
+            "INTENT_EMBEDDING_REVISION", BGE_DEFAULT_REVISION,
         ).strip(),
-        "embedding_device": os.getenv("SUPERVISOR_FEW_SHOT_EMBEDDING_DEVICE") or None,
+        "embedding_device": os.getenv("INTENT_EMBEDDING_DEVICE") or None,
         "embedding_cache_size": _env_int(
-            "SUPERVISOR_FEW_SHOT_EMBEDDING_CACHE_SIZE",
-            DEFAULT_EMBEDDING_CACHE_SIZE,
+            "INTENT_EMBEDDING_CACHE_SIZE", DEFAULT_EMBEDDING_CACHE_SIZE,
         ),
-        "intent_recall_threshold": _env_float(
-            "SUPERVISOR_INTENT_RECALL_THRESHOLD", 0.40
+        "intent_fusion_alpha": _env_float(
+            "INTENT_FUSION_ALPHA", 0.10
         ),
-        "intent_recommendation_threshold": _env_float(
-            "SUPERVISOR_INTENT_RECOMMENDATION_THRESHOLD", 0.34
+        "intent_clear_threshold": _env_float(
+            "INTENT_CLEAR_THRESHOLD", 0.70
         ),
-        "unmatched_handoff_turns": _env_int(
-            "SUPERVISOR_UNMATCHED_HANDOFF_TURNS", 3
+        "intent_low_threshold": _env_float(
+            "INTENT_LOW_THRESHOLD", 0.40
         ),
     }
 

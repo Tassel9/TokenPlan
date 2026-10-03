@@ -81,12 +81,15 @@ async def lifespan(app: FastAPI):
     logger.info("模型供应商: %s  模型: %s  base_url: %s", cfg["provider"], cfg["model"], cfg["base_url"])
     logger.info("知识库已加载: %s 个文档片段", _services.knowledge_search.doc_count)
     logger.info("Agent Skill 目录已加载: %s", _services.skills.snapshot)
-    lead = _services.orchestrator.supervisor_lead
-    retriever = lead.few_shot_retriever
+    recognizer = _services.orchestrator.intent_recognizer
     logger.info(
-        "主路由: policy=%s few_shot_retrieval=%s",
-        lead.POLICY_VERSION,
-        "enabled" if retriever is not None else "disabled",
+        "主路由: recognizer=%s all_label_embedding=%s",
+        recognizer.POLICY_VERSION if recognizer is not None else "legacy",
+        (
+            "enabled"
+            if recognizer is not None and recognizer.embedding_index is not None
+            else "disabled"
+        ),
     )
 
     # Monitor 只读暴露指标；共享 AgentHealthTracker 不参与 Intent 路由。

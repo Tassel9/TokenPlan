@@ -38,6 +38,7 @@ from agents.supervisor_lead import (
     SupervisorObservation,
 )
 from core.deepseek_client import DEEPSEEK_DEFAULT_MODEL
+from core.intent_embedding import IntentEmbeddingIndex
 from core.intent_recognizer import (
     IntentRecognitionOutcome,
     IntentRecognitionProvider,
@@ -165,6 +166,8 @@ class IntentOrchestratorResult:
             )
         defaults = {
             "intent_recognition_ms": 0.0,
+            "intent_embedding_ms": 0.0,
+            # Deprecated compatibility alias for existing trace consumers.
             "few_shot_retrieval_ms": 0.0,
             "supervisor_ms": 0.0,
             "binding_ms": 0.0,
@@ -204,6 +207,7 @@ class IntentOrchestrator:
         resource_limits: Optional[ResourceConcurrencyLimits] = None,
         supervisor_lead: Optional[SupervisorLead] = None,
         supervisor_context: Optional[SupervisorContext] = None,
+        intent_embedding_index: Optional[IntentEmbeddingIndex] = None,
         few_shot_retriever: Optional[SupervisorFewShotRetriever] = None,
         intent_recognition_tool: Optional[IntentRecognitionTool] = None,
         intent_recognizer: Optional[IntentRecognizer] = None,
@@ -217,7 +221,9 @@ class IntentOrchestrator:
         single_intent_fast_path_enabled: bool = True,
         intent_recall_threshold: float = 0.40,
         intent_recommendation_threshold: float = 0.34,
-        intent_fusion_alpha: float = 0.50,
+        intent_fusion_alpha: float = 0.10,
+        intent_clear_threshold: float = 0.70,
+        intent_low_threshold: float = 0.40,
         intent_embedding_calibration_scale: float = 1.0,
         intent_embedding_calibration_bias: float = 0.0,
         intent_tree_calibration_scale: float = 1.0,
@@ -310,21 +316,12 @@ class IntentOrchestrator:
         elif not legacy_semantic_path:
             self._intent_recognizer = IntentRecognizer(
                 self._supervisor_context,
-                few_shot_retriever=few_shot_retriever,
-                intent_recognition_tool=intent_recognition_tool,
+                embedding_index=intent_embedding_index,
                 decision_provider=intent_decision_provider,
                 llm_bulkhead=(resource_limits.llm if resource_limits else None),
-                intent_recall_threshold=intent_recall_threshold,
-                intent_recommendation_threshold=intent_recommendation_threshold,
                 intent_fusion_alpha=intent_fusion_alpha,
-                intent_embedding_calibration_scale=(
-                    intent_embedding_calibration_scale
-                ),
-                intent_embedding_calibration_bias=(
-                    intent_embedding_calibration_bias
-                ),
-                intent_tree_calibration_scale=intent_tree_calibration_scale,
-                intent_tree_calibration_bias=intent_tree_calibration_bias,
+                intent_clear_threshold=intent_clear_threshold,
+                intent_low_threshold=intent_low_threshold,
             )
         else:
             self._intent_recognizer = None
@@ -438,6 +435,8 @@ class IntentOrchestrator:
         started = time.monotonic()
         timings = {
             "intent_recognition_ms": 0.0,
+            "intent_embedding_ms": 0.0,
+            # Deprecated compatibility alias for existing trace consumers.
             "few_shot_retrieval_ms": 0.0,
             "supervisor_ms": 0.0,
             "binding_ms": 0.0,
@@ -547,10 +546,14 @@ class IntentOrchestrator:
                 context=req.intent_context,
             )
             timings["intent_recognition_ms"] = recognition.latency_ms
+            timings["intent_embedding_ms"] = recognition.retrieval.latency_ms
             timings["few_shot_retrieval_ms"] = recognition.retrieval.latency_ms
             supervisor_coordination = {
                 "intent_recognition": recognition.to_dict(),
             }
+            analysis = recognition.analysis
+            if analysis is not None:
+                effective_query = analysis.rewrite.effective_query
             if not recognition.ok:
                 await self._emit_trace(
                     req,
@@ -571,9 +574,55 @@ class IntentOrchestrator:
                     reason_code=recognition.reason_code,
                     escalated=True,
                 )
-            analysis = recognition.analysis
-            if analysis is not None:
-                effective_query = analysis.rewrite.effective_query
+            if recognition.status in {
+                "needs_clarification", "unmatched", "out_of_scope"
+            }:
+                if recognition.status == "out_of_scope":
+                    response = (
+                        "这个请求不属于 TokenPlan 当前可处理的套餐、账号、账务或技术支持范围。"
+                    )
+                    terminal_status = AgentRunStatus.COMPLETED.value
+                    trace_status = "COMPLETED"
+                elif recognition.status == "unmatched":
+                    response = (
+                        "我暂时没有匹配到可以可靠处理的 TokenPlan 诉求。"
+                        "请补充你希望查询或办理的具体事项。"
+                    )
+                    terminal_status = AgentRunStatus.WAITING_USER.value
+                    trace_status = "WAITING_USER"
+                else:
+                    response = "请补充你希望处理的具体对象或诉求。"
+                    if (
+                        analysis is not None
+                        and analysis.rewrite.status == RewriteStatus.AMBIGUOUS
+                        and analysis.rewrite.clarification_question
+                    ):
+                        response = analysis.rewrite.clarification_question
+                    elif (
+                        recognition.confidence is not None
+                        and recognition.confidence.clarification_candidates
+                    ):
+                        response = self._intent_recognizer.fusion_policy.clarification_question(
+                            recognition.confidence.clarification_candidates,
+                            confirmed=False,
+                        )
+                    terminal_status = AgentRunStatus.WAITING_USER.value
+                    trace_status = "WAITING_USER"
+                await self._emit_trace(
+                    req,
+                    TraceEventType.INTENTS_ROUTED,
+                    status=trace_status,
+                    reason_code=recognition.reason_code,
+                    metadata={
+                        "intent_recognition": recognition.to_dict(),
+                        "request_control": dict(request_control),
+                    },
+                )
+                return terminal(
+                    response=response,
+                    status=terminal_status,
+                    reason_code=recognition.reason_code,
+                )
 
         semantic_intents: Dict[str, FineGrainedIntent] = {}
         entities: Dict[str, List[str]] = {}
@@ -892,6 +941,9 @@ class IntentOrchestrator:
         all_results = request_results.ordered_results()
         missing_task_ids = request_results.missing_task_ids
         timings["supervisor_ms"] = coordination.decision_latency_ms
+        timings["intent_embedding_ms"] = float(
+            coordination.few_shot_retrieval.get("latency_ms", 0.0)
+        )
         timings["few_shot_retrieval_ms"] = float(
             coordination.few_shot_retrieval.get("latency_ms", 0.0)
         )

@@ -27,8 +27,15 @@ class SupervisorIntentLatestManifestTests(unittest.TestCase):
         self.assertFalse(manifest["production_evidence"])
         self.assertEqual("pending", manifest["review"]["status"])
         self.assertEqual(6, manifest["runtime_config"]["candidate_top_n"])
+        # The manifest freezes the historical evaluator configuration.  The
+        # simplified online recognizer has its own explicit runtime variables
+        # and must not pretend that this old report validates the new policy.
         env_example = (ROOT / ".env.example").read_text(encoding="utf-8")
-        self.assertIn("SUPERVISOR_INTENT_CANDIDATE_TOP_N=6", env_example)
+        self.assertIn("INTENT_EMBEDDING_TOP_K=6", env_example)
+        documentation = (ROOT / "docs" / "configuration.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("旧意图报告是在改造前生成的", documentation)
         self.assertEqual(pathlib.Path(DEFAULT_FIXTURE), dataset_path)
         self.assertEqual(90, len(dataset["cases"]))
         self.assertTrue(dataset["metadata"]["frozen"])

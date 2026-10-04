@@ -38,8 +38,6 @@ def _stub_probe(*unreachable):
 BASE_ENV = {
     "DEEPSEEK_API_KEY": "sk-test-not-a-real-key",
     "SESSION_DB_PATH": "./data/session/conversations.sqlite3",
-    "REDIS_HOST": "localhost",
-    "REDIS_PORT": "6379",
     "CHROMA_HOST": "localhost",
     "CHROMA_PORT": "8001",
     "RABBITMQ_URL": "amqp://tokenplan:tokenplan123@localhost:5672/",
@@ -47,11 +45,18 @@ BASE_ENV = {
 
 
 class DoctorCheckTests(unittest.TestCase):
-    def test_redis_down_blocks_short_term_memory_startup(self):
-        checks = doctor.run_checks(BASE_ENV, probe=_stub_probe(("localhost", 6379)), timeout_s=0.01)
-        check = next(c for c in checks if c.key == "redis")
-        self.assertEqual(doctor.FAIL, check.status)
-        self.assertIn("REDIS_HOST", check.hint)
+    def test_short_term_memory_checks_sqlite_without_probing_redis(self):
+        calls = []
+
+        def probe(host, port, timeout_s):
+            calls.append((host, port))
+            return port != 6379, f"{host}:{port}"
+
+        checks = doctor.run_checks(BASE_ENV, probe=probe, timeout_s=0.01)
+        check = next(c for c in checks if c.key == "sqlite_session")
+        self.assertEqual(doctor.OK, check.status)
+        self.assertFalse(any(port == 6379 for _, port in calls))
+        self.assertFalse(any(c.key == "redis" for c in checks))
 
     def test_missing_api_key_blocks_startup(self):
         checks = doctor.run_checks({}, probe=_stub_probe(), timeout_s=0.01)

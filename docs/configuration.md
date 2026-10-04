@@ -14,7 +14,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | 层 | 变量 | 不设置时会怎样 |
 |---|---|---|
 | ① 必填 | `DEEPSEEK_API_KEY` | 启动即抛 `RuntimeError: 未设置 DEEPSEEK_API_KEY` |
-| ② 本地运行（容器外） | `REDIS_HOST`、`SESSION_DB_PATH`、`RABBITMQ_URL`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | Redis、RabbitMQ、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
+| ② 本地运行（容器外） | `SESSION_DB_PATH`、`RABBITMQ_URL`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | SQLite 使用本地文件；RabbitMQ、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
 | ③ 可选 | 其余全部 | 使用下表默认值，功能不变 |
 
 > 用 `docker compose` 起应用时，compose 会用 `environment:` 覆盖 ② 里的地址（容器内固定值），所以同一份 `.env` 两种跑法都能用。
@@ -44,13 +44,11 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RETRIEVAL_MAX_CONCURRENCY` | `16` |
 | `TOOL_MAX_CONCURRENCY` | `32` |
 
-## 5. 短期记忆（Redis）与会话归档（SQLite）
+## 5. 短期记忆与会话归档（SQLite）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` | `redis` / `6379` / `0` | 短期会话窗口和增量摘要；直接构造 MemoryManager 的本地默认主机为 localhost |
-| `REDIS_PASSWORD` | 空 | 外部 Redis 的连接密码；Compose 内置实例默认不设密码 |
-| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 原始会话归档、恢复快照、CaseState、轮次与并发提交记录 |
+| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 短期会话窗口、增量摘要、有界原始归档、CaseState、轮次与并发提交记录 |
 | `SESSION_HISTORY_MAX_MESSAGES` | `100` | 每会话保留的原始归档消息上限 |
 | `SESSION_HISTORY_PAGE_SIZE` | `50` | 历史读取默认条数 |
 | `SESSION_HOT_MEMORY_MAX_MESSAGES` | `40` | 摘要持续失败时的近期对话硬上限 |
@@ -58,9 +56,9 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `SHORT_TERM_RECENT_TURNS` | `5` | 兼容保留：视图按 Token 预算保留未摘要轮次后，该值不再作为硬性轮数上限 |
 | `SHORT_TERM_SUMMARY_MAX_TOKENS` | `2048` | 单次增量摘要的输出上限（实测合法摘要约 900~1600 token，过小会截断 Tool Call） |
 
-运行时从 Redis 读取当前窗口与摘要，默认保留 24 小时。窗口按最终上下文的 Token 预算保留完整轮次，移出的消息与旧摘要一起生成增量摘要。Redis 用一个带版本号的值原子发布窗口与摘要；旧轮次或同轮旧窗口不能覆盖新视图。
+运行时从 SQLite 读取当前窗口与摘要，默认保留 24 小时。窗口按最终上下文的 Token 预算保留完整轮次，移出的消息与旧摘要一起生成增量摘要。新摘要和近期窗口在同一事务中更新；发布前校验会话轮次及有效租约，拒绝迟到的旧轮次摘要。
 
-每轮先在 SQLite 完成一次受轮次校验的归档提交，再发布 Redis 视图。Redis key 缺失或过期后，可从仍有效的 SQLite 恢复快照或有界原始归档重建；读取不会延长原有 TTL。Redis 不可用时会报告失败，不会静默改成 SQLite 短期读取。若归档成功后 Redis 发布失败，归档仍保留，恢复连接后下一次读取会重建视图，不会重复提交该轮。
+每轮在 SQLite 中一次提交用户消息、助手消息和可选 CaseState，再按预算更新短期视图。数据库启用 WAL 和写事务，按 `user_id + conv_id` 隔离会话；归档与 CaseState 默认保留 7 天。窗口过期或缺失后，可从仍有效的有界归档重建；普通读取不会延长 TTL，重建视图会重新设置短期 TTL。进程重启后继续使用同一个 `SESSION_DB_PATH` 即可读取已有窗口、摘要和归档，无需迁移原有 SQLite 数据。SQLite 使用 Python 标准库，不需要独立缓存服务。
 
 ## 6. 对话入口容量保护
 

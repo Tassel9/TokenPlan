@@ -1,4 +1,4 @@
-"""Durable conversation archive, recovery views, case and fenced turn results."""
+"""SQLite short-term windows, summaries, conversation history and fenced turn results."""
 from __future__ import annotations
 
 import json
@@ -308,7 +308,7 @@ class SQLiteSessionStore:
         return int(row["revision"]) if row else 0
 
     def short_term_stamp(self, user_id: str, conv_id: str) -> Tuple[int, int]:
-        """Read only the turn and derived-view versions for Redis freshness checks."""
+        """Read the turn and derived-view versions without loading message payloads."""
         with self._lock:
             row = self._connection.execute(
                 "SELECT revision, view_revision FROM conversations WHERE user_id=? AND conv_id=?",
@@ -317,7 +317,7 @@ class SQLiteSessionStore:
         return (int(row[0]), int(row[1])) if row else (0, 0)
 
     def short_term_snapshot(self, user_id: str, conv_id: str) -> Optional[dict]:
-        """One consistent recovery snapshot; never refresh its expiry on a read."""
+        """One consistent short-term snapshot; never refresh its expiry on a read."""
         with self._lock:
             row = self._connection.execute(
                 "SELECT revision, view_revision, hot_json, hot_expires_at, "

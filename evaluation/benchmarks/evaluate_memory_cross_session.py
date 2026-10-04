@@ -72,10 +72,6 @@ def _contains_none(answer: str, items: List[str]) -> bool:
 
 def _build_manager(api_key: str, base_url: Optional[str], model: str, temp_root: pathlib.Path) -> MemoryManager:
     manager = MemoryManager(
-        redis_host=os.getenv("REDIS_HOST", "localhost"),
-        redis_port=int(os.getenv("REDIS_PORT", "6379")),
-        redis_db=int(os.getenv("REDIS_DB", "0")),
-        redis_password=os.getenv("REDIS_PASSWORD") or None,
         session_db_path=str(temp_root / "sessions.sqlite3"),
         chroma_path=str(temp_root / "chroma"),
         chroma_port=1,

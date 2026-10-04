@@ -1,25 +1,7 @@
 # UrbanOps 市政运维智能体 — Docker Compose 服务编排
-# 分层记忆：Redis（短期窗口与摘要）+ SQLite（归档/恢复/会话提交）+ ChromaDB（长期事实）
+# 分层记忆：SQLite（短期窗口/摘要/归档/会话提交）+ ChromaDB（长期事实）
 
 services:
-
-  # ── Redis（短期会话窗口与增量摘要）─────────────────────────────────────────
-  redis:
-    image: redis:7.4-alpine
-    container_name: tokenplan-redis
-    ports:
-      - "6379:6379"
-    command: ["redis-server", "--appendonly", "yes"]
-    volumes:
-      - redis-data:/data
-    restart: unless-stopped
-    networks:
-      - urbanops-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # ── RabbitMQ（长期记忆更新任务）──────────────────────────────────────────────
   rabbitmq:
@@ -103,10 +85,6 @@ services:
     environment:
       # 容器内固定值，覆盖 .env 中的本地路径
       - SESSION_DB_PATH=/app/data/session/conversations.sqlite3
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-      - REDIS_PASSWORD=
       - LOCAL_BACKEND_DB_PATH=/app/data/local/urbanops_local.sqlite3
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-tokenplan}:${RABBITMQ_PASSWORD:-tokenplan123}@rabbitmq:5672/
       - CHROMA_HOST=chromadb
@@ -121,8 +99,6 @@ services:
       - ./data/eval:/app/data/eval
       - ./logs:/app/logs
     depends_on:
-      redis:
-        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       chromadb:
@@ -166,7 +142,6 @@ networks:
 
 # ── 数据卷 ──────────────────────────────────────────────────────────────────
 volumes:
-  redis-data:
   rabbitmq-data:
   chromadb-data:
   prometheus-data:

@@ -1,9 +1,13 @@
 import asyncio
 import hashlib
+import re
+import sqlite3
 import tempfile
+import time
 import unittest
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from unittest.mock import patch
 
 from memory.sqlite_session_store import SQLiteSessionStore
 from runtime.intent_execution import (
@@ -21,6 +25,79 @@ class SQLiteSessionStoreTests(unittest.TestCase):
     def tearDown(self):
         self.store.close()
         self.tmp.cleanup()
+
+    def test_reopen_preserves_window_summary_history_and_case(self):
+        _, token, seq, _ = self.store.acquire("u", "c", 30000)
+        self.assertTrue(self.store.commit_turn(
+            "u", "c", token=token, turn_seq=seq,
+            user_payload="question", assistant_payload="answer", case_json='{"stage":"open"}',
+            short_ttl=60, history_ttl=300, case_ttl=300, history_max=100,
+        ))
+        self.assertTrue(self.store.publish(
+            "u", "c", expected_revision=seq, token=token,
+            summary="confirmed goal", payloads=["answer"], ttl=60,
+        ))
+        snapshot = self.store.short_term_snapshot("u", "c")
+        self.store.close()
+        self.store = SQLiteSessionStore(self.path)
+        self.assertEqual(["answer"], self.store.messages("u", "c", "hot"))
+        self.assertEqual(("confirmed goal", ""), self.store.summary("u", "c"))
+        self.assertEqual(["question", "answer"], self.store.messages("u", "c", "history"))
+        self.assertEqual('{"stage":"open"}', self.store.case("u", "c"))
+        self.assertEqual(snapshot, self.store.short_term_snapshot("u", "c"))
+
+    def test_expired_window_and_summary_hide_data_without_extending_ttl(self):
+        self.store.append("u", "c", ["question", "answer"],
+            short_ttl=60, history_ttl=300, history_max=100)
+        self.store.publish("u", "c", expected_revision=self.store.revision("u", "c"),
+            token="", summary="goal", payloads=["answer"], ttl=60)
+        snapshot = self.store.short_term_snapshot("u", "c")
+        expiry = max(snapshot["hot_expires_at"], snapshot["summary_expires_at"])
+        with patch("memory.sqlite_session_store.time.time", return_value=expiry + 1):
+            self.assertEqual([], self.store.messages("u", "c", "hot"))
+            self.assertEqual(("", ""), self.store.summary("u", "c"))
+            self.assertEqual(["question", "answer"], self.store.messages("u", "c", "history"))
+            self.assertEqual(snapshot, self.store.short_term_snapshot("u", "c"))
+
+    def test_user_conversation_and_file_scopes_are_isolated(self):
+        for user_id, conv_id, payload in (
+            ("a:b", "c", "one"), ("a", "b:c", "two"), ("a:b", "other", "three"),
+        ):
+            self.store.append(user_id, conv_id, [payload],
+                short_ttl=60, history_ttl=300, history_max=100)
+        self.assertEqual(["one"], self.store.messages("a:b", "c", "hot"))
+        self.assertEqual(["two"], self.store.messages("a", "b:c", "hot"))
+        self.assertEqual(["three"], self.store.messages("a:b", "other", "hot"))
+        self.assertEqual([], self.store.messages("unknown", "c", "hot"))
+        other = SQLiteSessionStore(str(Path(self.tmp.name) / "other.sqlite3"))
+        try:
+            self.assertEqual([], other.messages("a:b", "c", "hot"))
+        finally:
+            other.close()
+
+    def test_old_sqlite_schema_upgrades_without_losing_messages(self):
+        schema = self.store._connection.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='conversations'"
+        ).fetchone()[0]
+        old_schema = re.sub(r",\s*view_revision INTEGER NOT NULL DEFAULT 0", "", schema)
+        self.assertNotIn("view_revision", old_schema)
+        path = str(Path(self.tmp.name) / "old.sqlite3")
+        with sqlite3.connect(path) as db:
+            db.execute(old_schema)
+            db.execute(
+                "INSERT INTO conversations(user_id, conv_id, revision, hot_json, hot_expires_at, "
+                "history_json, history_expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                ("u", "c", 7, '["old question","old answer"]', time.time() + 60,
+                 '["old question","old answer"]', time.time() + 300),
+            )
+        db.close()
+        upgraded = SQLiteSessionStore(path)
+        try:
+            self.assertEqual(7, upgraded.revision("u", "c"))
+            self.assertEqual(["old question", "old answer"], upgraded.messages("u", "c", "hot"))
+            self.assertEqual(["old question", "old answer"], upgraded.messages("u", "c", "history"))
+        finally:
+            upgraded.close()
 
     def test_concurrent_agent_submissions_and_one_atomic_turn_commit(self):
         acquired, token, seq, _ = self.store.acquire("u", "c", 30000)

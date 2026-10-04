@@ -6,7 +6,6 @@ import sqlite3
 import logging
 import time
 import uuid
-import redis
 from dataclasses import dataclass, replace
 from response.input_secrets import SECRET, redact_secrets
 from datetime import datetime
@@ -405,16 +404,6 @@ async def persist_chat_memory(
         persisted = False
         logger.error(
             "Conversation message persistence failed; returning generated response: %s",
-            type(ex).__name__,
-        )
-    except redis.RedisError as ex:
-        # The durable turn precedes Redis publication. Keep the generated reply,
-        # report persistence failure and let the next read rebuild the view.
-        persisted = False
-        if owned_commit:
-            case_state = None
-        logger.error(
-            "Redis short-term publication failed; returning generated response: %s",
             type(ex).__name__,
         )
 

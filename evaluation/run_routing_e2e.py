@@ -1,7 +1,7 @@
 """Run a frozen source snapshot through the real ChatService/model/tool chain.
 
-Only Redis infrastructure is replaced by fakeredis for local isolation. SQLite,
-Chroma, RAG, all model calls, response guards and conversation commits are real.
+SQLite, embedded Chroma, RAG, all model calls, response guards and conversation
+commits are real. Short-term memory uses the snapshot's SQLite session store.
 """
 from __future__ import annotations
 
@@ -10,7 +10,6 @@ import asyncio
 import hashlib
 import importlib.util
 import json
-from functools import partial
 from pathlib import Path
 import sys
 
@@ -24,7 +23,6 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--only", default="")
     parser.add_argument("--no-judge", action="store_true")
-    parser.add_argument("--redis-backend", choices=("fakeredis", "configured"), default="fakeredis")
     args = parser.parse_args()
     if args.output.exists():
         parser.error("output exists; choose a new report path")
@@ -36,11 +34,6 @@ def main() -> int:
     spec = importlib.util.spec_from_file_location("routing_e2e_harness", root / "evaluation/benchmarks/evaluate_end_to_end_tasks.py")
     harness = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(harness)
-    if args.redis_backend == "fakeredis":
-        import fakeredis
-        import memory.conversation_memory as memory_module
-        from memory.redis_session_store import RedisSessionStore
-        memory_module.RedisSessionStore = partial(RedisSessionStore, client=fakeredis.FakeRedis(decode_responses=True))
     options = harness.parse_args([])
     options.out, options.k, options.limit = str(args.output), args.k, args.limit
     if args.fixture:
@@ -50,7 +43,7 @@ def main() -> int:
     if args.output.exists():
         report = json.loads(args.output.read_text(encoding="utf-8"))
         report["meta"].update({"production_evidence": False, "source_root": str(root),
-                               "source_hashes": hashes, "redis_backend": args.redis_backend,
+                               "source_hashes": hashes, "short_term_backend": "sqlite",
                                "harness_sha256": hashlib.sha256((root / "evaluation/benchmarks/evaluate_end_to_end_tasks.py").read_bytes()).hexdigest(),
                                "scope": "real models and ChatService, embedded Chroma and SQLite; no HTTP transport or queue worker"})
         changed = [str(path.relative_to(root)) for path in paths

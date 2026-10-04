@@ -149,11 +149,11 @@ sequenceDiagram
 
 ### 🧠 分层记忆
 
-基于 Redis 与 ChromaDB 的分层记忆：Redis 保存短期会话窗口与增量摘要，ChromaDB 保存跨会话用户事实；SQLite 保留会话归档与提交状态。
+基于 SQLite 与 ChromaDB 的分层记忆：SQLite 保存短期会话窗口、增量摘要与有界归档，ChromaDB 保存跨会话用户事实。
 
-- 存储分工 — Redis 保存当前近期消息与增量摘要，SQLite 保存原始归档、恢复快照和案件状态，ChromaDB 保存可跨会话复用的稳定用户事实，RabbitMQ 承接长期事实更新任务；业务进度留在 CaseState，稳定偏好留在长期事实。
+- 存储分工 — SQLite 保存近期消息、增量摘要、有界原始归档和案件状态，ChromaDB 保存可跨会话复用的稳定用户事实，RabbitMQ 承接长期事实更新任务；业务进度留在 CaseState，稳定偏好留在长期事实。
 - 摘要不留缺口 — 近期对话视图按 Token 预算保留全部未摘要轮次，滑出预算的轮次在同一次压缩中并入增量摘要，保证摘要与最近对话之间没有覆盖缺口。
-- 会话一次写 — 同一会话由 SQLite 事务和轮次号保护：子 Agent 按任务 ID 登记独立结果，服务层汇总后一次归档消息和 `CaseState`，再将窗口与摘要原子发布到 Redis。Redis key 缺失时从恢复快照或有界归档重建，迟到的旧视图不能覆盖新视图；Redis 不可用时明确报告失败。
+- 会话一次写 — 同一会话由 SQLite 事务和轮次号保护：子 Agent 按任务 ID 登记独立结果，服务层汇总后一次归档消息和 `CaseState`，再在 SQLite 中一次事务更新窗口与摘要。短期窗口缺失或过期时从仍有效的有界归档重建，迟到的旧轮次摘要不能覆盖新轮次；重启后直接复用已有会话文件。
 - 讨论对象延续 — CaseState 保留近期用户讨论原文，与业务处理进度分开；明确新主题优先，范围外话题清除旧讨论，助手回复不能成为用户事实证据。
 - 事件式长期事实 — 按“单次抽取 → 服务端校验 → 追加事件 → 读取时归并”更新：模型只提出候选，逐字证据与敏感信息校验通过后才写入，历史值不被覆盖；读取时把事件回放成当前有效画像，撤回与过期都不会回退到旧值。
 - 注入不留漏检 — 默认全量注入全部当前有效非全局事实（闭集 ≤3 条，与查询无关），把“记住了却没用上”的语义召回漏检降为零。
@@ -198,7 +198,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | 领域 Agent | 按套餐与权益、交易与账务、用户支持三个父意图分工，自行选择检索工具；业务办理诉求询问是否转人工 |
 | Skill Registry / ToolBroker | 管理业务规范、授权边界与任务级工具绑定 |
 | RAG 工具 | FAQ 简单向量检索、单跳混合检索与重排、Agentic 证据判断与补搜 / 只读业务核验 |
-| 分层记忆 | Redis 维护窗口与摘要，SQLite 维护归档、CaseState 与轮次提交，ChromaDB 维护长期稳定事实 |
+| 分层记忆 | SQLite 维护窗口、摘要、归档、CaseState 与轮次提交，ChromaDB 维护长期稳定事实 |
 | 输入密钥保护 / Response Guard / Trace | 脱敏匹配到的密钥、检查最终回复并记录可诊断的执行过程 |
 
 ## 评测与证据边界
@@ -219,7 +219,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | 模型 | DeepSeek、BGE Embedding、BGE Reranker | 语义理解、向量表示与知识排序 |
 | Agent 协作 | RoutingIntentRecognizer、Supervisor、三个领域 Agent、Skill Registry、ToolBroker | 单路由识别、复合诉求拆解、父意图分派与结果汇总 |
 | 检索 | ChromaDB、SQLite FTS5 | 向量与关键词混合检索 |
-| 记忆与异步任务 | Redis、SQLite、ChromaDB、RabbitMQ | 短期窗口与摘要、会话归档、长期事实与异步更新 |
+| 记忆与异步任务 | SQLite、ChromaDB、RabbitMQ | 短期窗口与摘要、会话归档、长期事实与异步更新 |
 | 前端 | React、TypeScript、Vite | 会话工作台与状态展示 |
 | 可观测性 | Prometheus、Execution Trace | 运行指标与执行过程记录 |
 | 部署 | Docker、Docker Compose、Nginx | 服务编排、健康检查与反向代理 |
@@ -232,7 +232,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | :--- | :--- | :--- |
 | Python | 3.12 | 后端运行环境 |
 | Node.js | 22+ | 前端开发与构建 |
-| Docker | Compose v2 | 启动 Redis、RabbitMQ、ChromaDB 等依赖 |
+| Docker | Compose v2 | 启动 RabbitMQ、ChromaDB 等依赖 |
 | DeepSeek API | 可用 Key | LLM 调用 |
 
 ### 1. 准备配置
@@ -259,8 +259,8 @@ Copy-Item .env.example .env
 
 运行方式不同，基础设施地址也不同：
 
-- **完整 Docker Compose**：Compose 为应用容器注入 Redis、RabbitMQ 和 ChromaDB 的容器内地址，Redis 使用 AOF 与数据卷，SQLite 归档文件保存在 `./data/session`。
-- **本地 Python + Docker 基础设施**：Python 进程从宿主机访问 Redis、RabbitMQ 和 ChromaDB，SQLite 归档文件由 `SESSION_DB_PATH` 指定。
+- **完整 Docker Compose**：Compose 为应用容器注入 RabbitMQ 和 ChromaDB 的容器内地址，SQLite 短期记忆与归档文件保存在 `./data/session`。
+- **本地 Python + Docker 基础设施**：Python 进程从宿主机访问 RabbitMQ 和 ChromaDB，SQLite 会话文件由 `SESSION_DB_PATH` 指定。
 
 升级已有数据卷时，TokenPlan 默认会使用新的项目专属知识库集合和 FTS 索引。若要继续读取旧索引，请在启动前通过 `RAG_CHROMA_COLLECTION_NAME` 与 `RAG_LEXICAL_INDEX_PATH` 显式指向原集合和文件，核对数据后再安排迁移。
 
@@ -279,10 +279,10 @@ API 文档默认位于 `http://localhost:8000/docs`，Nginx 入口默认位于 `
 先启动基础设施：
 
 ```powershell
-docker compose up -d redis rabbitmq chromadb
+docker compose up -d rabbitmq chromadb
 ```
 
-确认 `.env` 使用宿主机可访问的 Redis、RabbitMQ 和 ChromaDB 地址，并保证连接凭据与服务配置一致。完成第 1 步的环境准备后，启动后端：
+确认 `.env` 使用宿主机可访问的 RabbitMQ 和 ChromaDB 地址，并保证连接凭据与服务配置一致。完成第 1 步的环境准备后，启动后端：
 
 ```powershell
 .\.venv-win\Scripts\python.exe -m uvicorn --app-dir backend api.main:app --host 0.0.0.0 --port 8000
@@ -336,4 +336,4 @@ npm run build
 Pop-Location
 ```
 
-Redis 存储回归使用 fakeredis 与 Lua 引擎，覆盖窗口和摘要的原子发布、版本校验、TTL、恢复和轮次提交；真实 Redis 联调需要启动对应服务。
+SQLite 存储回归使用隔离的内存库与临时文件，覆盖窗口与摘要的事务更新、版本校验、TTL、重启恢复和轮次提交；无需额外启动缓存服务。

@@ -159,7 +159,7 @@ class RerankerConfigTests(unittest.TestCase):
         optional = (root / "requirements-rag-reranker.txt").read_text(
             encoding="utf-8"
         )
-        self.assertIn("requirements-intent-embedding.txt", base)
+        self.assertIn("-r requirements/intent-embedding.txt", base)
         self.assertIn("torch", optional)
         self.assertIn("transformers", optional)
 

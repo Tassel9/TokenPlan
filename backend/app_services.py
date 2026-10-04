@@ -153,10 +153,6 @@ def build_app_services(
     )
 
     resolved_memory = memory or MemoryManager(
-        redis_host=os.getenv("REDIS_HOST", "redis"),
-        redis_port=_env_int("REDIS_PORT", 6379),
-        redis_db=_env_int("REDIS_DB", 0),
-        redis_password=os.getenv("REDIS_PASSWORD") or None,
         chroma_host=chroma_host,
         chroma_port=chroma_port,
         chroma_path=chroma_path,

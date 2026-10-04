@@ -1,32 +1,39 @@
 import unittest
+import tempfile
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from memory.conversation_memory import MemoryManager, _connect_chroma_client
-from memory.redis_session_store import RedisSessionStore
+from memory.sqlite_session_store import SQLiteSessionStore
 
 
-class MemoryRedisStartupTests(unittest.IsolatedAsyncioTestCase):
-    async def test_default_memory_manager_constructs_redis_working_store(self):
-        import fakeredis
-        client = fakeredis.FakeRedis(decode_responses=True)
+class MemorySQLiteStartupTests(unittest.IsolatedAsyncioTestCase):
+    async def test_default_memory_manager_reopens_configured_sqlite_store(self):
         chroma = Mock()
         chroma.get_or_create_collection.return_value.metadata = {}
         chroma.list_collections.return_value = []
         with (
+            tempfile.TemporaryDirectory() as tmp,
             patch("memory.conversation_memory.AsyncAnthropic"),
             patch("memory.conversation_memory.load_deepseek_tokenizer", return_value=Mock()),
             patch("memory.conversation_memory._connect_chroma_client", return_value=chroma),
-            patch("memory.redis_session_store.redis.Redis", return_value=client) as constructor,
         ):
-            manager = MemoryManager(api_key="test", session_db_path=":memory:",
-                profile_embedding_provider=Mock(), redis_host="configured", redis_port=6380, redis_db=2)
-        try:
-            self.assertIsInstance(manager.session_store, RedisSessionStore)
-            self.assertEqual("configured", constructor.call_args.kwargs["host"])
-            self.assertEqual(6380, constructor.call_args.kwargs["port"])
-            self.assertEqual(2, constructor.call_args.kwargs["db"])
-        finally:
-            manager.session_store.close()
+            path = str(Path(tmp) / "configured" / "sessions.sqlite3")
+            manager = MemoryManager(api_key="test", session_db_path=path,
+                                    profile_embedding_provider=Mock())
+            try:
+                self.assertIs(type(manager.session_store), SQLiteSessionStore)
+                self.assertEqual(path, manager.session_store.path)
+                manager.session_store.append("u", "c", ["existing"],
+                    short_ttl=60, history_ttl=300, history_max=100)
+            finally:
+                manager.session_store.close()
+            restarted = MemoryManager(api_key="test", session_db_path=path,
+                                      profile_embedding_provider=Mock())
+            try:
+                self.assertEqual(["existing"], restarted.session_store.messages("u", "c", "hot"))
+            finally:
+                restarted.session_store.close()
 
 
 class MemoryStartupPolicyTests(unittest.TestCase):

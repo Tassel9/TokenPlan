@@ -11,9 +11,9 @@
 | 可观测性 | `monitor/` | Trace、指标和性能监控 |
 | 通用扩展 | `tools/` | 后端通用工具的预留位置 |
 
-`memory/redis_session_store.py` 保存并读取 Redis 短期窗口与增量摘要；
-`sqlite_session_store.py` 保留原始归档、恢复快照、CaseState 和轮次提交校验；
-ChromaDB 保存长期用户事实。Redis key 缺失时可从归档重建，连接失败时会明确报告。
+`memory/sqlite_session_store.py` 保存短期窗口、增量摘要、有界原始归档、CaseState
+和轮次提交校验；ChromaDB 保存长期用户事实。短期窗口过期或缺失时，可从仍有效的
+有界归档重建；已有 SQLite 会话文件可以直接继续使用。
 
 根目录只保留前端、评测、测试、文档、部署配置等项目级模块。后端内部导入仍以
 `agents`、`core`、`runtime` 等为源码根包，因此本地工具应把 `backend/` 加入

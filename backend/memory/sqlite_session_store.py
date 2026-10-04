@@ -8,8 +8,11 @@ import threading
 import time
 import uuid
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Iterator, List, Optional, Tuple
+
+from memory.consultation_index import project_consultation
 
 
 class SQLiteSessionStore:
@@ -27,6 +30,9 @@ class SQLiteSessionStore:
         self._connection.execute("PRAGMA busy_timeout=5000")
         if self.path != ":memory:":
             self._connection.execute("PRAGMA journal_mode=WAL")
+        had_consultation_index = self._connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='recent_consultations'"
+        ).fetchone() is not None
         self._connection.executescript("""
             CREATE TABLE IF NOT EXISTS conversations (
                 user_id TEXT NOT NULL,
@@ -89,17 +95,47 @@ class SQLiteSessionStore:
                 ON pending_profile(expires_at);
             CREATE INDEX IF NOT EXISTS idx_agent_memory_scope
                 ON agent_memory(user_id, conv_id, case_id, agent_name, created_at);
+            CREATE TABLE IF NOT EXISTS recent_consultations (
+                user_id TEXT NOT NULL,
+                conv_id TEXT NOT NULL,
+                case_id TEXT NOT NULL,
+                intents_json TEXT NOT NULL,
+                objects_json TEXT NOT NULL,
+                problem_summary TEXT NOT NULL,
+                source_revision INTEGER NOT NULL,
+                updated_at REAL NOT NULL,
+                expires_at REAL NOT NULL,
+                PRIMARY KEY (user_id, conv_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_recent_consultations_user
+                ON recent_consultations(user_id, updated_at DESC);
         """)
         columns = {row[1] for row in self._connection.execute("PRAGMA table_info(conversations)")}
         if "view_revision" not in columns:
             self._connection.execute(
                 "ALTER TABLE conversations ADD COLUMN view_revision INTEGER NOT NULL DEFAULT 0"
             )
+        if not had_consultation_index:
+            now = time.time()
+            with self._write() as db:
+                rows = db.execute(
+                    "SELECT user_id, conv_id, case_json, revision, case_expires_at, history_json "
+                    "FROM conversations WHERE case_expires_at>? AND case_json!=''", (now,),
+                ).fetchall()
+                for user_id, conv_id, payload, revision, expires, history in rows:
+                    updated = now
+                    try:
+                        updated = min(now, datetime.fromisoformat(json.loads(payload)["updated_at"]).timestamp())
+                    except (ValueError, TypeError, KeyError):
+                        pass
+                    self._sync_consultation(db, user_id, conv_id, payload,
+                                            float(expires), self._reply_status(history), updated)
 
     def _cleanup_expired(self, db: sqlite3.Connection, now: float) -> None:
         if now - self._last_cleanup < 3600:
             return
         db.execute("DELETE FROM pending_profile WHERE expires_at<=?", (now,))
+        db.execute("DELETE FROM recent_consultations WHERE expires_at<=?", (now,))
         db.execute("DELETE FROM rate_limits WHERE updated_at<=?", (now - 86400,))
         db.execute(
             "DELETE FROM conversations WHERE hot_expires_at<=? "
@@ -256,6 +292,9 @@ class SQLiteSessionStore:
                  now + short_ttl, case_json, case_json, case_json,
                  now + case_ttl, user_id, conv_id),
             )
+            if case_json:
+                self._sync_consultation(db, user_id, conv_id, case_json,
+                                        now + case_ttl, self._reply_status(json.dumps([assistant_payload])), now)
             return True
 
     def append(self, user_id: str, conv_id: str, payloads: List[str], *,
@@ -455,13 +494,99 @@ class SQLiteSessionStore:
         return values
 
     def save_case(self, user_id: str, conv_id: str, payload: str, ttl: int) -> None:
+        now = time.time()
         with self._write() as db:
             self._ensure(db, user_id, conv_id)
             db.execute(
-                "UPDATE conversations SET case_json=?, case_expires_at=? "
+                "UPDATE conversations SET case_json=?, case_expires_at=?, view_revision=view_revision+1 "
                 "WHERE user_id=? AND conv_id=?",
-                (payload, time.time() + ttl, user_id, conv_id),
+                (payload, now + ttl, user_id, conv_id),
             )
+            history = db.execute(
+                "SELECT history_json FROM conversations WHERE user_id=? AND conv_id=?",
+                (user_id, conv_id),
+            ).fetchone()[0]
+            self._sync_consultation(db, user_id, conv_id, payload,
+                                    now + ttl, self._reply_status(history), now)
+
+    @staticmethod
+    def _reply_status(history_json: str) -> str:
+        try:
+            messages = json.loads(history_json)
+            message = json.loads(messages[-1]) if messages else {}
+            return str(message.get("metadata", {}).get("status") or "")
+        except (ValueError, TypeError, AttributeError, IndexError):
+            return ""
+
+    def _sync_consultation(self, db: sqlite3.Connection, user_id: str, conv_id: str,
+                           payload: str, expires: float,
+                           reply_status: str, now: float) -> None:
+        try:
+            case = json.loads(payload)
+            if not isinstance(case, dict):
+                return
+            projection = project_consultation(case, reply_status)
+        except (ValueError, TypeError, AttributeError):
+            return
+        # Consume the exact source revision only after the new turn is committed.
+        # A concurrent update in the old conversation must remain discoverable.
+        source = str(case.get("consultation_source_conv_id") or "")
+        if source and source != conv_id and not case.get("pending_consultation_ids"):
+            db.execute(
+                "DELETE FROM recent_consultations WHERE user_id=? AND conv_id=? AND source_revision=?",
+                (user_id, source, int(case.get("consultation_source_revision") or 0)),
+            )
+        if projection is None:
+            db.execute("DELETE FROM recent_consultations WHERE user_id=? AND conv_id=?", (user_id, conv_id))
+            return
+        # The persisted view generation advances even for a standalone case update.
+        revision = db.execute(
+            "SELECT view_revision FROM conversations WHERE user_id=? AND conv_id=?", (user_id, conv_id),
+        ).fetchone()[0]
+        db.execute(
+            "INSERT INTO recent_consultations VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id, conv_id) DO UPDATE SET case_id=excluded.case_id, "
+            "intents_json=excluded.intents_json, objects_json=excluded.objects_json, "
+            "problem_summary=excluded.problem_summary, source_revision=excluded.source_revision, "
+            "updated_at=excluded.updated_at, expires_at=excluded.expires_at",
+            (user_id, conv_id, str(case.get("case_id") or ""),
+             json.dumps(projection["intents"], ensure_ascii=False),
+             json.dumps(projection["objects"], ensure_ascii=False), projection["summary"],
+             int(revision), now, expires),
+        )
+
+    def recent_consultations(self, user_id: str, *, exclude_conv_id: str,
+                             conv_ids: Optional[List[str]] = None) -> List[dict]:
+        """Read at most twenty live same-user cases and their original snapshot."""
+        now = time.time()
+        parameters: list = [user_id, exclude_conv_id, now, now]
+        selected = ""
+        if conv_ids is not None:
+            if not conv_ids:
+                return []
+            selected = " AND i.conv_id IN (" + ",".join("?" for _ in conv_ids[:5]) + ")"
+            parameters.extend(conv_ids[:5])
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT i.conv_id, i.case_id, i.intents_json, i.objects_json, i.problem_summary, "
+                "i.source_revision, i.updated_at, c.case_json FROM recent_consultations AS i "
+                "JOIN conversations AS c ON c.user_id=i.user_id AND c.conv_id=i.conv_id "
+                "WHERE i.user_id=? AND i.conv_id!=? AND i.expires_at>? AND c.case_expires_at>?"
+                + selected + " ORDER BY i.updated_at DESC, i.conv_id LIMIT 20", parameters,
+            ).fetchall()
+        candidates = []
+        for conv_id, case_id, intents, objects, summary, revision, updated, case_json in rows:
+            try:
+                case = json.loads(case_json)
+                if not isinstance(case, dict):
+                    continue
+                candidates.append({"conv_id": conv_id, "case_id": case_id,
+                    "intents": json.loads(intents), "objects": json.loads(objects),
+                    "summary": summary, "revision": int(revision), "updated_at": float(updated),
+                    "case": case})
+            except (ValueError, TypeError):
+                continue
+        return candidates
 
     def stage_profile_pending(self, user_id: str, memory_key: str,
                               event_id: str, effective_micros: int,

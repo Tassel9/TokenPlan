@@ -60,6 +60,8 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 
 每轮在 SQLite 中一次提交用户消息、助手消息和可选 CaseState，再按预算更新短期视图。数据库启用 WAL 和写事务，按 `user_id + conv_id` 隔离会话；归档与 CaseState 默认保留 7 天。窗口过期或缺失后，可从仍有效的有界归档重建；普通读取不会延长 TTL，重建视图会重新设置短期 TTL。进程重启后继续使用同一个 `SESSION_DB_PATH` 即可读取已有窗口、摘要和归档，无需迁移原有 SQLite 数据。SQLite 使用 Python 标准库，不需要独立缓存服务。
 
+同一文件保存近期未解决咨询索引，默认随 CaseState 保留 7 天。明确跨会话指向时检索同一用户最近 20 条有效记录，澄清最多展示 5 条，待选列表保存在当前会话中。唯一匹配后恢复咨询对象与用户原话，变化的业务状态需重新查询；普通读取不延长索引 TTL。详见[跨会话承接说明](cross-session-consultations-20261004.md)。
+
 ## 6. 对话入口容量保护
 
 | 变量 | 默认值 | 说明 |

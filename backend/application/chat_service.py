@@ -11,8 +11,10 @@ from response.input_secrets import SECRET, redact_secrets
 from datetime import datetime
 from typing import Any, Dict
 
-from agents.intent_orchestrator import Request as OrchestrationRequest
+from agents.intent_orchestrator import IntentOrchestratorResult, Request as OrchestrationRequest
 from memory.conversation_state import merge_case_state, update_discussion_state
+from memory.consultation_recall import ConsultationRecall, recall_consultation
+from memory.sqlite_session_store import SQLiteSessionStore
 from monitor.execution_trace import utc_now_iso
 from mcp.retrieval_contracts import FAQ_SEARCH, HYBRID_SEARCH, evidence_events
 from runtime.conversation_turn_gate import (
@@ -108,6 +110,12 @@ class ChatService:
                 ),
                 self.memory.get_case_state(command.user_id, command.conv_id),
             )
+            recall = ConsultationRecall(case_state)
+            store = getattr(self.memory, "session_store", None)
+            if isinstance(store, SQLiteSessionStore) and not exposed_secret:
+                recall = recall_consultation(store, command.user_id, command.conv_id,
+                                             command.message, case_state)
+                case_state = recall.state
         except asyncio.CancelledError:
             await self._record_failure(
                 trace_id,
@@ -141,7 +149,8 @@ class ChatService:
             message=command.message,
             user_id=command.user_id,
             conv_id=command.conv_id,
-            short_term_context=redact_secrets(short_term.to_text()),
+            short_term_context=redact_secrets("\n\n".join(
+                value for value in (short_term.to_text(), recall.context) if value)),
             long_term_context=redact_secrets(long_term.to_text()),
             intent_context=redact_secrets(short_term.summary),
             case_state=redact_secrets(case_state.to_intent_context()),
@@ -157,7 +166,20 @@ class ChatService:
         )
 
         try:
-            result = await self.orchestrator.run(orchestration_request)
+            if recall.question:
+                result = IntentOrchestratorResult(
+                    request_id=request_id, response=recall.question, agent_type=None,
+                    status="WAITING_USER", reason_code=recall.reason_code,
+                    original_query=command.message, effective_query=command.message,
+                )
+            else:
+                result = await self.orchestrator.run(orchestration_request)
+            if recall.changed:
+                result.supervisor_analysis = dict(result.supervisor_analysis or {})
+                result.supervisor_analysis["consultation_recall"] = {
+                    "source": recall.source, "pending_conv_ids": case_state.pending_consultation_ids,
+                    "reason_code": recall.reason_code,
+                }
         except asyncio.CancelledError:
             await self._record_failure(
                 trace_id,
@@ -203,7 +225,7 @@ class ChatService:
             and not event.get("fallback_used")
             for event in evidence_events(result.tool_events)
         )
-        next_case_state = None
+        next_case_state = case_state if recall.changed else None
         if result.case_update_mode != "preserve":
             next_case_state = merge_case_state(
                 case_state,
@@ -219,6 +241,12 @@ class ChatService:
         discussion = update_discussion_state(next_case_state or case_state, command.message,
                                               result.supervisor_analysis or {})
         if discussion is not None:
+            if (case_state.consultation_source_conv_id and result.case_update_mode != "replace"
+                    and case_state.discussion_messages):
+                original = case_state.discussion_messages[0]
+                discussion.discussion_messages = [original, *[
+                    value for value in discussion.discussion_messages if value != original
+                ][-3:]]
             next_case_state = discussion
         memory_persisted = await persist_chat_memory(
             self.memory,
@@ -234,6 +262,7 @@ class ChatService:
             },
             assistant_metadata={
                 "request_id": request_id,
+                "status": result.status,
                 "tool_events": result.tool_events,
                 "evidence_ids": result.evidence_ids,
                 "reason_code": result.reason_code,
@@ -248,14 +277,15 @@ class ChatService:
             case_state=next_case_state,
             turn_lease=command.turn_lease,
         )
-        await enqueue_profile_update(
-            self,
-            user_id=command.user_id,
-            conv_id=command.conv_id,
-            user_message=command.message,
-            effective_at=datetime.fromisoformat(trace_started_at),
-            turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0),
-        )
+        if not recall.question:
+            await enqueue_profile_update(
+                self,
+                user_id=command.user_id,
+                conv_id=command.conv_id,
+                user_message=command.message,
+                effective_at=datetime.fromisoformat(trace_started_at),
+                turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0),
+            )
         return ChatOutcome(
             conv_id=command.conv_id,
             trace_id=trace_id,

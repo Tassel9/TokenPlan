@@ -30,6 +30,10 @@ class CustomerServiceCase:
     unresolved_question: str = ""
     # User statements only; these are discussion context, not verified business status.
     discussion_messages: List[str] = field(default_factory=list)
+    # Recall selection belongs to this conversation; it never imports old leases or business status.
+    pending_consultation_ids: List[str] = field(default_factory=list)
+    consultation_source_conv_id: str = ""
+    consultation_source_revision: int = 0
     consecutive_unmatched_turns: int = 0
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -51,6 +55,7 @@ class CustomerServiceCase:
         state = cls.new(user_id, conv_id)
         for name in (
             "case_id", "stage", "last_action", "unresolved_question", "updated_at",
+            "consultation_source_conv_id",
         ):
             value = data.get(name)
             if isinstance(value, str):
@@ -60,6 +65,11 @@ class CustomerServiceCase:
         state.submitted_materials = _unique_strings(data.get("submitted_materials"))
         state.pending_slots = _unique_strings(data.get("pending_slots"))
         state.discussion_messages = _unique_strings(data.get("discussion_messages"))[-4:]
+        state.pending_consultation_ids = _unique_strings(data.get("pending_consultation_ids"))[:5]
+        try:
+            state.consultation_source_revision = max(0, int(data.get("consultation_source_revision", 0)))
+        except (TypeError, ValueError):
+            state.consultation_source_revision = 0
         try:
             state.consecutive_unmatched_turns = max(
                 0, int(data.get("consecutive_unmatched_turns", 0))
@@ -87,6 +97,7 @@ class CustomerServiceCase:
             "last_action": self.last_action,
             "unresolved_question": self.unresolved_question,
             "discussion_messages": self.discussion_messages,
+            "consultation_source_conv_id": self.consultation_source_conv_id,
             "consecutive_unmatched_turns": self.consecutive_unmatched_turns,
         }
 

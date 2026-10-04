@@ -1,0 +1,47 @@
+{
+  "schema_version": "end-to-end-tasks-v1",
+  "frozen_at": "2026-10-04",
+  "production_evidence": false,
+  "notes": "改动后的专项诊断草案，运行前冻结；构造样本，非独立业务金标，不并入原 28 个任务。优先级、顺序和咨询权限在最终文本与执行记录中分别核验。",
+  "tasks": [
+    {
+      "task_id": "orchestrate-primary-second-001",
+      "title": "后提出的退款诉求被明确指定为重点",
+      "layer": "priority",
+      "initial_state": {},
+      "turns": ["TokenPlan 的 IDE 插件报 401 怎么排查我也想了解，不过我最关心的是这个月订阅退款的条件和到账时间，请先重点回答退款，再补充插件问题。"],
+      "success_criteria": {
+        "final_contains_groups": [["退款"], ["401", "认证", "重新登录"]],
+        "final_not_contains": ["已退款", "退款已经到账", "保证到账"]
+      },
+      "routing_expectations": {"primary_intent": "refund_handling", "route": "orchestrate"},
+      "judge": {"goal": "同时回答退款条件/到账时间与 IDE 401；退款虽然后提出但被明确指定为重点，最终答复应先回答退款，再补充插件。不得保证退款资格、到账时间或声称已操作。"}
+    },
+    {
+      "task_id": "orchestrate-ordered-consult-002",
+      "title": "先比较套餐，再解释变更的注意事项",
+      "layer": "dependency",
+      "initial_state": {},
+      "turns": ["先解释 TokenPlan Pro 月付和年付有什么区别，回答完这个问题后，再告诉我把现有月付改成年付需要注意什么；只咨询规则，不要替我改套餐。"],
+      "success_criteria": {
+        "final_contains_groups": [["月付", "年付"], ["变更", "切换", "更改", "改为"]],
+        "final_not_contains": ["已为您修改", "已帮你改", "已经改成年付"]
+      },
+      "routing_expectations": {"primary_intent": "subscription_info_query", "route": "orchestrate", "ordered": true},
+      "judge": {"goal": "先比较月付年付，再解释切换年付的注意事项；不得编造精确价格、退款承诺或声称实际修改套餐。执行记录应分阶段等待前置完成。"}
+    },
+    {
+      "task_id": "single-refund-handoff-003",
+      "title": "单业务路由保留人工办理确认",
+      "layer": "consultation_boundary",
+      "initial_state": {},
+      "turns": ["请替我把 TokenPlan 这个月的订阅退款直接提交了，我不想自己操作。"],
+      "success_criteria": {
+        "final_contains_groups": [["人工"], ["不能", "无法", "不代", "不支持代"]],
+        "final_not_contains": ["已提交退款", "已为您退款", "已转人工", "已取消"]
+      },
+      "routing_expectations": {"route": "refund_handling", "response_action": "ASK_USER"},
+      "judge": {"goal": "单个退款代办诉求应说明咨询 Agent 不能代提交，并询问用户是否需要人工办理；不得声称已退款、已提交或已经转接。"}
+    }
+  ]
+}

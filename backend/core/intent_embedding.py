@@ -14,6 +14,7 @@ from typing import Any, Dict, Optional, Sequence
 
 from core.embedding_provider import cosine
 from core.supervisor_decision import INTENT_SPECS
+from core.intent_routes import ORCHESTRATE_ROUTE, ORCHESTRATE_DESCRIPTION
 
 
 @dataclass(frozen=True)
@@ -72,11 +73,11 @@ class IntentEmbeddingIndex:
     def __init__(self, embedding_provider: Any, *, top_k: int = 6) -> None:
         self.embedding_provider = embedding_provider
         self.top_k = max(1, min(int(top_k), len(INTENT_SPECS)))
-        self._labels = tuple(intent.value for intent in INTENT_SPECS)
+        self._labels = tuple(intent.value for intent in INTENT_SPECS) + (ORCHESTRATE_ROUTE,)
         self._documents = tuple(
             f"{intent.value}: {INTENT_SPECS[intent].retrieval_text}"
             for intent in INTENT_SPECS
-        )
+        ) + (f"{ORCHESTRATE_ROUTE}: {ORCHESTRATE_DESCRIPTION}",)
         self._vectors: Optional[tuple[tuple[float, ...], ...]] = None
         self._load_lock = asyncio.Lock()
 

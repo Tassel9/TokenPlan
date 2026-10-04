@@ -87,6 +87,40 @@ class GuardRegressionTests(unittest.TestCase):
         )
         self.assertTrue(guarded.passed, guarded.reason_code)
 
+    def test_public_invoice_state_enumeration_preserves_consultation(self):
+        for text in ("已使用额度、已开票等情况可能影响资格。",
+                     "部分渠道、已开票或已使用较长时间的订阅可能不在可退范围内。"):
+            with self.subTest(text=text):
+                reply = text + "请问是否需要转人工核验？"
+                guarded = ResponseGuard().check(reply)
+                self.assertTrue(guarded.passed, guarded.reason_code)
+                self.assertEqual(reply, guarded.response)
+
+    def test_nominal_rule_does_not_hide_an_actual_completed_claim(self):
+        for text in ("已开票等情况可能影响资格。已为您退款。",
+                     "已为您退款的订单会在账单中显示。",
+                     "已开票，请注意查收。",
+                     "已退款或已关闭续费，您无需继续申请。"):
+            with self.subTest(text=text):
+                self.assertEqual("unsupported_write_claim", ResponseGuard().check(text).reason_code)
+
+    def test_refusing_a_promise_keeps_the_actual_troubleshooting_answer(self):
+        reply = "1302 是速率限制，请降低并发并使用指数退避。限流缓解属于尽力而为，不保证一定成功。"
+        result = ResponseGuard().check(reply)
+        self.assertTrue(result.passed, result.reason_code)
+        self.assertEqual(reply, result.response)
+        for reply in ("无法保证退款。", "不能承诺马上到账。", "不保证百分百成功。"):
+            with self.subTest(reply=reply):
+                self.assertTrue(ResponseGuard().check(reply).passed)
+
+    def test_negation_does_not_hide_a_later_promise_or_double_negation(self):
+        for reply in ("不保证一定成功，但保证退款。",
+                      "无法保证退款，不过马上到账。",
+                      "不能不保证一定成功。",
+                      "不可不承诺立即到账。"):
+            with self.subTest(reply=reply):
+                self.assertEqual("absolute_promise", ResponseGuard().check(reply).reason_code)
+
 
 class LeadReliabilityTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):

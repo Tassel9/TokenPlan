@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 from agents.specialist_agents import (
     AgentInput,
-    RAGKnowledgeAgent,
+    SubscriptionAgent,
     _safe_retrieval_entities,
     _split_retrieval_queries,
 )
@@ -243,7 +243,7 @@ class AdaptiveRagRetrievalTests(unittest.IsolatedAsyncioTestCase):
                 )
 
         runtime = RecordingRuntime()
-        agent = RAGKnowledgeAgent(runtime)
+        agent = SubscriptionAgent(runtime)
         request = AgentInput(
             request_id="test-intent",
             message="那专业版呢？",
@@ -635,7 +635,7 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("发票怎么开", parts[-1])
         self.assertIn("席位怎么加", parts[-1])
 
-    async def test_agent_passes_per_clause_initial_read_calls(self):
+    async def test_domain_agent_chooses_retrieval_tier_before_any_initial_search(self):
         captured = {}
 
         class RecordingRuntime:
@@ -643,7 +643,7 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
                 captured.update(kwargs)
                 return AgentRunResult(
                     run_id="rag-knowledge",
-                    agent_type="rag_knowledge",
+                    agent_type="subscription",
                     status=AgentRunStatus.COMPLETED,
                     content="ok",
                     success=True,
@@ -668,12 +668,12 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
                 "required": ["query"],
             },
             side_effect="read",
-            allowed_agents=["rag_knowledge", "general", "technical", "billing"],
+            allowed_agents=["subscription", "general", "technical", "billing"],
             capabilities=[KNOWLEDGE_RETRIEVE],
             evidence_type="knowledge_retrieval",
         ))
         root = pathlib.Path(__file__).resolve().parents[1]
-        agent = RAGKnowledgeAgent(
+        agent = SubscriptionAgent(
             RecordingRuntime(),
             skill_registry=SkillRegistry(
                 str(root / "backend" / "skills" / "catalog")
@@ -695,21 +695,12 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         ))
 
         calls = captured.get("initial_read_calls")
-        self.assertEqual(2, len(calls or []))
-        self.assertEqual("knowledge_search", calls[0]["tool_name"])
-        self.assertEqual(
-            "订阅的下一次续费日由什么决定",
-            calls[0]["arguments"]["query"],
-        )
-        self.assertEqual(
-            "Team 套餐怎么增加和移除成员席位？",
-            calls[1]["arguments"]["query"],
-        )
+        self.assertIsNone(calls)
 
 
 class RagAgentPromptContractTests(unittest.TestCase):
     def test_prompt_includes_simplification_team_and_fallback_clauses(self):
-        prompt = RAGKnowledgeAgent.system_prompt
+        prompt = SubscriptionAgent.system_prompt
         self.assertIn("简单说", prompt)
         self.assertIn("团队", prompt)
         self.assertIn("官方自助路径", prompt)

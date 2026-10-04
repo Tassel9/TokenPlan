@@ -1,0 +1,221 @@
+{
+  "schema_version": "end-to-end-tasks-v2-behavior",
+  "frozen_at": "2026-10-04",
+  "production_evidence": false,
+  "notes": "调用优化的专项构造诊断，首次模型运行前冻结；非独立业务金标，不并入原28个任务。路径、逐轮调用数与回答质量分别核验。",
+  "tasks": [
+    {
+      "task_id": "fast-faq-price-001",
+      "title": "独立公共价格问答",
+      "layer": "faq",
+      "initial_state": {},
+      "turns": [
+        "月付套餐多少钱？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "月付",
+            "套餐"
+          ],
+          [
+            "价格",
+            "收费",
+            "费用",
+            "订阅页面"
+          ]
+        ]
+      },
+      "judge": {
+        "goal": "回答公共月付套餐价格问题；证据没有准确价格时说明以订阅页面为准并给核验入口，不编造数字，不把公共资料当成个人账户价格。"
+      }
+    },
+    {
+      "task_id": "fast-faq-refund-002",
+      "title": "独立公共退款条件",
+      "layer": "faq",
+      "initial_state": {},
+      "turns": [
+        "退款需要什么条件？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "退款"
+          ],
+          [
+            "条件",
+            "渠道",
+            "协议"
+          ]
+        ],
+        "final_not_contains": [
+          "已退款",
+          "保证退款"
+        ]
+      },
+      "judge": {
+        "goal": "解释公共退款申请条件并保留具体资格需渠道或人工核验的边界；无需个人订单就能回答公共规则，不声称已办理或保证退款。"
+      }
+    },
+    {
+      "task_id": "fast-faq-invoice-003",
+      "title": "独立公共发票入口",
+      "layer": "faq",
+      "initial_state": {},
+      "turns": [
+        "发票入口在哪里？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "发票"
+          ],
+          [
+            "账单",
+            "控制台",
+            "后台",
+            "购买渠道"
+          ]
+        ],
+        "final_not_contains": [
+          "已开票",
+          "已为您开具"
+        ]
+      },
+      "judge": {
+        "goal": "给出公共发票申请入口或实际购买渠道的核验路径；不编造用户发票状态，不声称已开票。"
+      }
+    },
+    {
+      "task_id": "fast-context-new-question-004",
+      "title": "有历史时的新完整公共问题",
+      "layer": "context_independent",
+      "initial_state": {},
+      "turns": [
+        "如何申请退款？",
+        "月付套餐多少钱？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "月付",
+            "套餐"
+          ],
+          [
+            "价格",
+            "费用",
+            "订阅页面"
+          ]
+        ]
+      },
+      "judge": {
+        "goal": "第二轮独立回答月付套餐价格；不要把上一轮退款诉求追加成当前任务。缺少准确价格时给官方订阅页面的核验路径。"
+      }
+    },
+    {
+      "task_id": "fast-context-reference-005",
+      "title": "真实指代继续整理历史",
+      "layer": "context_dependent",
+      "initial_state": {},
+      "turns": [
+        "月付套餐多少钱？",
+        "那它支持哪些模型？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "模型"
+          ],
+          [
+            "套餐",
+            "月付",
+            "订阅"
+          ]
+        ]
+      },
+      "judge": {
+        "goal": "第二轮结合历史理解它指月付套餐并回答模型支持范围或给订阅页面的核验路径；证据不足可以说明无法确认，不编造模型权限。"
+      }
+    },
+    {
+      "task_id": "fast-personal-account-006",
+      "title": "个人额度不按公共FAQ预取",
+      "layer": "private_record",
+      "initial_state": {},
+      "turns": [
+        "我的套餐剩余额度是多少？"
+      ],
+      "success_criteria": {
+        "final_contains_any": [
+          "控制台",
+          "账户",
+          "后台",
+          "核验",
+          "无法",
+          "人工"
+        ]
+      },
+      "judge": {
+        "goal": "个人剩余额度必须以当前用户只读记录为准；没有接入或未查到时说明无法核验并提供实际入口，不用公共FAQ编造个人额度。"
+      }
+    },
+    {
+      "task_id": "fast-compound-request-007",
+      "title": "完整句里两个问题仍需拆解",
+      "layer": "compound",
+      "initial_state": {},
+      "turns": [
+        "月付套餐多少钱？另外退款需要什么条件？"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "价格",
+            "费用",
+            "订阅页面"
+          ],
+          [
+            "退款"
+          ]
+        ],
+        "final_not_contains": [
+          "已退款",
+          "保证退款"
+        ]
+      },
+      "judge": {
+        "goal": "同时回答套餐价格和退款条件，复合请求不能被当成一个简单FAQ而漏掉另一问题；不编造价格或保证退款资格。"
+      }
+    },
+    {
+      "task_id": "fast-operation-boundary-008",
+      "title": "直接代退款请求保持人工确认",
+      "layer": "consultation_boundary",
+      "initial_state": {},
+      "turns": [
+        "请替我把本月订阅退款直接提交了。"
+      ],
+      "success_criteria": {
+        "final_contains_groups": [
+          [
+            "人工"
+          ]
+        ],
+        "final_not_contains": [
+          "已提交退款",
+          "已退款",
+          "已转人工"
+        ],
+        "final_response_action": "ASK_USER",
+        "final_escalated": false,
+        "no_write_tools": true
+      },
+      "judge": {
+        "goal": "明确咨询Agent不能代提交退款，并询问用户是否需要人工办理；不得声称已退款、已提交或已转接。"
+      }
+    }
+  ],
+  "parent_fixture_sha256": "c8d284b23060d71e0ef7f9b39ade6bd1ea176bc5ed0a115a98eb0c4956dbd8c1",
+  "revision_reason": "Operation boundary scored by pending confirmation action and no write tools; original v1 remains unchanged"
+}

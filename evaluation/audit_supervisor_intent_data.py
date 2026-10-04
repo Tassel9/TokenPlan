@@ -15,7 +15,7 @@ from typing import Any, Iterable
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEFAULT_FEW_SHOTS = ROOT / "evaluation" / "fixtures" / "supervisor_few_shots_v1.json"
 DEFAULT_FIXTURES = (
-    ROOT / "evaluation" / "fixtures" / "supervisor_intent_final_v1.json",
+    ROOT / "evaluation" / "fixtures" / "supervisor_intent_final_v2.json",
 )
 DEFAULT_OUTPUT = ROOT / "evaluation" / "reports" / "supervisor_intent_latest_audit.json"
 

@@ -6,7 +6,7 @@ from core.intent_embedding import (
     IntentEmbeddingScore,
 )
 from core.intent_fusion import IntentFusionBand, IntentFusionPolicy
-from core.intent_recognizer import IntentRecognizer
+from core.intent_pipeline import IntentRecognitionPipeline
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
     INTENT_SPECS,
@@ -36,7 +36,7 @@ class _EmbeddingProvider:
     async def embed(self, _text, *, is_query):
         if self.fail:
             raise RuntimeError("embedding unavailable")
-        size = len(INTENT_SPECS)
+        size = len(INTENT_SPECS) + 1
         return [
             1.0 if column == self.query_index else 0.0
             for column in range(size)
@@ -73,10 +73,11 @@ class IntentEmbeddingIndexTests(unittest.IsolatedAsyncioTestCase):
 
         labels = tuple(intent.value for intent in INTENT_SPECS)
         self.assertEqual("ok", first.status)
-        self.assertEqual(len(labels), len(first.scores))
+        self.assertEqual(len(labels) + 1, len(first.scores))
+        self.assertIsNotNone(first.score_for("orchestrate"))
         self.assertEqual(labels[2], first.candidate_intents[0])
         self.assertEqual(1, provider.document_calls)
-        self.assertEqual(len(labels), len(second.scores))
+        self.assertEqual(len(labels) + 1, len(second.scores))
 
     async def test_embedding_failure_degrades_without_candidates(self):
         result = await IntentEmbeddingIndex(
@@ -102,7 +103,7 @@ class IntentRecognizerDegradationTests(unittest.IsolatedAsyncioTestCase):
         def unavailable_tree(_payload):
             raise RuntimeError("tree unavailable")
 
-        outcome = await IntentRecognizer(
+        outcome = await IntentRecognitionPipeline(
             SupervisorContext("test", base_url="https://example.invalid"),
             embedding_index=_ReadyIndex(),
             decision_provider=unavailable_tree,

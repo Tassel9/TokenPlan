@@ -15,8 +15,10 @@ const intentLabels: Record<string, string> = {
 }
 
 const agentLabels: Record<string, string> = {
+  subscription: '套餐与权益 Agent',
+  support: '用户支持 Agent',
   general: '通用 Agent',
-  billing: '账单 Agent',
+  billing: '交易与账务 Agent',
   technical: '技术 Agent',
 }
 

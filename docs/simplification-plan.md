@@ -63,17 +63,17 @@
 
 ### 4.2 需要留意的约束
 
-`tests/test_supervisor_intent_latest_manifest.py` 继续锁定历史报告使用的 dataset、few-shots、候选数和 SHA256，但不再把旧运行参数写回当前 `.env.example`。
+`tests/test_supervisor_intent_latest_manifest.py` 锁定当前 100 条数据集、当前策略报告、复现轮、运行参数和 SHA256；旧 90 条报告的 manifest 另存为 `evaluation/reports/supervisor_intent_historical_v1_manifest.json`。
 
 ```python
-self.assertEqual(6, manifest["runtime_config"]["candidate_top_n"])
+self.assertEqual(6, manifest["runtime_config"]["embedding_top_k"])
 ```
 
-这样既保留旧报告的可复现证据链，也明确它不能验证新的在线融合策略。当前默认变量是 `INTENT_EMBEDDING_TOP_K`、`INTENT_FUSION_ALPHA`、`INTENT_CLEAR_THRESHOLD` 和 `INTENT_LOW_THRESHOLD`。
+这样同时保留当前策略与历史策略的证据链。当前默认变量是 `INTENT_EMBEDDING_TOP_K`、`INTENT_FUSION_ALPHA`、`INTENT_CLEAR_THRESHOLD` 和 `INTENT_LOW_THRESHOLD`。
 
 ## 5. 不砍清单（证据三支柱）
 
-1. **意图证据与安全门控**：保留上下文消解、多意图、原文证据、否定冲突和 fail-closed；旧 90 条报告只作为历史基线，不作为新在线融合策略的效果结论
+1. **意图证据与安全门控**：保留上下文消解、原文证据、否定冲突和 fail-closed；[默认识别只输出一个主业务意图，Supervisor 首轮判断并补充其他诉求](intent-context-boundaries.md)。现有 100 条报告仅验证旧策略，新方案效果待模型评测，旧 90 条报告只作为历史基线
 2. **评测体系**：`evaluation/` 6 个脚本 + 冻结集 + 报告
 3. **Skill 治理与 handoff 测试**：`tests/test_dynamic_skills.py`、`tests/test_conversation_case_state.py`
 

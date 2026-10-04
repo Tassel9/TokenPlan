@@ -191,7 +191,7 @@ class KnowledgeServiceBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 "tools", "orchestrator", "skills",
                 "agent_health", "traces", "chat_service", "resource_limits",
                 "profile_updates",
-                "request_rate_limiter", "conversation_turn_gate",
+                "request_rate_limiter", "conversation_turn_gate", "retrieval_tools",
             },
             set(AppServices.__dataclass_fields__),
         )

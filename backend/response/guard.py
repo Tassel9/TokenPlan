@@ -1,6 +1,8 @@
 """Deterministic evidence and safety checks applied before sending a reply."""
 from __future__ import annotations
 
+from mcp.retrieval_contracts import FAQ_SEARCH, HYBRID_SEARCH, evidence_events
+
 import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, Iterable, List, Set
@@ -46,7 +48,8 @@ class ResponseGuard:
     BUSINESS_READ_CLAIM = re.compile(
         r"(?:已经|已)(?:为您)?(?:查到|查询到|核实到|确认).{0,16}"
         r"(?:订单状态|扣款记录|账单状态|退款状态|支付状态|订阅状态|套餐状态|"
-        r"剩余额度|额度明细|账户状态|工作区状态)"
+        r"剩余额度|额度明细|账户状态|工作区状态|"
+        r"(?:您(?:的)?|你(?:的)?|账户|账号).{0,8}(?:套餐|权益|订阅|额度))"
     )
     SENSITIVE = re.compile(r"(?:请|需要).{0,10}(?:提供|发送|告知|输入).{0,12}(?:支付密码|登录密码|验证码|恢复码|私钥|API密钥|访问令牌|完整银行卡号)")
     SECRET_WARNING = re.compile(
@@ -80,13 +83,20 @@ class ResponseGuard:
     # 描述性状态片段（如“已退款或已作废的订单”“已开票金额”）：其中的“已+X”是名词
     # 修饰、描述订单/费用的状态，不是“声称已完成操作”；同样只在写操作声称检查前剥离。
     STATE_DESCRIPTION = re.compile(
-        r"(?:已经|已)(?:为您)?"
+        r"(?:已经|已)"
         r"(?:退款|取消订单|提交退款|完成退款|开票|取消订阅|关闭续费|修改套餐|恢复额度|"
         r"调整额度|解锁账号|重置密码|注销账户|修改邮箱|创建邀请链接)"
-        r"(?:[、或和及与][^。；;！？!?\n]{0,6}?)?"
-        r"的?(?:订单|费用|金额|款项|记录|发票|状态|情况|用户|账户|账号)"
+        r"(?:[、或和及与](?:已经|已)(?:退款|作废|开票|使用(?:额度|权益|较长时间)?))*"
+        r"(?:等)?的?(?:订单|费用|金额|款项|记录|发票|状态|情况|用户|账户|账号|订阅)"
     )
     ABSOLUTE_PROMISE = re.compile(r"(?:一定成功|百分百成功|保证退款|马上到账|立即到账|一定到账)")
+    # Explicit refusal of a promise is safe. Strip only that phrase so a
+    # later affirmative promise in the same reply is still checked.
+    NEGATED_PROMISE = re.compile(
+        r"(?<!不能)(?<!不可)(?<!不)"
+        r"(?:不保证|不能保证|无法保证|不会保证|不承诺|不能承诺|无法承诺|不会承诺)"
+        r"(?:一定成功|百分百成功|退款|马上到账|立即到账|一定到账)"
+    )
 
     SAFE_WRITE_RESPONSE = (
         "当前系统未接入 TokenPlan 订阅、额度、支付或账号后台，不能完成退款、套餐或账号修改。"
@@ -189,7 +199,7 @@ class ResponseGuard:
                 reason_code="unsupported_write_claim",
                 findings=findings,
             )
-        if self.ABSOLUTE_PROMISE.search(response or ""):
+        if self.ABSOLUTE_PROMISE.search(self.NEGATED_PROMISE.sub("", response or "")):
             findings.append({"rule": "absolute_promise"})
             return GuardResult(
                 response=(
@@ -249,10 +259,10 @@ class ResponseGuard:
             "version_lookup_unavailable": 6,
         }
         selected: Dict[str, Any] = {}
-        for event in tool_events:
+        for event in evidence_events(tool_events):
             if (
                 not isinstance(event, dict)
-                or event.get("tool_name") != "knowledge_search"
+                or event.get("tool_name") not in {FAQ_SEARCH, HYBRID_SEARCH}
                 or not event.get("success")
                 or event.get("fallback_used")
             ):
@@ -272,7 +282,7 @@ class ResponseGuard:
     @staticmethod
     def _evidence_types(events: Iterable[Dict[str, Any]]) -> Set[str]:
         evidence: Set[str] = set()
-        for event in events:
+        for event in evidence_events(events):
             if not event.get("success") or event.get("fallback_used"):
                 continue
             evidence.update(str(value) for value in event.get("evidence_types", []))

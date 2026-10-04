@@ -5,6 +5,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, Iterable, List
 
 from runtime.intent_execution import IntentResult
+from mcp.retrieval_contracts import RETRIEVAL_TOOL_NAMES
 
 
 @dataclass(frozen=True)
@@ -52,7 +53,7 @@ class IntentResponseComposer:
         contents = []
         used = False
         for conclusion, events in outcomes:
-            searches = [e for e in events if e.get("tool_name") == "knowledge_search"]
+            searches = [e for e in events if e.get("tool_name") in RETRIEVAL_TOOL_NAMES]
             unavailable = bool(searches) and not any(e.get("success") and not e.get("fallback_used") for e in searches)
             if unavailable:
                 used = True

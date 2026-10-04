@@ -254,6 +254,33 @@ class KnowledgeSearchService:
             self._rerank_batcher = None
         await self._client.close()
 
+    async def faq_search(
+        self, params: Dict[str, Any], context: Optional[Dict[str, Any]] = None,
+    ) -> ToolExecutionPayload:
+        """Simple dense FAQ recall; retain authorization and version governance."""
+        started = time.perf_counter_ns()
+        context = dict(context or {})
+        query = str(params.get("query") or "").strip()
+        if not query:
+            raise ValueError("查询不能为空")
+        top_k = max(1, min(20, int(params.get("top_k") or 3)))
+        if self._knowledge_base is None:
+            raise ValueError("FAQ 向量检索后端未配置")
+        data = await self._knowledge_base.search_vector_async(
+            self._build_dense_query(query, context), top_k,
+            document_ids=context.get("allowed_document_ids"),
+        )
+        stages = {"vector_retrieval": self._elapsed_ms(started)}
+        governance_started = time.perf_counter_ns()
+        data, _, _ = await self._apply_version_governance(query, data, limit=top_k, context=context)
+        stages["version_governance"] = self._elapsed_ms(governance_started)
+        return self._finish(
+            data=data, started=started, stage_latencies=stages,
+            strategy="faq_vector", sub_query_count=1, candidate_count=len(data),
+            reranked=False, rewrite_reason="not_needed", coverage_complete=False,
+            rerank_reason="faq_simple_rag",
+        )
+
     async def search(
         self,
         params: Dict[str, Any],

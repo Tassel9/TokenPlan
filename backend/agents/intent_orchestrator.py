@@ -23,10 +23,10 @@ from agents.specialist_agents import (
     AgentExecution,
     AgentInput,
     AgentType,
-    BusinessDataQueryAgent,
-    BusinessOperationAgent,
+    BillingAgent,
     IntentExecutionMeta,
-    RAGKnowledgeAgent,
+    SubscriptionAgent,
+    SupportAgent,
 )
 from agents.supervisor_lead import (
     ExecutionStage,
@@ -39,16 +39,15 @@ from agents.supervisor_lead import (
 )
 from core.deepseek_client import DEEPSEEK_DEFAULT_MODEL
 from core.intent_embedding import IntentEmbeddingIndex
-from core.intent_recognizer import (
-    IntentRecognitionOutcome,
-    IntentRecognitionProvider,
-    IntentRecognizer,
-)
+from core.intent_recognizer import IntentRecognitionProvider, IntentRecognizer
+from core.intent_pipeline import IntentRecognitionOutcome, IntentRecognitionPipeline
+from core.intent_routes import ORCHESTRATE_ROUTE
+from core.query_context import QueryContextProvider
 from core.intent_recognition_tool import IntentRecognitionTool
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
     FineGrainedIntent, RewriteStatus, ScopeStatus, SupervisorAnalysis,
-    SupervisorDecisionValidator,
+    SupervisorDecisionValidator, INTENT_SPECS,
 )
 from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from core.request_control import RequestControlAction, RequestControlPolicy
@@ -75,13 +74,11 @@ from skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
-# 单意图知识问题快速通道：识别门控确认唯一意图且属于纯知识型时，由代码按固定
-# 意图→能力 Agent 映射直接委派，跳过 Supervisor 的两次 LLM 规划（SEND_MESSAGES
-# 派发 + FINAL 收口）；能力 Agent 内部的检索、生成与护栏链路保持不变。
+# 已确认业务路由按父领域直接委派；下列有限映射兼容没有 route 的旧识别契约。
 _FAST_PATH_INTENT_AGENTS: Dict[FineGrainedIntent, str] = {
-    FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: AgentType.RAG_KNOWLEDGE.value,
-    FineGrainedIntent.TECHNICAL_TROUBLESHOOTING: AgentType.RAG_KNOWLEDGE.value,
+    FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: AgentType.SUBSCRIPTION.value,
+    FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: AgentType.SUPPORT.value,
+    FineGrainedIntent.TECHNICAL_TROUBLESHOOTING: AgentType.SUPPORT.value,
 }
 # 个人数据诉求兜底：即使识别为单知识意图也不走快速通道（如“我的额度还剩多少”）。
 _PERSONAL_DATA_REQUEST = re.compile(
@@ -109,6 +106,7 @@ class Request:
     result_store: Any = None
     approval_id: str = ""
     idempotency_key: str = ""
+    exposed_secret: bool = False
 
 
 @dataclass
@@ -165,6 +163,7 @@ class IntentOrchestratorResult:
                 )
             )
         defaults = {
+            "query_context_ms": 0.0,
             "intent_recognition_ms": 0.0,
             "intent_embedding_ms": 0.0,
             # Deprecated compatibility alias for existing trace consumers.
@@ -210,8 +209,9 @@ class IntentOrchestrator:
         intent_embedding_index: Optional[IntentEmbeddingIndex] = None,
         few_shot_retriever: Optional[SupervisorFewShotRetriever] = None,
         intent_recognition_tool: Optional[IntentRecognitionTool] = None,
-        intent_recognizer: Optional[IntentRecognizer] = None,
+        intent_recognizer: Optional[IntentRecognizer | IntentRecognitionPipeline] = None,
         intent_decision_provider: Optional[IntentRecognitionProvider] = None,
+        context_decision_provider: Optional[QueryContextProvider] = None,
         supervisor_decision_provider: Optional[SupervisorDecisionProvider] = None,
         agent_registry: Optional[AgentRegistry] = None,
         dispatch_mode: str = "parallel",
@@ -245,24 +245,27 @@ class IntentOrchestrator:
             model=model,
             tool_manager=tool_manager,
             decision_provider=decision_provider,
-            retrieval_reflection_enabled=agentic_rag_reflection_enabled,
+            # Evidence reflection belongs inside the agentic_rag tool. FAQ and
+            # single-hop calls do not require the multi-hop decision loop.
+            retrieval_reflection_enabled=False,
+            min_evidence_hint_count=0,
             max_retrieval_calls=agentic_rag_max_search_calls,
             resource_limits=resource_limits,
         )
         if agent_registry is None:
-            rag_knowledge = RAGKnowledgeAgent(
+            subscription = SubscriptionAgent(
                 runtime,
                 skill_registry=skill_registry,
                 tool_broker=self._tool_broker,
                 initial_retrieval_enabled=agent_initial_retrieval_enabled,
             )
-            business_data_query = BusinessDataQueryAgent(
+            billing = BillingAgent(
                 runtime,
                 skill_registry=skill_registry,
                 tool_broker=self._tool_broker,
                 initial_retrieval_enabled=agent_initial_retrieval_enabled,
             )
-            business_operation = BusinessOperationAgent(
+            support = SupportAgent(
                 runtime,
                 skill_registry=skill_registry,
                 tool_broker=self._tool_broker,
@@ -270,31 +273,28 @@ class IntentOrchestrator:
             )
             agent_registry = AgentRegistry((
                 AgentRegistration(
-                    name=AgentType.RAG_KNOWLEDGE.value,
+                    name=AgentType.SUBSCRIPTION.value,
                     description=(
-                        "检索知识库，回答公开规则、产品说明和故障排查知识；"
-                        "不查询用户私有业务数据，不执行状态变更"
+                        "父意图：套餐与权益。负责套餐、购买流程、变更、退订与权益咨询；"
+                        "按问题类型使用 FAQ、单跳或 Agentic RAG，只读查询个人套餐与权益"
                     ),
-                    instance=rag_knowledge,
-                    skill_owner=rag_knowledge.skill_owner,
+                    instance=subscription,
+                    skill_owner=subscription.skill_owner,
                 ),
                 AgentRegistration(
-                    name=AgentType.BUSINESS_DATA_QUERY.value,
+                    name=AgentType.BILLING.value,
                     description=(
-                        "通过受控只读接口查询 MySQL 等结构化业务数据，"
-                        "用于核验用户自己的订单、账单、退款和账户状态；当前未接入时转人工"
+                        "父意图：交易与账务。负责支付异常、发票与退款咨询；"
+                        "按问题类型使用 FAQ、单跳或 Agentic RAG，只读核验订单与账务记录"
                     ),
-                    instance=business_data_query,
-                    skill_owner=business_data_query.skill_owner,
+                    instance=billing,
+                    skill_owner=billing.skill_owner,
                 ),
                 AgentRegistration(
-                    name=AgentType.BUSINESS_OPERATION.value,
-                    description=(
-                        "通过受控写工具办理订阅、退款、发票和账户变更，"
-                        "要求身份校验、用户确认、幂等与审计；当前未接入时转人工"
-                    ),
-                    instance=business_operation,
-                    skill_owner=business_operation.skill_owner,
+                    name=AgentType.SUPPORT.value,
+                    description="父意图：用户支持。负责登录、安全指引、技术排障、投诉与反馈咨询；按问题类型选择检索工具",
+                    instance=support,
+                    skill_owner=support.skill_owner,
                 ),
             ))
         self._agent_registry = agent_registry
@@ -308,23 +308,34 @@ class IntentOrchestrator:
                 or (
                     supervisor_decision_provider is not None
                     and intent_decision_provider is None
+                    and context_decision_provider is None
                 )
             )
         )
         if intent_recognizer is not None:
-            self._intent_recognizer: Optional[IntentRecognizer] = intent_recognizer
+            self._intent_pipeline = (
+                IntentRecognitionPipeline(
+                    self._supervisor_context, recognizer=intent_recognizer,
+                    context_decision_provider=context_decision_provider,
+                    llm_bulkhead=(resource_limits.llm if resource_limits else None),
+                    intent_fusion_alpha=intent_fusion_alpha,
+                    intent_clear_threshold=intent_clear_threshold,
+                    intent_low_threshold=intent_low_threshold,
+                ) if isinstance(intent_recognizer, IntentRecognizer) else intent_recognizer
+            )
         elif not legacy_semantic_path:
-            self._intent_recognizer = IntentRecognizer(
+            self._intent_pipeline = IntentRecognitionPipeline(
                 self._supervisor_context,
                 embedding_index=intent_embedding_index,
                 decision_provider=intent_decision_provider,
+                context_decision_provider=context_decision_provider,
                 llm_bulkhead=(resource_limits.llm if resource_limits else None),
                 intent_fusion_alpha=intent_fusion_alpha,
                 intent_clear_threshold=intent_clear_threshold,
                 intent_low_threshold=intent_low_threshold,
             )
         else:
-            self._intent_recognizer = None
+            self._intent_pipeline = None
         if supervisor_lead is not None:
             if supervisor_lead.agent_registry is not self._agent_registry:
                 raise AgentRegistryError(
@@ -381,7 +392,11 @@ class IntentOrchestrator:
 
     @property
     def intent_recognizer(self) -> Optional[IntentRecognizer]:
-        return self._intent_recognizer
+        return getattr(self._intent_pipeline, "recognizer", None)
+
+    @property
+    def intent_pipeline(self) -> Optional[IntentRecognitionPipeline]:
+        return self._intent_pipeline
 
     @property
     def agent_registry(self) -> AgentRegistry:
@@ -409,13 +424,21 @@ class IntentOrchestrator:
         """Return the deterministic delegation for one knowledge intent."""
         if not self._single_intent_fast_path_enabled or recognition is None:
             return None
+        if recognition.route == ORCHESTRATE_ROUTE:
+            return None
         execution = recognition.execution_analysis
         if execution is None or execution.scope_status != ScopeStatus.IN_SCOPE:
             return None
         if len(execution.intents) != 1:
             return None
         intent = execution.intents[0]
-        recipient = _FAST_PATH_INTENT_AGENTS.get(intent.label)
+        if recognition.route:
+            recipient = {"套餐与权益": "subscription", "交易与账务": "billing", "用户支持": "support"}[
+                INTENT_SPECS[intent.label].domain]
+            if recipient not in self._agent_registry.enabled_names:
+                return None  # Explicitly injected historical teams retain their old review path.
+        else:
+            recipient = _FAST_PATH_INTENT_AGENTS.get(intent.label)
         if recipient is None:
             return None
         confidence = recognition.confidence
@@ -423,7 +446,7 @@ class IntentOrchestrator:
             confidence.status != "ok" or confidence.clarification_candidates
         ):
             return None
-        if _PERSONAL_DATA_REQUEST.search(message):
+        if not recognition.route and _PERSONAL_DATA_REQUEST.search(message):
             return None
         return {
             "recipient": recipient,
@@ -432,8 +455,13 @@ class IntentOrchestrator:
         }
 
     async def run(self, req: Request) -> IntentOrchestratorResult:
+        from response.input_secrets import SECRET, SAFE_RESPONSE, redact_secrets
+        exposed_secret = req.exposed_secret or bool(SECRET.search(req.message))
+        if exposed_secret:
+            req = replace(req, message=redact_secrets(req.message))
         started = time.monotonic()
         timings = {
+            "query_context_ms": 0.0,
             "intent_recognition_ms": 0.0,
             "intent_embedding_ms": 0.0,
             # Deprecated compatibility alias for existing trace consumers.
@@ -504,6 +532,9 @@ class IntentOrchestrator:
                 stage_timings_ms=snapshot(),
             )
 
+        if exposed_secret:
+            return terminal(response=SAFE_RESPONSE, status=AgentRunStatus.WAITING_USER.value,
+                            reason_code="exposed_api_key")
         control = RequestControlPolicy.evaluate(req.message)
         request_control = control.to_dict()
         if control.action in {
@@ -538,14 +569,15 @@ class IntentOrchestrator:
             )
 
         recognition: Optional[IntentRecognitionOutcome] = None
-        if self._intent_recognizer is not None:
-            recognition = await self._intent_recognizer.recognize(
+        if self._intent_pipeline is not None:
+            recognition = await self._intent_pipeline.recognize(
                 req.message,
                 case_state=req.case_state,
                 history=req.history,
                 context=req.intent_context,
             )
-            timings["intent_recognition_ms"] = recognition.latency_ms
+            timings["query_context_ms"] = recognition.context_latency_ms
+            timings["intent_recognition_ms"] = max(0.0, recognition.latency_ms - recognition.context_latency_ms)
             timings["intent_embedding_ms"] = recognition.retrieval.latency_ms
             timings["few_shot_retrieval_ms"] = recognition.retrieval.latency_ms
             supervisor_coordination = {
@@ -555,10 +587,11 @@ class IntentOrchestrator:
             if analysis is not None:
                 effective_query = analysis.rewrite.effective_query
             if not recognition.ok:
+                context_invalid = recognition.reason_code == "query_context_validation_failed"
                 await self._emit_trace(
                     req,
                     TraceEventType.INTENTS_ROUTED,
-                    status="HANDOFF",
+                    status="WAITING_USER" if context_invalid else "HANDOFF",
                     reason_code=recognition.reason_code,
                     metadata={
                         "intent_recognition": recognition.to_dict(),
@@ -567,12 +600,14 @@ class IntentOrchestrator:
                 )
                 return terminal(
                     response=(
+                        "这次追问的讨论对象暂时未能可靠确认。请明确你指的是哪个套餐或故障；如果需要，也可以申请转人工客服。"
+                        if context_invalid else
                         "意图识别暂时无法形成可靠的冻结结果，"
                         "为避免错误执行，请转人工客服继续处理。"
                     ),
-                    status=AgentRunStatus.HANDOFF.value,
+                    status=AgentRunStatus.WAITING_USER.value if context_invalid else AgentRunStatus.HANDOFF.value,
                     reason_code=recognition.reason_code,
-                    escalated=True,
+                    escalated=not context_invalid,
                 )
             if recognition.status in {
                 "needs_clarification", "unmatched", "out_of_scope"
@@ -591,21 +626,14 @@ class IntentOrchestrator:
                     terminal_status = AgentRunStatus.WAITING_USER.value
                     trace_status = "WAITING_USER"
                 else:
-                    response = "请补充你希望处理的具体对象或诉求。"
+                    from core.clarification import routing_clarification
+                    response = routing_clarification(analysis)
                     if (
                         analysis is not None
                         and analysis.rewrite.status == RewriteStatus.AMBIGUOUS
                         and analysis.rewrite.clarification_question
                     ):
                         response = analysis.rewrite.clarification_question
-                    elif (
-                        recognition.confidence is not None
-                        and recognition.confidence.clarification_candidates
-                    ):
-                        response = self._intent_recognizer.fusion_policy.clarification_question(
-                            recognition.confidence.clarification_candidates,
-                            confirmed=False,
-                        )
                     terminal_status = AgentRunStatus.WAITING_USER.value
                     trace_status = "WAITING_USER"
                 await self._emit_trace(
@@ -649,7 +677,7 @@ class IntentOrchestrator:
             nonlocal explicit_entities, inherited_entities, entities, case_update_mode
             analysis = locked_analysis
             effective_query = locked_analysis.rewrite.effective_query
-            primary_intent = locked_analysis.intents[0].label if locked_analysis.intents else None
+            primary_intent = locked_analysis.primary_intent
             semantic_intents.clear()
             semantic_intents.update({item.intent_id: item.label for item in locked_analysis.intents})
             explicit_entities = self._merge_entities(
@@ -749,6 +777,10 @@ class IntentOrchestrator:
                     intent_id=invocation.intent_id,
                     intent=invocation.intent,
                     focus=invocation.focus,
+                    faq_prefetch_allowed=(
+                        len(locked_analysis.intents) == 1
+                        and (recognition is None or recognition.route != ORCHESTRATE_ROUTE)
+                    ),
                     entities={
                         key: list(values)
                         for key, values in context_view.entities.items()
@@ -885,6 +917,10 @@ class IntentOrchestrator:
                 "intent_confidence": recognition.confidence,
                 "recognition_retrieval": recognition.retrieval,
                 "intent_recognition": recognition.to_dict(),
+                "review_primary_intent": bool(recognition.route) and recognition.route != ORCHESTRATE_ROUTE,
+                "additional_intent_policy": self._intent_pipeline.fusion_policy if recognition.route else None,
+                "decompose_requests": recognition.route == ORCHESTRATE_ROUTE,
+                "decomposition_embedding_index": getattr(self._intent_pipeline, "embedding_index", None),
             })
         fast_route = self._single_intent_fast_route(req.message, recognition)
         if fast_route is not None:
@@ -903,7 +939,8 @@ class IntentOrchestrator:
                 fast_route["delegation_analysis"],
             )
             coordination = SupervisorCoordination(
-                action=SupervisorAction.FINAL,
+                action=(SupervisorAction.ASK_USER if fast_results[0].status == AgentRunStatus.WAITING_USER.value else
+                        SupervisorAction.HANDOFF if fast_results[0].status == AgentRunStatus.HANDOFF.value else SupervisorAction.FINAL),
                 response=fast_results[0].conclusion,
                 analysis=fast_route["delegation_analysis"],
                 stages=(
@@ -951,7 +988,7 @@ class IntentOrchestrator:
         routed_intents = coordination.confirmed_intents
         if analysis is not None:
             effective_query = analysis.rewrite.effective_query
-            primary_intent = routed_intents[0].label if routed_intents else None
+            primary_intent = replace(analysis, intents=routed_intents).primary_intent
             semantic_intents = {item.intent_id: item.label for item in routed_intents}
             explicit_entities = self._merge_entities(
                 SupervisorDecisionValidator.extract_explicit_entities(req.message),
@@ -1050,12 +1087,19 @@ class IntentOrchestrator:
             intent_id for intent_id in expected_intent_ids
             if intent_id not in covered_intent_ids
         ]
+        waiting_for_intent_review = (
+            recognition is not None and bool(recognition.route)
+            and coordination.action == SupervisorAction.ASK_USER
+            and not coordination.stages
+        )
+        pending_handoff_ids = set(coordination.handoff_confirmation_intent_ids)
+        missing_requires_handoff = bool(set(missing_intent_ids) - pending_handoff_ids) and not waiting_for_intent_review
         conditional_handoff = (
             handoff_policy == HandoffPolicy.ON_FAILURE
             and (
                 coordination.action == SupervisorAction.HANDOFF
                 or guarded.escalated
-                or missing_intent_ids
+                or missing_requires_handoff
                 or any(
                     status != AgentRunStatus.COMPLETED.value for status in statuses
                 )
@@ -1072,7 +1116,7 @@ class IntentOrchestrator:
             or coordination.action == SupervisorAction.HANDOFF
             or guarded.escalated
             or conditional_handoff
-            or missing_intent_ids
+            or missing_requires_handoff
             or AgentRunStatus.HANDOFF.value in statuses
         ):
             status = AgentRunStatus.HANDOFF.value

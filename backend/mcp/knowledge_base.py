@@ -498,6 +498,18 @@ class KnowledgeBase:
             ]
         return governed[:top_k]
 
+    async def search_vector_async(
+        self, query: str, top_k: int = 5, *,
+        document_ids: Optional[Sequence[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """FAQ path: one dense recall, without lexical retrieval or reranking."""
+        prepared = self._prepare_search(query, None, top_k)
+        if prepared is None:
+            return []
+        normalized, _, limit, candidates = prepared
+        dense = await asyncio.to_thread(self._dense_recall, normalized, candidates, document_ids)
+        return self._fuse(normalized, dense, [], limit)
+
     async def search_async(
         self,
         query: str,

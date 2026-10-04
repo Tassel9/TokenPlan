@@ -21,8 +21,8 @@ from core.intent_embedding import IntentEmbeddingIndex
 from core.supervisor_context import SupervisorContext
 from mcp.knowledge_base import KnowledgeBase
 from mcp.knowledge_search_service import KnowledgeSearchService
-from mcp.tool_registry import Tool, ToolRegistry
-from mcp.tool_capabilities import KNOWLEDGE_RETRIEVE
+from mcp.tool_registry import ToolRegistry
+from mcp.retrieval_tools import ReadonlyQuery, RetrievalToolSuite
 from memory.conversation_memory import MemoryManager
 from memory.profile_update_queue import RabbitMQProfileUpdateQueue
 from monitor.execution_trace import (
@@ -58,6 +58,7 @@ class AppServices:
     profile_updates: Optional[RabbitMQProfileUpdateQueue] = None
     request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None
     conversation_turn_gate: Optional[SQLiteConversationTurnGate] = None
+    retrieval_tools: Optional[RetrievalToolSuite] = None
 
     async def start(self) -> None:
         preload_memory_embedding = getattr(
@@ -93,6 +94,8 @@ class AppServices:
         if close_orchestrator is not None:
             await close_orchestrator()
         await self.traces.close()
+        if self.retrieval_tools is not None:
+            await self.retrieval_tools.close()
         await self.knowledge_search.close()
         session_store = getattr(self.memory, "session_store", None)
         if session_store is not None:
@@ -111,6 +114,7 @@ def build_app_services(
     profile_updates: Optional[RabbitMQProfileUpdateQueue] = None,
     request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None,
     conversation_turn_gate: Optional[SQLiteConversationTurnGate] = None,
+    readonly_business_query: Optional[ReadonlyQuery] = None,
 ) -> AppServices:
     """Construct API/CLI dependencies without hidden handler introspection."""
 
@@ -149,6 +153,10 @@ def build_app_services(
     )
 
     resolved_memory = memory or MemoryManager(
+        redis_host=os.getenv("REDIS_HOST", "redis"),
+        redis_port=_env_int("REDIS_PORT", 6379),
+        redis_db=_env_int("REDIS_DB", 0),
+        redis_password=os.getenv("REDIS_PASSWORD") or None,
         chroma_host=chroma_host,
         chroma_port=chroma_port,
         chroma_path=chroma_path,
@@ -254,45 +262,13 @@ def build_app_services(
     if tools is not None:
         resolved_tools.set_resource_limits(resource_limits)
 
-    def knowledge_fallback(
-        params: Dict[str, Any], context: Optional[Dict[str, Any]], error: str
-    ) -> list[Dict[str, Any]]:
-        query = params.get("query", "")
-        return [{
-            "title": "知识库降级结果",
-            "content": (
-                f"知识库暂时不可用，未能完成对“{query}”的语义检索。"
-                "请稍后重试，或转人工客服确认。"
-            ),
-            "score": 0.0,
-            "fallback": True,
-            "error": error,
-        }]
-
-    resolved_tools.register(Tool(
-        name="knowledge_search",
-        description="搜索知识库（结构化 Chunk + Chroma 向量 + SQLite FTS5 混合检索）",
-        handler=knowledge_search.search,
-        schema={
-            "type": "object",
-            "properties": {
-                "query": {"type": "string"},
-                "top_k": {"type": "integer"},
-            },
-            "required": ["query"],
-        },
-        # KnowledgeSearchService owns the retrieval cache. Avoid a second layer.
-        cache_ttl=0.0,
-        fallback=knowledge_fallback,
-        side_effect="read",
-        risk_level="low",
-        # 公开知识检索只授予 RAG 知识能力 Agent；业务数据核验与业务办理
-        # Agent 各自绑定自己的受控工具，不共享知识检索面。
-        allowed_agents=["rag_knowledge"],
-        capabilities=[KNOWLEDGE_RETRIEVE],
-        evidence_type="knowledge_retrieval",
-        max_retries=1,
-    ))
+    retrieval_tools = RetrievalToolSuite(
+        knowledge_search, api_key=cfg["api_key"], base_url=cfg.get("base_url"), model=cfg["model"],
+        readonly_query=readonly_business_query, resource_limits=resource_limits,
+        max_search_calls=_env_int("AGENTIC_RAG_MAX_SEARCH_CALLS", 2),
+        reflection_enabled=_env_bool("AGENTIC_RAG_REFLECTION_ENABLED", True),
+    )
+    retrieval_tools.register(resolved_tools)
 
     catalog_path = os.getenv("SKILL_CATALOG_PATH") or str(
         pathlib.Path(__file__).parent / "skills" / "catalog"
@@ -353,7 +329,7 @@ def build_app_services(
         intent_low_threshold=supervisor_options["intent_low_threshold"],
         agent_initial_retrieval_enabled=_env_bool(
             "AGENT_INITIAL_RETRIEVAL_ENABLED",
-            True,
+            False,
         ),
         agentic_rag_reflection_enabled=_env_bool(
             "AGENTIC_RAG_REFLECTION_ENABLED",
@@ -389,6 +365,7 @@ def build_app_services(
         profile_updates=resolved_profile_updates,
         request_rate_limiter=resolved_request_rate_limiter,
         conversation_turn_gate=resolved_conversation_turn_gate,
+        retrieval_tools=retrieval_tools,
     )
 
 
@@ -408,7 +385,7 @@ def _supervisor_semantic_options() -> Dict[str, Any]:
             "INTENT_EMBEDDING_CACHE_SIZE", DEFAULT_EMBEDDING_CACHE_SIZE,
         ),
         "intent_fusion_alpha": _env_float(
-            "INTENT_FUSION_ALPHA", 0.10
+            "INTENT_FUSION_ALPHA", 0.05
         ),
         "intent_clear_threshold": _env_float(
             "INTENT_CLEAR_THRESHOLD", 0.70

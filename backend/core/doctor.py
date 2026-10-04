@@ -2,7 +2,7 @@
 
 `python backend/cli.py doctor` runs these checks **without** constructing the service
 graph: it only reads environment variables and probes TCP endpoints, so it is
-safe to run before ChromaDB / RabbitMQ are up.
+safe to run before Redis / ChromaDB / RabbitMQ are up.
 
 Verdicts:
   * ``blocked``  - at least one hard requirement fails; startup will raise.
@@ -171,6 +171,15 @@ def run_checks(
         "sqlite_session", OK if writable else FAIL,
         f"SQLite 会话文件: {session_path}",
         "将 SESSION_DB_PATH 设置到可写目录" if not writable else "",
+    ))
+
+    redis_host = _env(env, "REDIS_HOST", "redis")
+    redis_port = int(_env(env, "REDIS_PORT", "6379") or 6379)
+    redis_reachable, redis_message = probe(redis_host, redis_port, timeout_s)
+    checks.append(Check(
+        "redis", OK if redis_reachable else FAIL, f"Redis 短期记忆: {redis_message}",
+        "先 docker compose up -d redis；容器外运行时设 REDIS_HOST=localhost、REDIS_PORT=6379"
+        if not redis_reachable else "",
     ))
 
     chroma_host = _env(env, "CHROMA_HOST", DEFAULT_CHROMA_HOST)

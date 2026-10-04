@@ -2,7 +2,7 @@
 
 This module deliberately does not build a flat "Agent memory" snapshot:
 
-* short-term memory is recent conversation plus an incremental SQLite summary;
+* short-term memory is a Redis message window plus incremental summary, backed by SQLite recovery snapshots;
 * long-term memory is an append-only user-fact log plus its current projection.
 
 Request execution state and ``CustomerServiceCase`` belong to working memory.
@@ -57,6 +57,7 @@ from runtime.conversation_turn_gate import (
 )
 from runtime.resource_limits import ResourceConcurrencyLimits, optional_slot
 from memory.sqlite_session_store import SQLiteSessionStore
+from memory.redis_session_store import RedisSessionStore
 
 logger = logging.getLogger(__name__)
 
@@ -219,6 +220,10 @@ class MemoryManager:
         context_user_max_chars: int = CONTEXT_MAX_CHARS,
         fact_injection_mode: str = "full",
         session_db_path: str = "./data/session/conversations.sqlite3",
+        redis_host: str = "localhost",
+        redis_port: int = 6379,
+        redis_db: int = 0,
+        redis_password: Optional[str] = None,
     ):
         mode = str(fact_injection_mode or "").strip().lower()
         if mode not in self.FACT_INJECTION_MODES:
@@ -257,7 +262,9 @@ class MemoryManager:
             )
         )
 
-        self._session_store = SQLiteSessionStore(session_db_path)
+        self._session_store = RedisSessionStore(
+            session_db_path, host=redis_host, port=redis_port, db=redis_db, password=redis_password,
+        )
         self._history_max_messages = self._positive_limit(
             history_max_messages,
             name="history_max_messages",
@@ -974,7 +981,7 @@ class MemoryManager:
         """
         短期记忆压缩：
           1. 用旧摘要 + 本次移出近期上下文的消息生成增量摘要
-          2. 新摘要覆盖 SQLite 中的旧派生视图
+          2. 新摘要与近期窗口原子发布到 Redis，SQLite 保留恢复快照
           3. 摘要成功后，短期消息窗口保留 Token 预算内最近完整轮次
 
         有界原始消息归档独立保存，不会被这里的热记忆重建删除。

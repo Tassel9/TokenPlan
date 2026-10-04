@@ -29,21 +29,25 @@ class SupervisorContext:
     ) -> List[Dict[str, str]]:
         if not history:
             return []
-        selected: List[Dict[str, str]] = []
+        # Reserve the budget for user facts before including verbose answers.
+        # Keep original order so history[n] is stable for producer and validator.
+        selected: Dict[int, Dict[str, str]] = {}
         used = 0
-        for item in reversed(history):
+        order = [i for i in reversed(range(len(history))) if history[i].get("role", "user") == "user"]
+        order += [i for i in reversed(range(len(history))) if history[i].get("role", "user") != "user"]
+        for index in order:
+            item = history[index]
             role = self.clean_text(item.get("role", "user"))
             content = self.clean_text(item.get("content", ""))
             cost = len(role) + len(content)
             if selected and used + cost > self.history_char_budget:
-                break
+                continue
             if not selected and cost > self.history_char_budget:
                 content = content[-self.history_char_budget:]
                 cost = len(content)
-            selected.append({"role": role, "content": content})
+            selected[index] = {"role": role, "content": content}
             used += cost
-        selected.reverse()
-        return selected
+        return [selected[index] for index in sorted(selected)]
 
     @staticmethod
     def clean_text(value: Any) -> str:

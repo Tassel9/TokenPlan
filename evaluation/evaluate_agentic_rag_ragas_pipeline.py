@@ -40,7 +40,7 @@ _ROOT = pathlib.Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from agents.specialist_agents import AgentInput, RAGKnowledgeAgent
+from agents.specialist_agents import AgentInput, AgentType, BaseAgent
 from core.deepseek_client import (
     deepseek_request_options,
     extract_text,
@@ -60,6 +60,16 @@ from runtime.agent_state import AgentRunStatus
 from runtime.retrieval_context import RetrievalContextState
 from runtime.tool_broker import ToolBinding, ToolBroker
 from skills.registry import SkillRegistry
+
+
+class SingleHopEvaluationAgent(BaseAgent):
+    """Explicit historical single-hop baseline, never registered in the app team."""
+
+    agent_type = AgentType.SUBSCRIPTION
+    system_prompt = (
+        "你执行历史单跳知识评测：使用 knowledge_search 检索公开规则，"
+        "只依据证据逐项回答问题；证据不足时澄清或建议人工核验，禁止推断个人状态或写操作。"
+    )
 
 
 DEFAULT_FIXTURE = (
@@ -309,7 +319,7 @@ async def _run_arm(
     fair_final_topk: bool = False,
     rerank_candidate_limit: int = 12,
     agentic_initial_retrieval: bool = True,
-    rag_knowledge_agent: Optional[RAGKnowledgeAgent] = None,
+    rag_knowledge_agent: Optional[SingleHopEvaluationAgent] = None,
 ) -> Dict[str, Any]:
     query = str(case["user_input"])
     started = time.perf_counter()
@@ -478,7 +488,7 @@ async def _run_arm(
         elif arm == "rag_agent":
             if rag_knowledge_agent is None:
                 raise AgenticRagPipelineError(
-                    "rag_agent requires the production RAGKnowledgeAgent"
+                    "rag_agent requires the production SingleHopEvaluationAgent"
                 )
             request_id = f"ragas-{str(case['case_id'])}"
             execution = await asyncio.wait_for(
@@ -494,7 +504,7 @@ async def _run_arm(
                 )),
                 timeout=120.0,
             )
-            run_id = f"{request_id}-rag_knowledge"
+            run_id = f"{request_id}-subscription"
             trajectory = list((agent_calls or {}).get(run_id, []))
             context_state = RetrievalContextState.from_search_calls(
                 trajectory,
@@ -896,7 +906,7 @@ async def evaluate(
     agent_runtime: Optional[BoundedAgentRuntime] = None
     agent_bindings: Dict[str, ToolBinding] = {}
     agent_calls: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
-    rag_knowledge_agent: Optional[RAGKnowledgeAgent] = None
+    rag_knowledge_agent: Optional[SingleHopEvaluationAgent] = None
     try:
         knowledge_base = KnowledgeBase(
             chroma_host="127.0.0.1",
@@ -1107,7 +1117,7 @@ async def evaluate(
                     "required": ["query"],
                 },
                 side_effect="read",
-                allowed_agents=["rag_knowledge", "general", "technical", "billing"],
+                allowed_agents=["subscription"],
                 capabilities=[KNOWLEDGE_RETRIEVE],
                 evidence_type="knowledge_retrieval",
                 max_retries=1,
@@ -1120,7 +1130,7 @@ async def evaluate(
                 retrieval_reflection_enabled=True,
                 max_retrieval_calls=2,
             )
-            rag_knowledge_agent = RAGKnowledgeAgent(
+            rag_knowledge_agent = SingleHopEvaluationAgent(
                 rag_runtime,
                 skill_registry=rag_skills,
                 tool_broker=ToolBroker(rag_registry),
@@ -1292,7 +1302,7 @@ async def evaluate(
                     )
                 ),
                 "rag_agent": (
-                    "production RAGKnowledgeAgent unit: skill-bound capabilities, "
+                    "historical single-hop evaluation adapter (not the current three-domain tool stack): skill-bound capabilities, "
                     "multi-clause initial retrieval (each clause searched "
                     "separately, merged by RetrievalContextState admission), "
                     "retrieval reflection with bounded gap search (<=2), "

@@ -75,9 +75,9 @@ def register_skill_resource_tool(
         # registry still enforces each Skill's owner_agent, so capability
         # Agents can read their own Skills without gaining cross-owner access.
         allowed_agents=[
-            "rag_knowledge",
-            "business_data_query",
-            "business_operation",
+            "subscription",
+            "billing",
+            "support",
         ],
         capabilities=[SKILL_RESOURCE_READ],
         evidence_type="skill_resource",

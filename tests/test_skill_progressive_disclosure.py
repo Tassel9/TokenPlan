@@ -18,7 +18,7 @@ def write_skill_with_resource(
     catalog: Path,
     skill_id: str,
     *,
-    owner_agent: str = "rag_knowledge",
+    owner_agent: str = "subscription",
     marker: str = "RESOURCE_BODY_NOT_IN_PROMPT",
 ) -> Path:
     folder = catalog / skill_id
@@ -46,7 +46,7 @@ def write_skill_with_resource(
 
 
 def bind_plan_benefits(registry: SkillRegistry):
-    return registry.bind_for_agent("rag_knowledge", ["plan-benefits"])[0]
+    return registry.bind_for_agent("subscription", ["plan-benefits"])[0]
 
 
 def binding_context(binding, *, owner_agent: str | None = None) -> dict[str, str]:
@@ -63,7 +63,7 @@ class SkillResourceCatalogTests(unittest.TestCase):
             write_skill_with_resource(Path(tmp), "general-default")
             registry = SkillRegistry(Path(tmp))
             binding = registry.bind_for_agent(
-                "rag_knowledge",
+                "subscription",
                 ["general-default"],
             )[0]
 
@@ -129,9 +129,9 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_resource_scope_rejects_other_skill_owner_version_and_path(self):
         cases = (
             (
-                binding_context(self.binding, owner_agent="business_data_query"),
+                binding_context(self.binding, owner_agent="billing"),
                 "references/comparison-boundaries.md",
-                "Agent business_data_query",
+                "Agent billing",
             ),
             (
                 {**self.context, "skill_version": "9.9.9"},
@@ -158,7 +158,7 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
         result = await self.manager.call(
             SKILL_RESOURCE_TOOL,
             {"resource_id": "references/comparison-boundaries.md"},
-            context={"agent_type": "rag_knowledge"},
+            context={"agent_type": "subscription"},
         )
 
         self.assertFalse(result.success)
@@ -166,11 +166,11 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_multi_skill_resource_read_requires_selected_skill_id(self):
         account = self.registry.bind_for_agent(
-            "rag_knowledge",
-            ["account-security"],
+            "subscription",
+            ["subscription-policy"],
         )[0]
         context = {
-            "agent_type": "rag_knowledge",
+            "agent_type": "subscription",
             "skill_bindings": [
                 {
                     "skill_id": self.binding.skill_id,
@@ -215,12 +215,12 @@ class SkillResourceToolTests(unittest.IsolatedAsyncioTestCase):
             decision_provider=lambda payload: next(decisions),
         )
         result = await runtime.run(
-            agent_type="rag_knowledge",
+            agent_type="subscription",
             system_prompt=self.binding.prompt_fragment,
             message="团队版套餐权益是什么？",
             tool_binding=ToolBroker(self.manager).bind(
                 intent_id="resource-intent",
-                agent_type="rag_knowledge",
+                agent_type="subscription",
                 required_capabilities=[SKILL_RESOURCE_READ],
             ),
             tool_context=self.context,

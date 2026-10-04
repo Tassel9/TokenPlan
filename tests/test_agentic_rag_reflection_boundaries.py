@@ -1,9 +1,10 @@
+import asyncio
 import json
 import unittest
 
 from pydantic import ValidationError
 
-from mcp.tool_capabilities import KNOWLEDGE_RETRIEVE
+from mcp.tool_capabilities import KNOWLEDGE_RETRIEVE, SKILL_RESOURCE_READ
 from mcp.tool_registry import Tool, ToolRegistry
 from runtime.action_protocol import AgentAction, RetrievalReflection
 from runtime.agent_runtime import BoundedAgentRuntime
@@ -28,7 +29,32 @@ def _reflection(
     }
 
 
-def _build_runtime(decision_provider, *, max_retrieval_calls=2):
+def _retrieval_decision(payload, *, next_query=None):
+    documents = payload["accumulated_evidence"]
+    action = {
+        "action": "CALL_TOOL" if next_query else "FINAL",
+        "retrieval_reflection": _reflection(
+            relevant=True,
+            complete=not next_query,
+            supporting_document_ids=[item["document_id"] for item in documents],
+            missing_information="缺少退款到账时限" if next_query else None,
+            next_query=next_query,
+        ),
+        "reason_code": "retrieve_gap" if next_query else "evidence_complete",
+    }
+    if next_query:
+        action.update({
+            "tool_name": "policy_lookup",
+            "arguments": {"query": next_query},
+        })
+    else:
+        action["message"] = "根据累计公开规则作答。"
+    return json.dumps(action, ensure_ascii=False)
+
+
+def _build_runtime(
+    decision_provider, *, max_retrieval_calls=2, reflection_enabled=True
+):
     queries = []
     manager = ToolRegistry()
 
@@ -65,13 +91,15 @@ def _build_runtime(decision_provider, *, max_retrieval_calls=2):
         model="test",
         tool_manager=manager,
         decision_provider=decision_provider,
-        retrieval_reflection_enabled=True,
+        retrieval_reflection_enabled=reflection_enabled,
         max_retrieval_calls=max_retrieval_calls,
     )
     return runtime, binding, queries
 
 
-async def _run(runtime, binding, *, query="订阅重复扣费处理流程"):
+async def _run(
+    runtime, binding, *, query="订阅重复扣费处理流程", initial_queries=None
+):
     return await runtime.run(
         run_id="reflection-run",
         agent_type="general",
@@ -81,6 +109,13 @@ async def _run(runtime, binding, *, query="订阅重复扣费处理流程"):
         intent_id="reflection-boundary",
         initial_read_tool_name="policy_lookup",
         initial_read_tool_arguments={"query": query},
+        initial_read_calls=(
+            [
+                {"tool_name": "policy_lookup", "arguments": {"query": item}}
+                for item in initial_queries
+            ]
+            if initial_queries is not None else None
+        ),
     )
 
 
@@ -150,7 +185,7 @@ class RetrievalReflectionRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         async def decide(payload):
             self.assertTrue(payload["retrieval_reflection_required"])
             self.assertEqual(
-                "customer-service-agent-loop-v9-retrieval-reflection",
+                "customer-service-agent-loop-v10-retrieval-reflection-budget",
                 payload["prompt_version"],
             )
             return json.dumps({
@@ -424,6 +459,216 @@ class RetrievalReflectionRuntimeBoundaryTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result.success)
         self.assertEqual("knowledge_evidence_insufficient", result.reason_code)
         self.assertEqual(["订阅重复扣费处理流程", "重复扣费退款到账时限"], queries)
+
+    async def test_initial_batch_reserves_one_gap_search(self):
+        for initial_count in (1, 2, 3):
+            with self.subTest(initial_count=initial_count):
+                initial_queries = [f"初始规则{i}" for i in range(initial_count)]
+                payloads = []
+
+                async def decide(payload):
+                    payloads.append(payload)
+                    if len(payload["search_history"]) == initial_count:
+                        return _retrieval_decision(
+                            payload, next_query="退款到账时限"
+                        )
+                    return _retrieval_decision(payload)
+
+                runtime, binding, queries = _build_runtime(decide)
+                result = await _run(runtime, binding, initial_queries=initial_queries)
+
+                self.assertEqual(AgentRunStatus.COMPLETED, result.status)
+                self.assertEqual(initial_queries + ["退款到账时限"], queries)
+                self.assertEqual(2, len(payloads))
+                for payload in payloads:
+                    self.assertEqual(initial_count + 1, payload["max_retrieval_calls"])
+                    self.assertIn(
+                        f"最多执行{initial_count + 1}次知识检索",
+                        payload["decision_prompt"],
+                    )
+                # 保留实际调用数，不把多条首轮查询伪装成一次调用。
+                self.assertEqual(
+                    initial_count + 1, payloads[-1]["retrieval_context"]["search_count"]
+                )
+
+    async def test_initial_batch_does_not_search_again_when_complete(self):
+        for initial_count in (1, 2, 3):
+            with self.subTest(initial_count=initial_count):
+                initial_queries = [f"初始规则{i}" for i in range(initial_count)]
+                payloads = []
+
+                async def decide(payload):
+                    payloads.append(payload)
+                    return _retrieval_decision(payload)
+
+                runtime, binding, queries = _build_runtime(decide)
+                result = await _run(runtime, binding, initial_queries=initial_queries)
+
+                self.assertEqual(AgentRunStatus.COMPLETED, result.status)
+                self.assertEqual(initial_queries, queries)
+                self.assertEqual(1, len(payloads))
+                self.assertEqual(initial_count + 1, payloads[0]["max_retrieval_calls"])
+
+    async def test_second_gap_search_is_blocked_with_or_without_reflection(self):
+        for reflection_enabled in (True, False):
+            for initial_count in (1, 2, 3):
+                with self.subTest(
+                    reflection_enabled=reflection_enabled, initial_count=initial_count
+                ):
+                    initial_queries = [f"初始规则{i}" for i in range(initial_count)]
+                    payloads = []
+
+                    async def decide(payload):
+                        payloads.append(payload)
+                        return _retrieval_decision(
+                            payload,
+                            next_query=f"缺口规则{len(payload['search_history'])}",
+                        )
+
+                    runtime, binding, queries = _build_runtime(
+                        decide, reflection_enabled=reflection_enabled
+                    )
+                    result = await _run(
+                        runtime, binding, initial_queries=initial_queries
+                    )
+
+                    self.assertEqual(AgentRunStatus.HANDOFF, result.status)
+                    self.assertIn("retrieval_budget_exhausted", result.reason_code)
+                    self.assertEqual(
+                        initial_queries + [f"缺口规则{initial_count}"], queries
+                    )
+                    self.assertEqual(initial_count + 1, len(result.tool_events))
+                    self.assertEqual(initial_count + 1, payloads[-1]["max_retrieval_calls"])
+                    self.assertIn(
+                        f"最多执行{initial_count + 1}次知识检索",
+                        payloads[-1]["decision_prompt"],
+                    )
+
+    async def test_without_initial_batch_uses_configured_limit(self):
+        for limit in (1, 2, 3):
+            with self.subTest(limit=limit):
+                payloads = []
+
+                async def decide(payload):
+                    payloads.append(payload)
+                    return json.dumps({
+                        "action": "CALL_TOOL",
+                        "tool_name": "policy_lookup",
+                        "arguments": {"query": f"规则{len(payload['search_history'])}"},
+                    })
+
+                runtime, binding, queries = _build_runtime(
+                    decide, max_retrieval_calls=limit, reflection_enabled=False
+                )
+                result = await runtime.run(
+                    agent_type="general",
+                    system_prompt="test",
+                    message="查询公开规则",
+                    tool_binding=binding,
+                    intent_id="reflection-boundary",
+                )
+
+                self.assertEqual(AgentRunStatus.HANDOFF, result.status)
+                self.assertEqual("retrieval_budget_exhausted", result.reason_code)
+                self.assertEqual(limit, len(queries))
+                self.assertTrue(all(p["max_retrieval_calls"] == limit for p in payloads))
+
+    async def test_initial_batch_is_capped_at_three_queries(self):
+        payloads = []
+
+        async def decide(payload):
+            payloads.append(payload)
+            if len(payload["search_history"]) == 3:
+                return _retrieval_decision(payload, next_query="退款到账时限")
+            return _retrieval_decision(payload)
+
+        runtime, binding, queries = _build_runtime(decide)
+        result = await _run(
+            runtime, binding, initial_queries=[f"初始规则{i}" for i in range(5)]
+        )
+
+        self.assertEqual(AgentRunStatus.COMPLETED, result.status)
+        self.assertEqual(["初始规则0", "初始规则1", "初始规则2", "退款到账时限"], queries)
+        self.assertTrue(all(p["max_retrieval_calls"] == 4 for p in payloads))
+
+    async def test_other_initial_read_tools_do_not_increase_search_budget(self):
+        payloads = []
+
+        async def decide(payload):
+            payloads.append(payload)
+            return _retrieval_decision(
+                payload, next_query=f"缺口规则{len(payload['search_history'])}"
+            )
+
+        runtime, _binding, queries = _build_runtime(decide)
+
+        async def resource_read(params, context):
+            del params, context
+            return []
+
+        runtime._tool_manager.register(Tool(
+            name="resource_read",
+            description="read skill resource",
+            handler=resource_read,
+            schema={"type": "object", "properties": {"name": {"type": "string"}}},
+            allowed_agents=["general"],
+            capabilities=[SKILL_RESOURCE_READ],
+        ))
+        binding = ToolBroker(runtime._tool_manager).bind(
+            intent_id="reflection-boundary",
+            agent_type="general",
+            required_capabilities=[KNOWLEDGE_RETRIEVE, SKILL_RESOURCE_READ],
+        )
+        result = await runtime.run(
+            agent_type="general",
+            system_prompt="test",
+            message="查询公开规则",
+            tool_binding=binding,
+            intent_id="reflection-boundary",
+            initial_read_calls=[
+                {"tool_name": "resource_read", "arguments": {"name": "one"}},
+                {"tool_name": "policy_lookup", "arguments": {"query": "初始规则"}},
+                {"tool_name": "resource_read", "arguments": {"name": "two"}},
+            ],
+        )
+
+        self.assertEqual(AgentRunStatus.HANDOFF, result.status)
+        self.assertEqual("retrieval_budget_exhausted_with_query", result.reason_code)
+        self.assertEqual(["初始规则", "缺口规则1"], queries)
+        self.assertEqual(4, len(result.tool_events))
+        self.assertTrue(all(p["max_retrieval_calls"] == 2 for p in payloads))
+
+    async def test_concurrent_runs_keep_their_own_search_budget(self):
+        single_started = asyncio.Event()
+        payloads = []
+
+        async def decide(payload):
+            payloads.append(payload)
+            is_single = payload["search_history"][0]["query"] == "single规则0"
+            initial_count = 1 if is_single else 3
+            if is_single:
+                single_started.set()
+            else:
+                await asyncio.wait_for(single_started.wait(), timeout=2)
+            if len(payload["search_history"]) == initial_count:
+                return _retrieval_decision(
+                    payload, next_query="single补搜" if is_single else "multi补搜"
+                )
+            return _retrieval_decision(payload)
+
+        runtime, binding, queries = _build_runtime(decide)
+        multi_result, single_result = await asyncio.gather(
+            _run(runtime, binding, initial_queries=[f"multi规则{i}" for i in range(3)]),
+            _run(runtime, binding, initial_queries=["single规则0"]),
+        )
+
+        self.assertEqual(AgentRunStatus.COMPLETED, multi_result.status)
+        self.assertEqual(AgentRunStatus.COMPLETED, single_result.status)
+        self.assertEqual(6, len(queries))
+        for payload in payloads:
+            is_single = payload["search_history"][0]["query"] == "single规则0"
+            self.assertEqual(2 if is_single else 4, payload["max_retrieval_calls"])
+        self.assertEqual(2, runtime._max_retrieval_calls)
 
     def test_non_retrieval_observation_is_filtered_before_context_merge(self):
         state = BoundedAgentRuntime._retrieval_context_state([

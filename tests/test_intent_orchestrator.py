@@ -29,7 +29,7 @@ def build_orchestrator(decide, agents=None):
     registry = AgentRegistry(
         AgentRegistration(name, f"{name} work",
                           (agents or {}).get(name) or _Agent(name), name)
-        for name in ("rag_knowledge", "business_data_query", "business_operation")
+        for name in ("rag_knowledge", "business_data_query")
     )
     health = AgentHealthTracker()
     lead = SupervisorLead(context, agent_registry=registry, agent_health=health,

@@ -22,9 +22,9 @@ logger = logging.getLogger(__name__)
 SKILL_RESOURCE_TOOL = "skill_resource_read"
 
 _ALLOWED_AGENTS = {
-    "rag_knowledge",
-    "business_data_query",
-    "business_operation",
+    "subscription",
+    "billing",
+    "support",
     "escalation",
 }
 _FRONTMATTER_FIELDS = {

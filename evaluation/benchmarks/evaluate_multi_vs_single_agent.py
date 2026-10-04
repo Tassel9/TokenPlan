@@ -1,31 +1,17 @@
 # -*- coding: utf-8 -*-
 """多 Agent（Supervisor 编排）vs 单 Agent（单一通用 ReAct Agent）端到端对照评测。
 
-对照设计（单变量 = 编排层）：
+当前评测入口：
 
-* ``multi`` 臂 = 生产链路 ``IntentOrchestrator``：
-  Supervisor 语义决策（含意图候选 BGE 检索 / few-shot）→ 意图路由 →
-  1~N 个能力 Agent（每个 = 独立 ReAct 循环，前置检索 + ≤2 次补搜）→
-  多结果确定性汇总（IntentResponseComposer）→ ResponseGuard。
-* ``single`` 臂 = 评测侧 ``SingleAgentOrchestrator``（本文件内实现，不改生产代码）：
-  一个**通用** ReAct Agent 直接处理整条用户消息 → ResponseGuard。
+* ``multi`` 臂运行当前生产链路：主意图识别与 Supervisor 审核 → 三个父意图
+  领域 Agent → FAQ / 单跳 / Agentic RAG 工具 → 结果汇总与 ResponseGuard。
+* ``single`` 臂保留历史平铺基线：一个通用 ReAct 执行单元内联全部领域技能，
+  只使用 knowledge_search 混合检索与重排，不做父意图分工或检索工具分层。
 
-两臂**完全一致**的部分（控制变量）：
-  记忆读取（短期/长期/CaseState）、SQLite 会话与回合写回、RequestControlPolicy
-  确定性控制层、ToolRegistry/ToolBroker 工具治理、knowledge_search 检索链路
-  （Dense+FTS5+RRF+BGE 重排）、BoundedAgentRuntime 的 ReAct 循环与动作协议、
-  ResponseGuard 护栏、trace 采集、同一模型与同一并发闸门。
-
-两臂**刻意不同**的部分（实验变量）：
-  Supervisor 决策与意图候选检索、能力 Agent 分工与多 Agent 调度、
-  跨 Agent 结果汇总、技能注入方式（多 Agent=按意图注入 1~2 个知识技能；
-  单 Agent=全部 5 个技能与资源全量注入，保证信息能力对齐）。
-
-已知不对称（诚实披露）：
-  * 单 Agent 臂不做 Supervisor 的 rewrite/实体继承，检索 query 为原始消息；
-    但确定性实体抽取（plan/model/ide/date/error_code/amount）与治理 as_of
-    对所有臂一致生效。
-  * 单 Agent 臂不暴露 skill_resource_read（资源正文已全量内联在提示中）。
+两臂共用记忆服务、模型、工具治理、会话写回与响应护栏。当前比较同时包含
+编排和检索工具选择的差异，不能解释为只改变 Agent 数量的单变量实验。
+历史冻结报告保持原有定义；当前架构的效果需要重新运行后才有证据。
+单臂不做 Supervisor rewrite/实体继承，也不暴露 skill_resource_read。
 
 指标：任务级成功率（确定性断言 + LLM Judge 双口径）、pass@k / pass^k、
 单轮延迟 p50/p95/mean、LLM 调用数与 token 用量、HANDOFF/ASK_USER 分布。
@@ -77,9 +63,9 @@ DEFAULT_COMPARE_REPORT = REPORT_DIR / "e2e_multi_vs_single_v1.json"
 
 ARM_DEFINITIONS: Dict[str, Dict[str, str]] = {
     "multi_agent": {
-        "orchestration": "Supervisor 语义决策 → 意图路由 → 1~N 能力 Agent → 结果汇总",
+        "orchestration": "Supervisor 语义决策 → 父意图领域 Agent → 结果汇总",
         "supervisor_decision": "有（意图识别 + rewrite + 候选 few-shot 检索 + 调度）",
-        "domain_agents": "按意图派发 1~N 个（rag_knowledge / business_data_query / business_operation）",
+        "domain_agents": "套餐与权益 / 交易与账务 / 用户支持",
         "result_merge": "IntentResponseComposer 确定性汇总",
         "skill_injection": "按意图确定性映射 1~2 个知识技能",
     },
@@ -88,7 +74,7 @@ ARM_DEFINITIONS: Dict[str, Dict[str, str]] = {
         "supervisor_decision": "无",
         "domain_agents": "1 个（单一综合提示，覆盖全部业务域）",
         "result_merge": "无（单 Agent 输出即最终答复）",
-        "skill_injection": "全部 5 个技能与资源全量内联",
+        "skill_injection": "三个领域的全部技能与资源全量内联",
     },
 }
 
@@ -108,12 +94,12 @@ SINGLE_AGENT_BASE_PROMPT = (
     "只返回结构化动作，不输出内部推理。"
 )
 
-# 能力型 Agent 架构下，知识类技能统一归属 RAG 知识 Agent。
-_SKILL_OWNER = "rag_knowledge"
+# 评测侧平铺全部领域技能；生产团队仍只有三个父意图 Agent。
+_SKILL_OWNERS = ("subscription", "billing", "support")
 
 
 def load_skill_sections(skills: Any) -> Tuple[str, List[Dict[str, Any]]]:
-    """把 RAG 知识 Agent 的全部技能（含资源正文）拼成单 Agent 的系统提示片段。
+    """把三个领域的全部技能（含资源正文）拼成评测基线的系统提示片段。
 
     ``bind_for_agent`` 硬限制单次最多 2 个技能，这里分批绑定后合并；
     资源正文直接内联（单 Agent 没有 Supervisor 的按需披露通路，全量注入是
@@ -122,35 +108,36 @@ def load_skill_sections(skills: Any) -> Tuple[str, List[Dict[str, Any]]]:
 
     sections: List[str] = []
     manifest: List[Dict[str, Any]] = []
-    metas = list(skills.list_for_agent(_SKILL_OWNER))
-    for start in range(0, len(metas), 2):
-        chunk = [item.skill_id for item in metas[start:start + 2]]
-        if not chunk:
-            continue
-        bindings = skills.bind_for_agent(_SKILL_OWNER, chunk)
-        for binding in bindings:
-            parts = [
-                f"## 技能 {binding.skill_id}@{binding.version}",
-                binding.core_instructions.strip(),
-            ]
-            resource_rows: List[Dict[str, Any]] = []
-            for resource in binding.resources:
-                parts.append(
-                    f"### 资源 {resource.resource_id}（{resource.kind}）: "
-                    f"{resource.title}\n{resource.content.strip()}"
-                )
-                resource_rows.append({
-                    "resource_id": resource.resource_id,
-                    "kind": resource.kind,
-                    "chars": len(resource.content),
+    for owner in _SKILL_OWNERS:
+        metas = list(skills.list_for_agent(owner))
+        for start in range(0, len(metas), 2):
+            chunk = [item.skill_id for item in metas[start:start + 2]]
+            if not chunk:
+                continue
+            bindings = skills.bind_for_agent(owner, chunk)
+            for binding in bindings:
+                parts = [
+                    f"## 技能 {binding.skill_id}@{binding.version}",
+                    binding.core_instructions.strip(),
+                ]
+                resource_rows: List[Dict[str, Any]] = []
+                for resource in binding.resources:
+                    parts.append(
+                        f"### 资源 {resource.resource_id}（{resource.kind}）: "
+                        f"{resource.title}\n{resource.content.strip()}"
+                    )
+                    resource_rows.append({
+                        "resource_id": resource.resource_id,
+                        "kind": resource.kind,
+                        "chars": len(resource.content),
+                    })
+                sections.append("\n\n".join(parts))
+                manifest.append({
+                    "skill_id": binding.skill_id,
+                    "owner": owner,
+                    "version": binding.version,
+                    "resources": resource_rows,
                 })
-            sections.append("\n\n".join(parts))
-            manifest.append({
-                "skill_id": binding.skill_id,
-                "owner": _SKILL_OWNER,
-                "version": binding.version,
-                "resources": resource_rows,
-            })
     return "\n\n".join(sections), manifest
 
 
@@ -158,7 +145,7 @@ class SingleAgentOrchestrator:
     """单 Agent 臂：与 ``IntentOrchestrator`` 同接口面的最小编排器。
 
     只保留：RequestControlPolicy 确定性控制 → 单个通用 ReAct Agent
-    （与能力 Agent 相同的 BoundedAgentRuntime / 工具治理 / 前置检索 / 补搜上限）
+    （历史混合检索基线；共用 BoundedAgentRuntime 和工具治理）
     → ResponseGuard。去掉 Supervisor 决策、意图路由、多 Agent 调度与结果汇总。
     """
 
@@ -290,11 +277,10 @@ class SingleAgentOrchestrator:
 
         intent_id = f"single-{req.request_id}"
         binding_started = time.monotonic()
-        # 单 Agent 臂以 rag_knowledge 身份借用生产知识工具白名单：该臂覆盖的
-        # 任务以知识检索为主，与能力型架构下的知识 Agent 共享同一检索面。
+        # 历史平铺基线借用 subscription 的公共检索权限，不注册第四个生产 Agent。
         tool_binding = self._broker.bind(
             intent_id=intent_id,
-            agent_type=AgentType.RAG_KNOWLEDGE.value,
+            agent_type=AgentType.SUBSCRIPTION.value,
             required_capabilities=(KNOWLEDGE_RETRIEVE,),
             optional_capabilities=(),
         )
@@ -331,7 +317,7 @@ class SingleAgentOrchestrator:
 
         result = await self._runtime.run(
             run_id=f"{req.request_id}-single",
-            agent_type=AgentType.RAG_KNOWLEDGE.value,
+            agent_type=AgentType.SUBSCRIPTION.value,
             system_prompt=self.system_prompt,
             message=req.message,
             context=self._build_context(req),
@@ -389,11 +375,11 @@ class SingleAgentOrchestrator:
         return IntentOrchestratorResult(
             request_id=req.request_id,
             response=guarded.response,
-            agent_type=AgentType.RAG_KNOWLEDGE,
+            agent_type=AgentType.SUBSCRIPTION,
             intents=[],
             escalated=escalated,
             latency_ms=(time.monotonic() - started) * 1000,
-            agent_types=[AgentType.RAG_KNOWLEDGE],
+            agent_types=[AgentType.SUBSCRIPTION],
             status=status,
             reason_code="+".join(
                 dict.fromkeys(code for code in reason_codes if code)

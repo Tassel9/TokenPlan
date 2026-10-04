@@ -1,11 +1,11 @@
-"""单意图知识问题快速通道：跳过 Supervisor 两次 LLM 规划，直接委派知识型 Agent。"""
+"""历史完整意图集合的注入兼容：知识快速通道直接委派知识型 Agent。"""
 import unittest
 from types import SimpleNamespace
 
 from agents.agent_registry import AgentRegistration, AgentRegistry
 from agents.intent_orchestrator import IntentOrchestrator, Request
 from agents.specialist_agents import AgentExecution, IntentExecutionMeta
-from core.intent_recognizer import IntentRecognitionOutcome
+from core.intent_pipeline import IntentRecognitionOutcome
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import SupervisorDecisionValidator
 from core.supervisor_few_shot_retriever import FewShotRetrieval
@@ -105,7 +105,7 @@ def _build(recognizer, plan, *, fast_path_enabled=True):
     context = SupervisorContext("test", base_url="https://example.invalid")
     agents = {
         name: _Agent(name)
-        for name in ("rag_knowledge", "business_data_query", "business_operation")
+        for name in ("subscription", "business_data_query")
     }
     registry = AgentRegistry(
         AgentRegistration(name, f"{name} work", agent, name)
@@ -140,9 +140,9 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
         result = await orchestrator.run(Request(QUERY, "u1", "c1"))
 
         self.assertEqual("COMPLETED", result.status)
-        self.assertEqual("rag_knowledge完成", result.response)
+        self.assertEqual("subscription完成", result.response)
         self.assertEqual([], plan_calls)
-        self.assertEqual(1, agents["rag_knowledge"].calls)
+        self.assertEqual(1, agents["subscription"].calls)
         self.assertEqual(
             "single_intent_fast_path", result.intent_dispatch["strategy"]
         )
@@ -152,7 +152,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
         )
         stage = result.supervisor_coordination["stages"][0]
         self.assertTrue(stage["barrier_satisfied"])
-        self.assertEqual("rag_knowledge", stage["messages"][0]["recipient"])
+        self.assertEqual("subscription", stage["messages"][0]["recipient"])
         self.assertEqual(
             ["subscription_info_query"],
             [item.value for item in result.intents],
@@ -169,7 +169,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled",
                     "messages": [
                         {
-                            "recipient": "rag_knowledge",
+                            "recipient": "subscription",
                             "content": "查询套餐差异并排查登录问题",
                             "intent_ids": [
                                 "intent-1-subscription_info_query",
@@ -199,7 +199,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
             "supervisor_handoff_routing", result.intent_dispatch["strategy"]
         )
         self.assertNotIn("single_intent_fast_path", result.reason_code)
-        self.assertEqual(1, agents["rag_knowledge"].calls)
+        self.assertEqual(1, agents["subscription"].calls)
 
     async def test_non_knowledge_intent_keeps_supervisor_planning(self):
         plan_calls = []
@@ -213,7 +213,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled",
                     "messages": [
                         {
-                            "recipient": "rag_knowledge",
+                            "recipient": "subscription",
                             "content": "退款办理说明",
                             "intent_ids": ["intent-1-refund_handling"],
                         },
@@ -286,7 +286,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
                     "barrier": "all_settled",
                     "messages": [
                         {
-                            "recipient": "rag_knowledge",
+                            "recipient": "subscription",
                             "content": "查询套餐差异",
                             "intent_ids": ["intent-1-subscription_info_query"],
                         },
@@ -310,7 +310,7 @@ class SingleIntentFastPathTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(
             "supervisor_handoff_routing", result.intent_dispatch["strategy"]
         )
-        self.assertEqual(1, agents["rag_knowledge"].calls)
+        self.assertEqual(1, agents["subscription"].calls)
 
 
 if __name__ == "__main__":

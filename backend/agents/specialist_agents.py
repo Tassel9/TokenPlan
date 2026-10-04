@@ -6,14 +6,16 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from memory.procedural_memory import ProceduralMemory
+from core.simple_faq_policy import POLICY_VERSION as SIMPLE_FAQ_POLICY_VERSION, simple_faq_intent
+from mcp.retrieval_contracts import FAQ_SEARCH
 from mcp.tool_capabilities import (
-    BUSINESS_DATA_QUERY,
-    BUSINESS_OPERATION_EXECUTE,
+    KNOWLEDGE_AGENTIC,
+    KNOWLEDGE_FAQ,
     KNOWLEDGE_RETRIEVE,
     SKILL_RESOURCE_READ,
 )
@@ -36,9 +38,9 @@ _CHINESE_FULL_DATE = re.compile(
 )
 _INTENT_SKILLS = {
     "subscription_info_query": "plan-benefits",
-    "subscription_purchase": "billing-policy",
-    "subscription_change": "billing-policy",
-    "subscription_cancel": "billing-policy",
+    "subscription_purchase": "subscription-policy",
+    "subscription_change": "subscription-policy",
+    "subscription_cancel": "subscription-policy",
     "payment_issue": "billing-policy",
     "invoice_handling": "billing-policy",
     "refund_handling": "refund-policy",
@@ -68,9 +70,12 @@ def select_skill_ids(
 
 
 class AgentType(str, Enum):
+    SUBSCRIPTION = "subscription"
+    BILLING = "billing"
+    SUPPORT = "support"
+    # Compatibility IDs for persisted traces and explicitly injected old teams.
     RAG_KNOWLEDGE = "rag_knowledge"
     BUSINESS_DATA_QUERY = "business_data_query"
-    BUSINESS_OPERATION = "business_operation"
 
 
 @dataclass(frozen=True)
@@ -97,6 +102,7 @@ class AgentInput:
     collaboration_context: Dict[str, Any] = field(default_factory=dict)
     prior_result: Dict[str, Any] = field(default_factory=dict)
     trace_recorder: Any = None
+    faq_prefetch_allowed: bool = True
 
 
 @dataclass
@@ -153,6 +159,7 @@ class BaseAgent:
         baseline_capabilities=(KNOWLEDGE_RETRIEVE,),
     )
     backend_required_patterns: tuple[re.Pattern[str], ...] = ()
+    optional_tool_capabilities: tuple[str, ...] = ()
     backend_unavailable_message = (
         "当前未接入对应业务后台，无法核验具体状态，建议转人工客服继续处理。"
     )
@@ -236,6 +243,7 @@ class BaseAgent:
                 ))
                 required = self.execution_profile.requirements_for(capabilities)
                 optional = self.execution_profile.optional_capabilities_for(capabilities)
+                optional = tuple(dict.fromkeys((*optional, *self.optional_tool_capabilities)))
                 tool_binding = self._tool_broker.bind(
                     intent_id=req.intent_id,
                     agent_type=self.agent_type.value,
@@ -385,19 +393,7 @@ class BaseAgent:
                 trace=req.trace_recorder,
                 intent_id=req.intent_id,
                 evidence_records={},
-                initial_read_calls=(
-                    [
-                        {
-                            "tool_name": "knowledge_search",
-                            "arguments": {"query": clause, "top_k": 5},
-                        }
-                        for clause in _split_retrieval_queries(req.execution_query)
-                    ]
-                    if self._initial_retrieval_enabled
-                    and tool_binding is not None
-                    and "knowledge_search" in tool_binding.tool_names
-                    else None
-                ),
+                initial_read_calls=self._initial_read_calls(req, tool_binding),
             )
             return self._finish(
                 req,
@@ -439,6 +435,12 @@ class BaseAgent:
                 bindings=bindings,
                 tool_binding=tool_binding,
             )
+
+    def _initial_read_calls(self, req: AgentInput, tool_binding: Optional[ToolBinding]) -> Optional[List[Dict[str, Any]]]:
+        if self._initial_retrieval_enabled and tool_binding is not None and "knowledge_search" in tool_binding.tool_names:
+            return [{"tool_name": "knowledge_search", "arguments": {"query": clause, "top_k": 5}}
+                    for clause in _split_retrieval_queries(req.execution_query)]
+        return None
 
     def _finish(
         self,
@@ -543,33 +545,69 @@ def _split_retrieval_queries(query: str, *, limit: int = 3) -> List[str]:
     return merged
 
 
-class RAGKnowledgeAgent(BaseAgent):
-    """Answer public and unstructured questions from governed knowledge."""
+class DomainAgent(BaseAgent):
+    """Own one parent intent and choose a retrieval tool for each question."""
 
-    agent_type = AgentType.RAG_KNOWLEDGE
+    optional_tool_capabilities = (KNOWLEDGE_FAQ, KNOWLEDGE_RETRIEVE, KNOWLEDGE_AGENTIC)
+    backend_required_patterns = ()
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # Only a validated, complete public FAQ receives automatic retrieval.
+        # Other requests still choose FAQ / single-hop / agentic in the model.
+        kwargs["initial_retrieval_enabled"] = False
+        super().__init__(*args, **kwargs)
+
+    async def handle(self, req: AgentInput) -> AgentExecution:
+        execution = await super().handle(req)
+        if any(step.get("tool_name") == FAQ_SEARCH and step.get("reason_code") == "initial_retrieval"
+               for step in execution.meta.steps):
+            execution.meta.routing.update({"retrieval_policy": SIMPLE_FAQ_POLICY_VERSION,
+                                           "retrieval_path": "faq_prefetch"})
+        for event in reversed(execution.meta.tool_events):
+            if event.get("tool_name") != "agentic_rag" or not event.get("success"):
+                continue
+            outcome = (event.get("evidence_metadata") or {}).get("agentic_rag") or {}
+            if outcome.get("status") not in {"WAITING_USER", "HANDOFF", "FAILED"}:
+                continue
+            status = "WAITING_USER" if outcome["status"] == "WAITING_USER" else "HANDOFF"
+            execution.meta.escalated = status == "HANDOFF"
+            return AgentExecution(replace(
+                execution.result,
+                status=status,
+                conclusion=str(outcome.get("answer") or self.backend_unavailable_message),
+                reason_code=str(outcome.get("reason_code") or "agentic_rag_unresolved"),
+                open_items=[str(outcome.get("answer") or self.backend_unavailable_message)],
+            ), execution.meta)
+        return execution
+
+    def _initial_read_calls(self, req: AgentInput, tool_binding: Optional[ToolBinding]) -> Optional[List[Dict[str, Any]]]:
+        label = simple_faq_intent(req.execution_query)
+        # The template never overrides frozen labels or a multi-intent task.
+        if not req.faq_prefetch_allowed or label is None or req.intent.strip() != label:
+            return None
+        if tool_binding is None or FAQ_SEARCH not in tool_binding.tool_names:
+            return None
+        return [{"tool_name": FAQ_SEARCH, "arguments": {"query": req.execution_query, "top_k": 5}}]
+
     public_policy_question = re.compile(
         r"(?:怎么|如何|什么条件|哪些条件|规则|政策|流程|步骤|需要什么|多久)"
     )
     personal_record_question = re.compile(
         r"(?:我的|本人|当前账户|我的订阅|我的套餐|我的额度|我的账单|我的退款|处理进度)"
     )
-    backend_required_patterns = (
-        re.compile(
-            r"(?:我的|本人|当前账户).{0,24}"
-            r"(?:订阅|套餐|额度|工作区|账户|订单|账单|退款).{0,16}"
-            r"(?:状态|进度|剩余|明细|结果|什么时候)"
-        ),
-        re.compile(
-            r"(?:帮我|请把|请为|我要).{0,24}"
-            r"(?:导出|修改|暂停|提交|生成|邀请|解锁|注销|购买|退款|开票)"
-        ),
-    )
     backend_unavailable_message = (
         "知识库只能回答公开规则，无法核验或修改用户的订单、账单、退款、订阅或账户状态，"
-        "请交给对应的数据查询或业务办理能力。"
+        "私有业务数据请交给只读查询能力；业务办理请询问用户是否需要转人工。"
     )
     system_prompt = (
-        "你是 TokenPlan RAG 知识库执行单元，只负责基于检索证据回答公开规则、产品说明和故障排查知识。"
+        "你是 TokenPlan 的领域咨询执行单元，根据本领域冻结诉求选择合适的只读工具。"
+        "FAQ、常见问答和单一明确事实使用 faq_search（简单向量 RAG）；"
+        "单跳问题使用 knowledge_search（关键词与向量混合召回加重排）；"
+        "多跳、需要多份证据关联或判断证据是否充分的问题使用 agentic_rag。"
+        "查询个人订单、当前套餐、权益和剩余额度时也必须使用 agentic_rag："
+        "resource=order 查询订单并携带 record_id，resource=account 查询当前套餐与权益；"
+        "公开知识问题使用 resource=knowledge。未取得只读后台记录时不能核验个人状态。"
+        "agentic_rag 返回 WAITING_USER 或 HANDOFF 时保留其未解决状态与问题，不得改写为已完成。"
         "不得把公开知识推断成用户本人的订单、账单、退款、订阅或账户状态，也不得执行写操作。"
         "用户要求“简单说/简短重述/再简单点”时，输出精简要点（保留结论与关键步骤），不得重复上一条的完整细节。"
         "问题涉及团队/多人场景时，结合并发占用、共享凭据与配置、网络侧因素给出针对性分析。"
@@ -579,54 +617,53 @@ class RAGKnowledgeAgent(BaseAgent):
         "证据不完整或检索不可用时，先在结论中给出已确认的公开信息与官方自助路径（如官方重置入口、订阅页说明），"
         "再说明需人工核验的剩余部分，不得只写“转人工”。"
         "委派消息同时包含多个子诉求（多个意图）时，必须逐一回应每个子诉求的核心问题，不得只回答其中一部分。"
-        "描述情景或可能性时，不要使用“已退款”“已取消订阅”“已提交退款”等“已+写操作动词”的措辞（会被安全护栏视为声称操作完成），"
-        "改用“退款完成后”“退订生效后”等中性表达。"
+        "描述情景或可能性时，不要使用“已退款”“已取消订阅”“已提交退款”“已开票”等“已+写操作动词”的措辞（会被安全护栏视为声称操作完成），"
+        "改用“退款完成后”“退订生效后”“发票开具后”等中性表达；列举退款资格的例外时也遵守此规则。"
         "涉及缓存、限额、时效等机制说明时，明确其尽力而为、非持久或不保证的特性，以官方文档与实际响应为准，不夸大效果。"
         "指引核验账户、套餐或计费状态时，给出具体操作入口（如官方控制台、账单或套餐页面），不要只让用户“确认状态”。"
-        "超出知识检索边界时必须 HANDOFF，不得猜测。"
+        "要求代购、提交退款、退订、开票或账户修改时先回答可回答的咨询，再使用 ASK_USER 动作，message 中必须明确问是否需要转人工客服办理。"
+        "用户尚未确认转人工时，代办请求禁止选择 FINAL 或 HANDOFF，不能只问是否还要查询公开规则；不得声称已办理或已转接。"
+        "没有可验证证据时澄清或建议人工核验，不得猜测。"
         "只返回结构化动作，不输出内部推理。"
     )
 
 
-class BusinessDataQueryAgent(BaseAgent):
-    """Query user-scoped structured business data without changing it."""
-
-    agent_type = AgentType.BUSINESS_DATA_QUERY
+class SubscriptionAgent(DomainAgent):
+    parent_domain = "套餐与权益"
+    agent_type = AgentType.SUBSCRIPTION
     execution_profile = ExecutionProfile(
-        profile_id="business-data-query-v1",
-        baseline_capabilities=(BUSINESS_DATA_QUERY,),
-    )
-    backend_required_patterns = (re.compile(r".", re.DOTALL),)
-    backend_unavailable_message = (
-        "当前尚未接入只读业务数据查询后端，无法核验用户的订单、账单、退款或账户状态，"
-        "请转人工客服继续处理。"
+        profile_id="subscription-consultation-v1",
+        baseline_capabilities=DomainAgent.optional_tool_capabilities,
     )
     system_prompt = (
-        "你是 TokenPlan 结构化信息查询执行单元，只负责通过受控只读工具查询用户自己的业务数据。"
-        "不得把知识库规则当作用户的真实订单、账单、退款或账户状态。"
-        "没有可验证的数据查询结果时必须 HANDOFF，不得猜测。"
-        "只返回结构化动作，不输出内部推理。"
+        "你的父意图是套餐与权益，负责套餐信息、购买流程、变更、退订和权益咨询。"
+        + DomainAgent.system_prompt
     )
 
 
-class BusinessOperationAgent(BaseAgent):
-    """Execute approved state-changing business operations."""
-
-    agent_type = AgentType.BUSINESS_OPERATION
+class BillingAgent(DomainAgent):
+    parent_domain = "交易与账务"
+    agent_type = AgentType.BILLING
     execution_profile = ExecutionProfile(
-        profile_id="business-operation-v1",
-        baseline_capabilities=(BUSINESS_OPERATION_EXECUTE,),
-    )
-    backend_required_patterns = (re.compile(r".", re.DOTALL),)
-    backend_unavailable_message = (
-        "当前尚未接入可审计的业务办理后端，无法执行订阅、退款、发票或账户变更，"
-        "请转人工客服继续处理。"
+        profile_id="billing-consultation-v1",
+        baseline_capabilities=DomainAgent.optional_tool_capabilities,
     )
     system_prompt = (
-        "你是 TokenPlan 业务办理执行单元，只负责通过受控工具执行会改变业务状态的操作。"
-        "执行前必须满足工具侧身份、权限、确认和幂等约束。"
-        "没有可验证的执行回执时必须 HANDOFF，不得声称操作成功。"
-        "只返回结构化动作，不输出内部推理。"
+        "你的父意图是交易与账务，负责支付异常、发票和退款咨询。"
+        + DomainAgent.system_prompt
+    )
+
+
+class SupportAgent(DomainAgent):
+    parent_domain = "用户支持"
+    agent_type = AgentType.SUPPORT
+    execution_profile = ExecutionProfile(
+        profile_id="support-consultation-v1",
+        baseline_capabilities=DomainAgent.optional_tool_capabilities,
+    )
+    system_prompt = (
+        "你的父意图是用户支持，负责登录、安全指引、技术排障、投诉和反馈。"
+        + DomainAgent.system_prompt
     )
 
 

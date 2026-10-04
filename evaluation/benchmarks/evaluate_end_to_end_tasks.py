@@ -251,6 +251,14 @@ def evaluate_deterministic(task: Dict[str, Any], session: Dict[str, Any]) -> Dic
         checks["final_not_contains"] = _contains_none(
             final_text, criteria["final_not_contains"]
         )
+    final_turn = turns[-1] if turns else {}
+    if "final_response_action" in criteria:
+        checks["final_response_action"] = final_turn.get("response_action") == criteria["final_response_action"]
+    if "final_escalated" in criteria:
+        checks["final_escalated"] = final_turn.get("escalated") is criteria["final_escalated"]
+    if criteria.get("no_write_tools"):
+        checks["no_write_tools"] = not any(event.get("side_effect") == "write"
+            for turn in turns for event in turn.get("tool_events", []))
     checks["no_errors"] = not any(turn.get("error") for turn in turns)
     ok = all(checks.values()) if checks else None
     return {"checks": checks, "ok": ok}
@@ -340,6 +348,9 @@ async def run_single(
                         item.value if hasattr(item, "value") else str(item)
                         for item in (result.intents or [])
                     ],
+                    "primary_intent": (
+                        result.primary_intent.value if result.primary_intent else None
+                    ),
                     "agent_types": [
                         item.value if hasattr(item, "value") else str(item)
                         for item in (result.agent_types or [])
@@ -362,6 +373,10 @@ async def run_single(
                             "dispatch_latency_ms",
                             "source_status",
                             "intent_confidence",
+                            "analysis",
+                            "stages",
+                            "handoff_confirmation_intent_ids",
+                            "intent_recognition",
                         }
                     },
                     "request_control": dict(result.request_control or {}),

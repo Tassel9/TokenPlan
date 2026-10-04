@@ -1,4 +1,4 @@
-"""Evaluate the isolated IntentRecognizer rewrite and multi-label analysis."""
+"""Evaluate context preparation and recognition through their outer pipeline."""
 from __future__ import annotations
 
 import argparse
@@ -16,22 +16,27 @@ from typing import Any, Dict, Iterable, List, Sequence
 from dotenv import load_dotenv
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+BACKEND = ROOT / "backend"
+if str(BACKEND) not in sys.path:
+    sys.path.insert(0, str(BACKEND))
 
 from core.deepseek_client import load_deepseek_config
-from core.embedding_provider import BGE_DEFAULT_MODEL, BGE_DEFAULT_REVISION, BGEEmbeddingProvider
+from core.embedding_provider import (
+    BGE_DEFAULT_MODEL,
+    BGE_DEFAULT_REVISION,
+    DEFAULT_EMBEDDING_CACHE_SIZE,
+    BGEEmbeddingProvider,
+)
+from core.intent_embedding import IntentEmbeddingIndex
+from core.intent_pipeline import IntentRecognitionPipeline
 from core.intent_recognizer import IntentRecognizer
-from core.intent_recognition_tool import JevIntentRecognitionTool
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import FineGrainedIntent
-from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from core.request_control import RequestControlAction, RequestControlPolicy
 
 
-DEFAULT_FIXTURE = ROOT / "evaluation" / "fixtures" / "supervisor_intent_final_v1.json"
-DEFAULT_FEW_SHOTS = ROOT / "evaluation" / "fixtures" / "supervisor_few_shots_v1.json"
-DEFAULT_OUTPUT = ROOT / "evaluation" / "reports" / "supervisor_intent_latest_run.json"
+DEFAULT_FIXTURE = ROOT / "evaluation" / "fixtures" / "supervisor_intent_final_v2.json"
+DEFAULT_OUTPUT = ROOT / "evaluation" / "reports" / "supervisor_intent_current_v2_latest_run.json"
 
 
 def load_fixture(path: pathlib.Path) -> Dict[str, Any]:
@@ -75,7 +80,11 @@ def calculate_metrics(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     micro_f1 = (2 * micro_precision * micro_recall / (micro_precision + micro_recall)
                 if micro_precision + micro_recall else 0.0)
     latencies = [float(row["latency_ms"]) for row in rows]
-    structural_success = sum(not row.get("error") for row in rows)
+    structural_success = sum(
+        not row.get("error")
+        and row.get("recognition_reason_code") != "intent_tree_unavailable"
+        for row in rows
+    )
     return {"case_count": len(rows), "intent_set_exact_match": round(exact / len(rows), 6) if rows else 0.0,
             "macro_f1": round(statistics.mean(f1_values), 6), "micro_f1": round(micro_f1, 6),
             "structural_success_rate": round(structural_success / len(rows), 6) if rows else 0.0,
@@ -98,87 +107,81 @@ def calculate_slice_metrics(rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     return result
 
 
-def contract_report(fixture: pathlib.Path, few_shots: pathlib.Path) -> Dict[str, Any]:
+def contract_report(fixture: pathlib.Path) -> Dict[str, Any]:
     dataset = load_fixture(fixture)
-    examples = json.loads(few_shots.read_text(encoding="utf-8"))["examples"]
-    dataset_messages = {str(case["message"]).strip() for case in dataset["cases"]}
-    example_messages = {str(item["query"]).strip() for item in examples}
+    cases = dataset["cases"]
+    metadata = dataset.get("metadata", {})
     labels = {item.value for item in FineGrainedIntent}
-    example_labels = {label for item in examples for label in item["expected"].get("intents", [])}
-    negative_example_labels = {
-        label for item in examples
-        for label in item["expected"].get("negative_labels", [])
+    observed_labels = {
+        label for case in cases for label in case.get("expected_intents", [])
     }
-    confusion_negative_labels = {
-        label
-        for item in examples
-        for label in item["expected"].get("negative_labels", [])
-        if label not in item["expected"].get("intents", [])
-        and bool(item["expected"].get("intents", []))
-    }
+    case_ids = [str(case.get("id") or "").strip() for case in cases]
+    messages = [str(case.get("message") or "").strip() for case in cases]
+    target_count = int(metadata.get("construction", {}).get("target_case_count", 0))
     checks = {
-        "fixture_is_frozen": dataset.get("metadata", {}).get("frozen") is True,
-        "few_shots_have_no_exact_holdout_overlap": not (dataset_messages & example_messages),
-        "few_shot_ids_unique": len({item["id"] for item in examples}) == len(examples),
-        "few_shots_are_approved": all(item.get("review_status") == "approved" for item in examples),
-        "few_shot_labels_known": example_labels <= labels,
-        "each_label_has_positive_few_shot": example_labels == labels,
-        "each_label_has_negative_few_shot": negative_example_labels == labels,
-        "each_label_has_confusion_hard_negative": confusion_negative_labels == labels,
-        "positive_and_negative_labels_are_disjoint": all(
-            not (
-                set(item["expected"].get("intents", []))
-                & set(item["expected"].get("negative_labels", []))
-            )
-            for item in examples
+        "fixture_is_frozen": metadata.get("frozen") is True,
+        "case_count_matches_target": len(cases) == target_count,
+        "case_ids_are_nonempty_and_unique": (
+            all(case_ids) and len(set(case_ids)) == len(case_ids)
+        ),
+        "messages_are_nonempty_and_unique": (
+            all(messages) and len(set(messages)) == len(messages)
+        ),
+        "gold_labels_are_known": observed_labels <= labels,
+        "each_runtime_label_is_represented": observed_labels == labels,
+        "gold_labels_are_not_model_generated": (
+            metadata.get("construction", {}).get("model_output_used_for_gold_labels")
+            is False
         ),
         "runtime_label_count_is_13": len(labels) == 13,
         "request_control_matches_fixture": all(
             RequestControlPolicy.evaluate(str(case["message"])).action.value
             == str(case.get("expected_control_action") or "continue")
-            for case in dataset["cases"]
+            for case in cases
         ),
     }
-    return {"schema_version": "supervisor-semantic-evaluation-v2", "mode": "contract",
+    return {"schema_version": "supervisor-semantic-evaluation-v3", "mode": "contract",
             "status": "passed" if all(checks.values()) else "blocked", "production_evidence": False,
             "fixture": str(fixture), "fixture_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
-            "few_shots": str(few_shots), "few_shots_sha256": hashlib.sha256(few_shots.read_bytes()).hexdigest(),
-            "case_count": len(dataset["cases"]), "checks": checks,
-            "boundary": "Schema, split isolation, and reviewed-example checks only; no model quality claim."}
+            "case_count": len(cases), "checks": checks,
+            "boundary": "Schema and coverage checks only; no model quality or production claim."}
 
 
 async def live_report(
     fixture: pathlib.Path,
-    few_shots: pathlib.Path,
     limit: int = 0,
     evaluation_role: str = "regression_after_iteration",
-    intent_tool_backend: str = "disabled",
 ) -> Dict[str, Any]:
     load_dotenv(ROOT / ".env")
     config = load_deepseek_config()
     context = SupervisorContext(config["api_key"], base_url=config.get("base_url"), model=config["model"])
-    provider = BGEEmbeddingProvider(BGE_DEFAULT_MODEL, revision=BGE_DEFAULT_REVISION)
-    retriever = SupervisorFewShotRetriever(str(few_shots), embedding_provider=provider)
-    intent_tool = None
-    if intent_tool_backend == "jev":
-        intent_tool = JevIntentRecognitionTool(
-            api_key=os.getenv("TYPESAFE_API_KEY", ""),
-            model=os.getenv("SUPERVISOR_JEV_MODEL", "jev-1.13.0"),
-            base_url=os.getenv("TYPESAFE_BASE_URL", "https://api.typesafe.ai"),
-            candidate_threshold=float(os.getenv(
-                "SUPERVISOR_JEV_CANDIDATE_THRESHOLD", "0.20"
-            )),
-            recommendation_threshold=float(os.getenv(
-                "SUPERVISOR_JEV_RECOMMENDATION_THRESHOLD", "0.80"
-            )),
-            timeout_s=float(os.getenv("SUPERVISOR_JEV_TIMEOUT_SECONDS", "10")),
-        )
-    elif intent_tool_backend != "disabled":
-        raise ValueError(f"unsupported intent tool backend: {intent_tool_backend}")
-    recognizer = IntentRecognizer(
+    top_k = int(os.getenv("INTENT_EMBEDDING_TOP_K", "6"))
+    fusion_alpha = float(os.getenv("INTENT_FUSION_ALPHA", "0.10"))
+    clear_threshold = float(os.getenv("INTENT_CLEAR_THRESHOLD", "0.70"))
+    low_threshold = float(os.getenv("INTENT_LOW_THRESHOLD", "0.40"))
+    embedding_model = os.getenv("INTENT_EMBEDDING_MODEL", BGE_DEFAULT_MODEL).strip()
+    embedding_revision = os.getenv(
+        "INTENT_EMBEDDING_REVISION", BGE_DEFAULT_REVISION
+    ).strip()
+    provider = BGEEmbeddingProvider(
+        embedding_model,
+        device=os.getenv("INTENT_EMBEDDING_DEVICE") or None,
+        revision=embedding_revision,
+        cache_size=int(os.getenv(
+            "INTENT_EMBEDDING_CACHE_SIZE", str(DEFAULT_EMBEDDING_CACHE_SIZE)
+        )),
+    )
+    embedding_index = IntentEmbeddingIndex(provider, top_k=top_k)
+    await embedding_index.preload()
+    recognizer = IntentRecognitionPipeline(
         context,
-        few_shot_retriever=retriever,
-        intent_recognition_tool=intent_tool,
+        # This evaluator measures the frozen historical multi-label protocol,
+        # not the production single-route + Supervisor pipeline.
+        recognizer_type=IntentRecognizer,
+        embedding_index=embedding_index,
+        intent_fusion_alpha=fusion_alpha,
+        intent_clear_threshold=clear_threshold,
+        intent_low_threshold=low_threshold,
     )
     all_cases = load_fixture(fixture)["cases"]
     control_cases = [case for case in all_cases if RequestControlPolicy.evaluate(
@@ -201,15 +204,18 @@ async def live_report(
                 analysis = outcome.analysis
                 retrieval = outcome.retrieval
                 latency = outcome.latency_ms
-                predicted = [item.label.value for item in analysis.intents]
+                proposed = [item.label.value for item in analysis.intents]
+                confirmed = [
+                    item.label.value
+                    for item in (
+                        outcome.execution_analysis.intents
+                        if outcome.execution_analysis is not None else ()
+                    )
+                ]
                 post_recognition = (
                     outcome.confidence.to_dict() if outcome.confidence else {}
                 )
                 confidence_rows = list(post_recognition.get("decisions", []))
-                confirmed = [
-                    str(item["label"]) for item in confidence_rows
-                    if item.get("band") in {"clear", "confirmed"}
-                ]
                 clarification = [
                     str(item["label"]) for item in confidence_rows
                     if item.get("band") in {"ambiguous", "clarify"}
@@ -218,20 +224,20 @@ async def live_report(
                     str(item["label"]) for item in confidence_rows
                     if item.get("band") in {"low", "rejected"}
                 ]
-                if post_recognition.get("status") != "ok":
-                    confirmed = predicted
                 rows.append({"id": case["id"], "message": case["message"],
                     "expected_intents": list(case.get("expected_intents", [])),
                     "candidate_intents": list(retrieval.candidate_intents),
                     "intent_recognition": outcome.to_dict(),
                     "predicted_intents": confirmed,
-                    "proposed_intents": predicted,
+                    "proposed_intents": proposed,
                     "clarification_intents": clarification,
                     "rejected_intents": rejected,
                     "exact_match": set(confirmed) == set(case.get("expected_intents", [])),
                     "scope_status": analysis.scope_status.value,
                     "rewrite_status": analysis.rewrite.status.value,
-                    "action": outcome.status, "few_shot_ids": list(retrieval.example_ids),
+                    "action": outcome.status,
+                    "recognition_reason_code": outcome.reason_code,
+                    "decision_retry_count": len(outcome.decision_errors),
                     "retrieval_status": retrieval.status, "latency_ms": round(latency, 3), "error": "",
                     "dimensions": list(case.get("dimensions", [])),
                     "post_recognition": post_recognition})
@@ -242,7 +248,8 @@ async def live_report(
                     "intent_recognition": {},
                     "proposed_intents": [], "clarification_intents": [], "rejected_intents": [],
                     "exact_match": False, "scope_status": "failed", "rewrite_status": "failed",
-                    "action": "", "few_shot_ids": [], "retrieval_status": "failed",
+                    "action": "", "recognition_reason_code": "evaluation_exception",
+                    "decision_retry_count": 0, "retrieval_status": "failed",
                     "latency_ms": 0.0, "error": f"{type(ex).__name__}: {str(ex)[:300]}",
                     "dimensions": list(case.get("dimensions", [])), "post_recognition": {}})
     finally:
@@ -274,6 +281,13 @@ async def live_report(
             recommendation_covered / expected_label_count, 6
         ) if expected_label_count else 0.0,
         "false_auto_dispatch_label_count": false_auto_dispatches,
+        "decision_retry_case_count": sum(
+            int(row.get("decision_retry_count", 0)) > 0 for row in rows
+        ),
+        "tree_unavailable_case_count": sum(
+            row.get("recognition_reason_code") == "intent_tree_unavailable"
+            for row in rows
+        ),
     }
     intent_rows_with_gold = [row for row in rows if row.get("expected_intents")]
     candidate_expected_count = sum(
@@ -299,12 +313,21 @@ async def live_report(
             6,
         ) if intent_rows_with_gold else 0.0,
     }
-    return {"schema_version": "supervisor-semantic-evaluation-v2", "mode": "live",
+    return {"schema_version": "supervisor-semantic-evaluation-v3", "mode": "live",
         "status": "completed" if not failures else "completed_with_errors",
         "generated_at": datetime.now(timezone.utc).isoformat(), "model": config["model"],
         "evaluation_role": evaluation_role,
-        "intent_tool_backend": intent_tool_backend,
-        "production_evidence": False, "fixture": str(fixture), "few_shots": str(few_shots),
+        "policy_version": IntentRecognitionPipeline.POLICY_VERSION,
+        "production_evidence": False, "fixture": str(fixture),
+        "fixture_sha256": hashlib.sha256(fixture.read_bytes()).hexdigest(),
+        "runtime_config": {
+            "embedding_model": embedding_model,
+            "embedding_revision": embedding_revision,
+            "embedding_top_k": embedding_index.top_k,
+            "fusion_alpha": fusion_alpha,
+            "clear_threshold": clear_threshold,
+            "low_threshold": low_threshold,
+        },
         "metrics": metrics, "proposal_metrics": proposal_metrics,
         "candidate_metrics": candidate_metrics, "confidence_metrics": confidence_metrics,
         "slice_metrics": calculate_slice_metrics(rows),
@@ -319,14 +342,12 @@ def write_report(report: Dict[str, Any], output: pathlib.Path) -> None:
 
 
 async def main_async(args: argparse.Namespace) -> int:
-    fixture, few_shots, output = pathlib.Path(args.fixture), pathlib.Path(args.few_shots), pathlib.Path(args.output)
-    report = (contract_report(fixture, few_shots) if args.mode == "contract"
+    fixture, output = pathlib.Path(args.fixture), pathlib.Path(args.output)
+    report = (contract_report(fixture) if args.mode == "contract"
               else await live_report(
                   fixture,
-                  few_shots,
                   args.limit,
                   args.evaluation_role,
-                  args.intent_tool_backend,
               ))
     write_report(report, output)
     print(json.dumps({key: report.get(key) for key in ("status", "mode", "metrics", "checks", "error_count")
@@ -338,15 +359,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--mode", choices=("contract", "live"), default="contract")
     parser.add_argument("--fixture", default=str(DEFAULT_FIXTURE))
-    parser.add_argument("--few-shots", default=str(DEFAULT_FEW_SHOTS))
     parser.add_argument("--output", default=str(DEFAULT_OUTPUT))
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--evaluation-role", default="regression_after_iteration")
-    parser.add_argument(
-        "--intent-tool-backend",
-        choices=("disabled", "jev"),
-        default="disabled",
-    )
     return parser.parse_args()
 
 

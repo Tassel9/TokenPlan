@@ -1,0 +1,2300 @@
+{
+  "metadata": {
+    "schema_version": "intent-natural-consultation-v2",
+    "frozen": true,
+    "production_evidence": false,
+    "target_case_count": 100,
+    "construction_revision": "preserve_100_inputs_and_topic_gold_add_consultation_boundary_expectations",
+    "superseded_72_case_draft_sha256": "29013a52c46efb74841b97d552ec494936e5aba7af019165800cb72b44ffe24a",
+    "superseded_run_status": "interrupted_before_completion; predictions_not_inspected_or_used_to_relabel_existing_cases",
+    "data_origin": "assistant_authored_synthetic_with_two_public_issue_inspired_cases",
+    "gold_author": "assistant_pre_prediction_draft",
+    "model_predictions_used_for_gold": false,
+    "independent_business_review": "pending",
+    "naturalness_review": "pending_user_review",
+    "deployment_distribution_known": false,
+    "default_context": "当前入口是 TokenPlan 在线客服。用户正在咨询 TokenPlan 订阅、账户或编码服务；若明确询问其他平台的独立业务，仍应判定超出范围。 当前 Agent 的职责是领域咨询与自助指引，不代购、提交退款、退订、开票或修改账户；要求代操作时由 Supervisor 询问是否转人工。业务话题标签不代表执行权限，前置识别器仍只选择一个主意图。",
+    "labeling_rules": [
+      "标注当前明确要求回答或完成的结果，不按关键词数量或现象数量拆分。",
+      "同一业务标签下的多个步骤仍是一个标签；原因、背景、付款事实、金额和情绪不自动增加标签。",
+      "背景中的故障或扣费不再请求处理时，不增加故障或支付标签。",
+      "只有两个分别要求处理的结果才标多标签；关闭未来续费和退回既有扣款是不同结果。",
+      "明确投诉或追责可标投诉；单纯报错、到账等待和疑问不自动标投诉。",
+      "历史只用于指代恢复；旧诉求不自动继承到当前轮。",
+      "单意图主要诉求优先当前明确重点，否则取原文最先提出的独立诉求；同等重要时允许任一标明的主要诉求。"
+    ],
+    "sources": {
+      "issue_269": {
+        "url": "https://github.com/deepseek-ai/DeepSeek-V3/issues/269",
+        "use": "只参考用户按时间描述调用越来越慢、提及付费但并未要求付款处理的表达方式；改写为 TokenPlan 场景，非原句工单。"
+      },
+      "issue_233": {
+        "url": "https://github.com/deepseek-ai/DeepSeek-V3/issues/233",
+        "use": "只参考登录问题已解决后继续报告另一个当前故障的叙述方式；改写为 TokenPlan 场景，非原句工单。"
+      }
+    },
+    "boundary": "职责预期草案：100条输入及业务话题金标来自历史冻结集；新增行为预期由助手拟定，独立业务复核待完成，尚无当前Supervisor真实模型行为评测。历史单/多标签分数不代表咨询完成、人工确认或实际业务办理。",
+    "derived_from": {
+      "path": "evaluation/fixtures/intent_natural_comparison_v1.json",
+      "sha256": "92bff17860854ad92f8e2fcc9dc55701df628bfb370d630491dd159b11484090",
+      "messages_and_topic_gold_unchanged": true
+    },
+    "execution_expectation_author": "assistant_authored_from_user_role_boundary_before_new_behavior_predictions",
+    "execution_expectation_review": "pending_independent_review",
+    "execution_expectations_model_predictions_used": false,
+    "behavior_rules": [
+      "保留所有原始输入与业务话题标签；业务域内的代操作请求不等于领域外请求。",
+      "询问条件、材料、入口、步骤或是否允许某操作是咨询；明确要求代操作时先说明限制并询问是否需要转人工。",
+      "直接提出投诉或追责的样例按需要真人处理的请求预标；单纯建议、表达评价或询问投诉流程不表示已提交投诉。",
+      "同时有可回答的咨询和代操作请求时，先回答咨询，再询问是否转人工；不能因等待确认遗漏咨询。",
+      "询问是否转人工必须等待用户选择，不能宣称已转人工或已完成操作；用户明确要求转人工可直接进入既有人工请求流程。",
+      "个人订单、余额和退款状态需可验证的只读结果；没有数据时说明限制并询问是否需要人工，不用公开规则猜测私有事实。",
+      "用户否定转人工时继续咨询或提供自助入口；未知对象先澄清，其他平台的独立业务说明服务范围。",
+      "评估包括业务话题覆盖、响应动作、咨询是否回答、人工确认和工具轨迹，不能只用意图集合分数宣称职责边界通过。"
+    ]
+  },
+  "cases": [
+    {
+      "id": "plain-01",
+      "slice": "plain_single",
+      "message": "Pro 一个月多少钱啊",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "只问价格。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-02",
+      "slice": "plain_single",
+      "message": "我这个套餐还剩多少额度",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "查询已有额度，不要求扩容。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "plain-03",
+      "slice": "plain_single",
+      "message": "想开个 Pro，在哪买",
+      "expected_intents": [
+        "subscription_purchase"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "询问新购入口，不是额外套餐咨询。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_purchase"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-04",
+      "slice": "plain_single",
+      "message": "给我开一个月的吧，先试试",
+      "expected_intents": [
+        "subscription_purchase"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "一个月和先试试是购买参数。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_purchase"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "plain-05",
+      "slice": "plain_single",
+      "message": "现在是月付，想改成年付怎么弄",
+      "expected_intents": [
+        "subscription_change"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "变更已有订阅周期。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_change"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-06",
+      "slice": "plain_single",
+      "message": "Pro 用不完，能换回基础版吗",
+      "expected_intents": [
+        "subscription_change"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "降级已有订阅。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_change"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-07",
+      "slice": "plain_single",
+      "message": "下个月不想续了，哪里关",
+      "expected_intents": [
+        "subscription_cancel"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "关闭未来续费。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_cancel"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-08",
+      "slice": "plain_single",
+      "message": "别再自动扣钱了，帮我停掉",
+      "expected_intents": [
+        "subscription_cancel"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "停止续费，不声称既有扣款异常。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "plain-09",
+      "slice": "plain_single",
+      "message": "怎么又扣了一笔，我就买了一次",
+      "expected_intents": [
+        "payment_issue"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "重复扣款核查。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "plain-10",
+      "slice": "plain_single",
+      "message": "付款一直转圈，换了张卡也不行",
+      "expected_intents": [
+        "payment_issue"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "付款动作失败，不额外拆技术故障。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-11",
+      "slice": "plain_single",
+      "message": "这笔订阅能开公司发票吗",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "订阅只是发票对象。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "invoice_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-12",
+      "slice": "plain_single",
+      "message": "发票抬头填错了，还能改不",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "修改发票。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "invoice_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-13",
+      "slice": "plain_single",
+      "message": "昨天申请退的钱啥时候能到啊",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "退款进度，等待一天本身不是投诉。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-14",
+      "slice": "plain_single",
+      "message": "刚买就发现买错了，能退吗",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "撤销已发生购买，不同时标新购或取消续费。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-15",
+      "slice": "plain_single",
+      "message": "验证码收不到，进不去账号了",
+      "expected_intents": [
+        "account_login_issue"
+      ],
+      "primary_intents": [
+        "account_login_issue"
+      ],
+      "rationale": "登录受阻。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_login_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-16",
+      "slice": "plain_single",
+      "message": "密码忘了，怎么找回来",
+      "expected_intents": [
+        "account_login_issue"
+      ],
+      "primary_intents": [
+        "account_login_issue"
+      ],
+      "rationale": "恢复登录，不是能登录时主动改密。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_login_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-17",
+      "slice": "plain_single",
+      "message": "旧邮箱不用了，账号能换个邮箱吗",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "主动换邮箱，未报告登录失败。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_security_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-18",
+      "slice": "plain_single",
+      "message": "在哪看有哪些设备登录着，想把旧电脑退掉",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "查看会话并退出设备同属账号安全。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_security_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-19",
+      "slice": "plain_single",
+      "message": "团队新来了两个人，再加两个位置怎么弄",
+      "expected_intents": [
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "增加席位。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "entitlement_change_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-20",
+      "slice": "plain_single",
+      "message": "这月额度不够用，能再加点吗",
+      "expected_intents": [
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "要求增加额度，而非仅查询。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "entitlement_change_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-21",
+      "slice": "plain_single",
+      "message": "插件老是超时，网页倒是正常",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "网页正常是排查背景。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-22",
+      "slice": "plain_single",
+      "message": "Key 复制进去了还是 401，是不是哪里填错了",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "编码服务调用故障，不是网站账户登录。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-23",
+      "slice": "plain_single",
+      "message": "上个工单来回转了三次还没人管，我要投诉",
+      "expected_intents": [
+        "service_complaint"
+      ],
+      "primary_intents": [
+        "service_complaint"
+      ],
+      "rationale": "明确投诉；未明确要求另一业务结果。",
+      "expected_handoff_confirmation_labels": [
+        "service_complaint"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "plain-24",
+      "slice": "plain_single",
+      "message": "建议额度快用完的时候提醒一下，不然总得自己去看",
+      "expected_intents": [
+        "service_feedback"
+      ],
+      "primary_intents": [
+        "service_feedback"
+      ],
+      "rationale": "产品建议，未要求查询当前额度。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "service_feedback"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-25",
+      "slice": "plain_single",
+      "message": "团队版最少得买几个席位",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "查询起购规则，没有要求购买或加席位。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-26",
+      "slice": "plain_single",
+      "message": "新账号还没买过，开通套餐入口在哪",
+      "expected_intents": [
+        "subscription_purchase"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "明确新购，不是变更已有套餐。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_purchase"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-27",
+      "slice": "plain_single",
+      "message": "之前买的基础版能补差价升 Pro 吗",
+      "expected_intents": [
+        "subscription_change"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "已有套餐的升级咨询，不另标支付。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_change"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-28",
+      "slice": "plain_single",
+      "message": "不用这个订阅了，给我取消吧",
+      "expected_intents": [
+        "subscription_cancel"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "停止已有订阅，没有提出退钱。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "plain-29",
+      "slice": "plain_single",
+      "message": "账单写着 99，实际扣了 198，帮我核对下",
+      "expected_intents": [
+        "payment_issue"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "核查扣款金额，不直接增加退款诉求。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "plain-30",
+      "slice": "plain_single",
+      "message": "票已经申请了，怎么还没发到邮箱",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "发票交付进度，未要求变更账号邮箱。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "invoice_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "plain-31",
+      "slice": "plain_single",
+      "message": "买错那个套餐的钱可以原路退回吗",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "购买对象是退款背景。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-32",
+      "slice": "plain_single",
+      "message": "账号说被锁了，什么时候能登",
+      "expected_intents": [
+        "account_login_issue"
+      ],
+      "primary_intents": [
+        "account_login_issue"
+      ],
+      "rationale": "锁定导致登录受阻。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_login_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-33",
+      "slice": "plain_single",
+      "message": "想把两步验证打开，在哪设置",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "主动开启账户安全设置。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_security_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "plain-34",
+      "slice": "plain_single",
+      "message": "客服一直不回，之前的工单也不处理，我要投诉这个服务",
+      "expected_intents": [
+        "service_complaint"
+      ],
+      "primary_intents": [
+        "service_complaint"
+      ],
+      "rationale": "明确投诉，不凭未说明的工单猜另一个业务标签。",
+      "expected_handoff_confirmation_labels": [
+        "service_complaint"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-01",
+      "slice": "same_goal_background",
+      "message": "升级的钱已经付了，现在还是基础版，帮我看下怎么回事",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "已完成支付和升级是背景，当前只有权益未生效的故障。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-02",
+      "slice": "same_goal_background",
+      "message": "买了 Pro 以后插件还是报错，怎么解决",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "购买已完成，当前只请求修复插件。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-03",
+      "slice": "same_goal_background",
+      "message": "钱扣了两次，把多扣的那笔退回来吧",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "重复扣款是退款原因，唯一明确交付是退回多扣款。",
+      "expected_handoff_confirmation_labels": [
+        "refund_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-04",
+      "slice": "same_goal_background",
+      "message": "不用查账单了，我就想问退款什么时候到",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "明确否定查账单，只保留退款进度。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-05",
+      "slice": "same_goal_background",
+      "message": "不是要退钱，就把下个月续费关掉",
+      "expected_intents": [
+        "subscription_cancel"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "退款被否定，关闭续费是当前目标。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-06",
+      "slice": "same_goal_background",
+      "message": "先不升级，我想看看两档到底差在哪",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "变更被否定，只比较套餐。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-07",
+      "slice": "same_goal_background",
+      "message": "按 99 一个月开就行，不用再介绍套餐了",
+      "expected_intents": [
+        "subscription_purchase"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "价格和周期是购买参数，介绍被否定。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_purchase"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-08",
+      "slice": "same_goal_background",
+      "message": "就给上次升级补的差价开票，抬头用公司的",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "历史升级只是开票对象，不是当前变更请求。",
+      "expected_handoff_confirmation_labels": [
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-09",
+      "slice": "same_goal_background",
+      "message": "改下密码，再把旧电脑上的登录退掉",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "两个动作共享账号安全标签，不是多标签。",
+      "expected_handoff_confirmation_labels": [
+        "account_security_request"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-10",
+      "slice": "same_goal_background",
+      "message": "邮箱换过之后收不到验证码了，现在登不上",
+      "expected_intents": [
+        "account_login_issue"
+      ],
+      "primary_intents": [
+        "account_login_issue"
+      ],
+      "rationale": "过去换邮箱是原因，当前是恢复登录。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_login_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-11",
+      "slice": "same_goal_background",
+      "message": "能登录，就是进去一会儿又回到登录页了",
+      "expected_intents": [
+        "account_login_issue"
+      ],
+      "primary_intents": [
+        "account_login_issue"
+      ],
+      "rationale": "登录回跳由登录标签覆盖，不再拆技术标签。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_login_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-12",
+      "slice": "same_goal_background",
+      "message": "付款页面提示 500，钱还没扣，咋办",
+      "expected_intents": [
+        "payment_issue"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "错误码是支付故障表现，不能增加技术标签。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-13",
+      "slice": "same_goal_background",
+      "message": "还剩多少额度啊，我怕下午不够用",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "担心不足不等于要求扩容。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-14",
+      "slice": "same_goal_background",
+      "message": "额度已经用完了，帮我加一点今天先用着",
+      "expected_intents": [
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "当前要扩容，不同时查询额度或排查故障。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-15",
+      "slice": "same_goal_background",
+      "message": "上午还挺快的，这会儿在 Cline 里等十分钟都没回，换个模型又能用，帮我看看",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "多个现象指向一个调用慢的排查结果；时间对照不是独立诉求。",
+      "source": "issue_269",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-16",
+      "slice": "same_goal_background",
+      "message": "昨天登录的问题弄好了，现在补全出来的内容一直是空的",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "已解决的登录问题不继承为当前意图。",
+      "source": "issue_233",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-17",
+      "slice": "same_goal_background",
+      "message": "故障已经好了，建议以后状态页早点更新",
+      "expected_intents": [
+        "service_feedback"
+      ],
+      "primary_intents": [
+        "service_feedback"
+      ],
+      "rationale": "已解决故障是背景，当前只有改进建议。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "service_feedback"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-18",
+      "slice": "same_goal_background",
+      "message": "钱已经退到了，但客服拖了半个月这事我要个说法",
+      "expected_intents": [
+        "service_complaint"
+      ],
+      "primary_intents": [
+        "service_complaint"
+      ],
+      "rationale": "退款已完成，当前明确追责。",
+      "expected_handoff_confirmation_labels": [
+        "service_complaint"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-19",
+      "slice": "same_goal_background",
+      "message": "先不买了，就问问试用结束后会不会扣钱",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "购买被否定，假设未来扣费不构成支付异常。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-20",
+      "slice": "same_goal_background",
+      "message": "昨天已升 Pro，能用哪些模型啊",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "升级已完成，当前只查已有模型权益。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-21",
+      "slice": "same_goal_background",
+      "message": "不要再加额度了，先帮我降回基础版",
+      "expected_intents": [
+        "subscription_change"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "权益扩容被否定，当前只降级订阅。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_change"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-22",
+      "slice": "same_goal_background",
+      "message": "是不是额度用完才一直 429？帮我看看这个报错",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "额度是用户对故障的猜测，不是独立查询或扩容请求。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "goal-23",
+      "slice": "same_goal_background",
+      "message": "发票不用重开了，帮我把这单的钱退了吧",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "重开发票被取消，当前只有退款。",
+      "expected_handoff_confirmation_labels": [
+        "refund_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-24",
+      "slice": "same_goal_background",
+      "message": "扣款已经对上了，我现在只需要那张发票",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "扣款核查已结束，当前只要求发票。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "invoice_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "goal-25",
+      "slice": "same_goal_background",
+      "message": "成员要离职了，先把他那台电脑登录退掉，席位不动",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "离职是背景；席位变更被明确否定。",
+      "expected_handoff_confirmation_labels": [
+        "account_security_request"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "goal-26",
+      "slice": "same_goal_background",
+      "message": "补全不出来，聊天也一直空白，麻烦帮我排查下",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "两个故障表现都在技术排查标签内，不制造第二个标签。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-01",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "我现在是 TokenPlan 月付 Pro，想改成年付。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以在订阅设置里变更计费周期。"
+        }
+      ],
+      "message": "那就改成一年的吧",
+      "expected_intents": [
+        "subscription_change"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "根据历史恢复计费周期，当前只变更订阅。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_change"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-02",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 的年付是不是更便宜？"
+        },
+        {
+          "role": "assistant",
+          "content": "你当前是月付订阅，可以比较年付价格。"
+        }
+      ],
+      "message": "先别改，我只看看一年多少钱",
+      "expected_intents": [
+        "subscription_info_query"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "新一轮明确只查询，不能继承变更。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-03",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 这次给我扣了两笔一样的钱。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以核查扣款，或申请退回多扣金额。"
+        }
+      ],
+      "message": "多的那笔退回来就行",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "历史扣款是退款对象，当前唯一结果是退款。",
+      "expected_handoff_confirmation_labels": [
+        "refund_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-04",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "我买的 TokenPlan Pro 想退掉。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以了解退款条件，也可以只关闭后续续费。"
+        }
+      ],
+      "message": "不退了，关掉续费就好",
+      "expected_intents": [
+        "subscription_cancel"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "当前取消续费替代历史退款诉求。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-05",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 插件用 DeepSeek 通道一直报 401。"
+        },
+        {
+          "role": "assistant",
+          "content": "请检查 Key 和 Base URL。"
+        }
+      ],
+      "message": "都重新填过了，还是那个错误",
+      "expected_intents": [
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "technical_troubleshooting"
+      ],
+      "rationale": "恢复那个错误为通道调用故障，不是账户登录。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-06",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 账号密码忘了，现在登不上。"
+        },
+        {
+          "role": "assistant",
+          "content": "你可以通过找回密码恢复登录。"
+        }
+      ],
+      "message": "登录好了，怎么把别的设备踢掉",
+      "expected_intents": [
+        "account_security_request"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "登录已解决，当前只要求设备安全操作。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "account_security_request"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-07",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 上周升级 Pro 补了差价。"
+        },
+        {
+          "role": "assistant",
+          "content": "升级差价可单独申请电子发票。"
+        }
+      ],
+      "message": "那笔也开到公司抬头吧",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "那笔是过去升级差价，当前只开票。",
+      "expected_handoff_confirmation_labels": [
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-08",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "我们 TokenPlan 团队现在有五个席位。"
+        },
+        {
+          "role": "assistant",
+          "content": "当前团队有五个席位。"
+        }
+      ],
+      "message": "再加俩，下周有人入职",
+      "expected_intents": [
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "省略的对象是席位；入职是背景。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-09",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "我在 TokenPlan 刚申请了一笔退款。"
+        },
+        {
+          "role": "assistant",
+          "content": "退款完成后会通知你。"
+        }
+      ],
+      "message": "还是没到账，我想查下进度",
+      "expected_intents": [
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "查询进度，没有长期未处理或明确投诉证据。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "turn-10",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 插件这次超时的问题解决了。"
+        },
+        {
+          "role": "assistant",
+          "content": "好的，感谢确认。"
+        }
+      ],
+      "message": "以后报错能不能显示清楚点，不然看不懂",
+      "expected_intents": [
+        "service_feedback"
+      ],
+      "primary_intents": [
+        "service_feedback"
+      ],
+      "rationale": "已解决故障后的建议，不请求再次排查。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "service_feedback"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-11",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 团队目前额度已经不够用了。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以查询剩余额度，也可以申请增加额度。"
+        }
+      ],
+      "message": "不用查了，直接再加一点吧",
+      "expected_intents": [
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "查询被否定，通过历史恢复扩容对象。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-12",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 的订阅我还没有开过。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以购买月付或年付订阅。"
+        }
+      ],
+      "message": "就先买一个月的",
+      "expected_intents": [
+        "subscription_purchase"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "首次购买，不能因历史套餐介绍增加信息查询。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_purchase"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "turn-13",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 这张发票公司税号填错了。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以重新填写税号申请修改发票。"
+        }
+      ],
+      "message": "这个能重开吗",
+      "expected_intents": [
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "invoice_handling"
+      ],
+      "rationale": "从唯一历史对象恢复发票，不猜订阅变更。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "invoice_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "turn-14",
+      "slice": "context_single",
+      "history": [
+        {
+          "role": "user",
+          "content": "TokenPlan 的续费刚刚扣了钱。"
+        },
+        {
+          "role": "assistant",
+          "content": "可以核查这次扣款，也可以申请退款。"
+        }
+      ],
+      "message": "不退，我只是想确认为什么扣了两次",
+      "expected_intents": [
+        "payment_issue"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "退款被否定，当前只核查重复扣款。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "verified_read_or_ask_handoff_confirmation",
+      "expected_response_action": "FINAL_OR_ASK_USER"
+    },
+    {
+      "id": "related-01",
+      "slice": "related_multi",
+      "message": "帮我关掉续费，今天刚扣的这笔也想退掉",
+      "expected_intents": [
+        "subscription_cancel",
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "未来续费关闭和既有款项退回是两个分别请求的结果。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel",
+        "refund_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-02",
+      "slice": "related_multi",
+      "message": "以后别扣了，这个月的费用能退吗",
+      "expected_intents": [
+        "subscription_cancel",
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "停止未来扣款，并独立询问退款条件。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-03",
+      "slice": "related_multi",
+      "message": "续费先停了吧，之前申请的退款到哪一步了",
+      "expected_intents": [
+        "subscription_cancel",
+        "refund_handling"
+      ],
+      "primary_intents": [
+        "subscription_cancel"
+      ],
+      "rationale": "关闭续费和查询历史退款进度是不同结果。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_cancel"
+      ],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-04",
+      "slice": "related_multi",
+      "message": "帮我换成年付，换完这笔记得开公司发票",
+      "expected_intents": [
+        "subscription_change",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "变更当前周期，并明确要求完成后的票据。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_change",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-05",
+      "slice": "related_multi",
+      "message": "团队再加两个席位，新增的钱开在我们公司抬头下",
+      "expected_intents": [
+        "entitlement_change_request",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "entitlement_change_request"
+      ],
+      "rationale": "席位扩容与开票分别交付，参数同属一笔业务。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-06",
+      "slice": "related_multi",
+      "message": "基础版帮我升到 Pro，补的差价也要发票",
+      "expected_intents": [
+        "subscription_change",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "升级未完成且明确提出开票，不同于只为过去差价开票。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_change",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-07",
+      "slice": "related_multi",
+      "message": "多扣的钱先退给我，剩下那笔发票也发一下",
+      "expected_intents": [
+        "refund_handling",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "明示退款优先，再要求保留交易的发票；不另标查扣款。",
+      "expected_handoff_confirmation_labels": [
+        "refund_handling",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-08",
+      "slice": "related_multi",
+      "message": "Pro 跟基础版差多少？我现在插件也老超时，帮我看一下",
+      "expected_intents": [
+        "subscription_info_query",
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "套餐差异查询和当前插件故障排查都有独立请求。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [
+        "subscription_info_query",
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_consultation",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "related-09",
+      "slice": "related_multi",
+      "message": "现在额度还剩多少，顺便帮团队再加两个席位",
+      "expected_intents": [
+        "subscription_info_query",
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "查询额度和要求增加席位是不同结果，业务同属团队权益。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request"
+      ],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-10",
+      "slice": "related_multi",
+      "history": [
+        {
+          "role": "user",
+          "content": "我在 TokenPlan 同时遇到重复扣款和公司发票税号写错的问题。"
+        },
+        {
+          "role": "assistant",
+          "content": "扣款核查与发票修改可以分别处理。"
+        }
+      ],
+      "message": "扣款帮我查下，发票税号也改一下",
+      "expected_intents": [
+        "payment_issue",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "当前轮逐字明确两个要求，不靠继承旧诉求制造多标签。",
+      "expected_handoff_confirmation_labels": [
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-11",
+      "slice": "related_multi",
+      "message": "账号邮箱换成新的，账单上的发票邮箱也一起改一下",
+      "expected_intents": [
+        "account_security_request",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "account_security_request"
+      ],
+      "rationale": "同一次联系分别修改账号和账务投递，不是无关的改密加开票。",
+      "expected_handoff_confirmation_labels": [
+        "account_security_request",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-12",
+      "slice": "related_multi",
+      "message": "这笔重复扣款帮我核对下，还有客服上次直接把工单关了，这个我要投诉",
+      "expected_intents": [
+        "payment_issue",
+        "service_complaint"
+      ],
+      "primary_intents": [
+        "payment_issue"
+      ],
+      "rationale": "独立核查扣款，并明确投诉工单处理；不是只有抱怨语气。",
+      "expected_handoff_confirmation_labels": [
+        "service_complaint"
+      ],
+      "expected_consultation_labels": [
+        "payment_issue"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-13",
+      "slice": "related_multi",
+      "message": "我们第一次买，给公司开个团队订阅，发票也开公司抬头",
+      "expected_intents": [
+        "subscription_purchase",
+        "invoice_handling"
+      ],
+      "primary_intents": [
+        "subscription_purchase"
+      ],
+      "rationale": "新购团队订阅与开具报销票据分别提出。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_purchase",
+        "invoice_handling"
+      ],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-14",
+      "slice": "related_multi",
+      "message": "团队席位按什么价格算？我还要把现在五个加到八个",
+      "expected_intents": [
+        "subscription_info_query",
+        "entitlement_change_request"
+      ],
+      "primary_intents": [
+        "subscription_info_query"
+      ],
+      "rationale": "明确问计价规则，又明确要求扩容，不把购买参数当第二标签。",
+      "expected_handoff_confirmation_labels": [
+        "entitlement_change_request"
+      ],
+      "expected_consultation_labels": [
+        "subscription_info_query"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-15",
+      "slice": "related_multi",
+      "message": "帮我查查退款进度，还有这个工单拖了半个月也没人回，我要投诉",
+      "expected_intents": [
+        "refund_handling",
+        "service_complaint"
+      ],
+      "primary_intents": [
+        "refund_handling"
+      ],
+      "rationale": "明确要求查退款，并明确投诉持续未处理的服务。",
+      "expected_handoff_confirmation_labels": [
+        "service_complaint"
+      ],
+      "expected_consultation_labels": [
+        "refund_handling"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "related-16",
+      "slice": "related_multi",
+      "message": "基础版先帮我升 Pro 吧，现在这个 Key 一直报 401 也帮我看看",
+      "expected_intents": [
+        "subscription_change",
+        "technical_troubleshooting"
+      ],
+      "primary_intents": [
+        "subscription_change"
+      ],
+      "rationale": "用户分别要求升级订阅和排查已发生的调用故障，不推定升级必然修复故障。",
+      "expected_handoff_confirmation_labels": [
+        "subscription_change"
+      ],
+      "expected_consultation_labels": [
+        "technical_troubleshooting"
+      ],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "answer_then_ask_handoff_confirmation",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "scope-01",
+      "slice": "scope",
+      "message": "淘宝订单的发票抬头错了，你帮我改下",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "明确是淘宝独立业务。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-02",
+      "slice": "scope",
+      "message": "我的银行卡要改预留手机号怎么办",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "银行账户独立业务，不是 TokenPlan 账号安全。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-03",
+      "slice": "scope",
+      "message": "Netflix 不想续了，帮我取消一下",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "明确外部平台订阅。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-04",
+      "slice": "scope",
+      "message": "帮我查下顺丰快递到哪了",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "物流独立业务。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-05",
+      "slice": "scope",
+      "message": "怎么找回微信密码",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "微信账户独立业务。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-06",
+      "slice": "scope",
+      "message": "帮我改一下",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "uncertain",
+      "rationale": "省略对象且没有可恢复的历史。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "clarify_scope",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "scope-07",
+      "slice": "scope",
+      "message": "还是不行",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "uncertain",
+      "rationale": "无法确定故障对象，无历史不能强行选技术标签。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "clarify_scope",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "scope-08",
+      "slice": "scope",
+      "message": "那个能弄吗",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "uncertain",
+      "rationale": "指代无法恢复，需要澄清。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "clarify_scope",
+      "expected_response_action": "ASK_USER"
+    },
+    {
+      "id": "scope-09",
+      "slice": "scope",
+      "message": "我阿里云服务器续费的钱扣错了，帮忙退一下",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "out_of_scope",
+      "rationale": "云厂商独立交易业务，不能因为续费和退款词匹配而路由。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "explain_out_of_scope",
+      "expected_response_action": "FINAL"
+    },
+    {
+      "id": "scope-10",
+      "slice": "scope",
+      "message": "帮我把它停了",
+      "expected_intents": [],
+      "primary_intents": [],
+      "expected_scope": "uncertain",
+      "rationale": "没有可恢复的对象，不能假定是取消订阅。",
+      "expected_handoff_confirmation_labels": [],
+      "expected_consultation_labels": [],
+      "forbidden_capabilities": [
+        "business.operation.execute"
+      ],
+      "expected_execution_behavior": "clarify_scope",
+      "expected_response_action": "ASK_USER"
+    }
+  ]
+}

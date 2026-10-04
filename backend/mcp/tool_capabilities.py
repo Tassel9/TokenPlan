@@ -26,6 +26,8 @@ def normalize_capabilities(values: Iterable[str]) -> Tuple[str, ...]:
     return normalized
 
 KNOWLEDGE_RETRIEVE = "knowledge.retrieve"
+KNOWLEDGE_FAQ = "knowledge.faq"
+KNOWLEDGE_AGENTIC = "knowledge.agentic"
 BUSINESS_DATA_QUERY = "business.data.query"
 BUSINESS_OPERATION_EXECUTE = "business.operation.execute"
 SKILL_RESOURCE_READ = "skill.resource.read"

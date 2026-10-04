@@ -171,6 +171,22 @@ class IntentFusionPolicy:
         self.clear_threshold = clear
         self.low_threshold = low
 
+    def assess_control_route(self, route: str, tree_score: float,
+                             embedding: IntentEmbeddingResult) -> Dict[str, Any]:
+        """Score a control route without creating an executable business intent."""
+        embedding_ok = embedding.status == "ok"
+        score = embedding.score_for(route)
+        if embedding_ok and score is None:
+            return {"status": "failed", "band": "low", "reason_code": "route_embedding_coverage_mismatch"}
+        alpha = self.alpha if embedding_ok else 0.0
+        final = alpha * (score or 0.0) + (1.0 - alpha) * tree_score
+        band = (IntentFusionBand.CONFIRMED if final >= self.clear_threshold else
+                IntentFusionBand.AMBIGUOUS if final >= self.low_threshold else IntentFusionBand.LOW)
+        return {"status": "ok", "route": route, "band": band.value,
+                "tree_score": tree_score, "embedding_score": score or 0.0,
+                "final_score": final, "fusion_alpha": alpha, "degraded": not embedding_ok,
+                "active_channels": ["embedding", "intent_tree"] if embedding_ok else ["intent_tree"]}
+
     def assess(
         self,
         original_query: str,

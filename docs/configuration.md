@@ -14,7 +14,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | 层 | 变量 | 不设置时会怎样 |
 |---|---|---|
 | ① 必填 | `DEEPSEEK_API_KEY` | 启动即抛 `RuntimeError: 未设置 DEEPSEEK_API_KEY` |
-| ② 本地运行（容器外） | `SESSION_DB_PATH`、`RABBITMQ_URL`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | RabbitMQ、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
+| ② 本地运行（容器外） | `REDIS_HOST`、`SESSION_DB_PATH`、`RABBITMQ_URL`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | Redis、RabbitMQ、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
 | ③ 可选 | 其余全部 | 使用下表默认值，功能不变 |
 
 > 用 `docker compose` 起应用时，compose 会用 `environment:` 覆盖 ② 里的地址（容器内固定值），所以同一份 `.env` 两种跑法都能用。
@@ -44,17 +44,23 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RETRIEVAL_MAX_CONCURRENCY` | `16` |
 | `TOOL_MAX_CONCURRENCY` | `32` |
 
-## 5. 短期记忆（SQLite）
+## 5. 短期记忆（Redis）与会话归档（SQLite）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 会话、摘要、CaseState 和并发提交记录的本地文件 |
+| `REDIS_HOST` / `REDIS_PORT` / `REDIS_DB` | `redis` / `6379` / `0` | 短期会话窗口和增量摘要；直接构造 MemoryManager 的本地默认主机为 localhost |
+| `REDIS_PASSWORD` | 空 | 外部 Redis 的连接密码；Compose 内置实例默认不设密码 |
+| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 原始会话归档、恢复快照、CaseState、轮次与并发提交记录 |
 | `SESSION_HISTORY_MAX_MESSAGES` | `100` | 每会话保留的原始归档消息上限 |
 | `SESSION_HISTORY_PAGE_SIZE` | `50` | 历史读取默认条数 |
 | `SESSION_HOT_MEMORY_MAX_MESSAGES` | `40` | 摘要持续失败时的近期对话硬上限 |
 | `SHORT_TERM_TOKEN_LIMIT` | `6000` | 短期记忆按最终渲染文本计的 Token 预算 |
 | `SHORT_TERM_RECENT_TURNS` | `5` | 兼容保留：视图按 Token 预算保留未摘要轮次后，该值不再作为硬性轮数上限 |
 | `SHORT_TERM_SUMMARY_MAX_TOKENS` | `2048` | 单次增量摘要的输出上限（实测合法摘要约 900~1600 token，过小会截断 Tool Call） |
+
+运行时从 Redis 读取当前窗口与摘要，默认保留 24 小时。窗口按最终上下文的 Token 预算保留完整轮次，移出的消息与旧摘要一起生成增量摘要。Redis 用一个带版本号的值原子发布窗口与摘要；旧轮次或同轮旧窗口不能覆盖新视图。
+
+每轮先在 SQLite 完成一次受轮次校验的归档提交，再发布 Redis 视图。Redis key 缺失或过期后，可从仍有效的 SQLite 恢复快照或有界原始归档重建；读取不会延长原有 TTL。Redis 不可用时会报告失败，不会静默改成 SQLite 短期读取。若归档成功后 Redis 发布失败，归档仍保留，恢复连接后下一次读取会重建视图，不会重复提交该轮。
 
 ## 6. 对话入口容量保护
 
@@ -108,17 +114,25 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 
 ## 10. 意图识别
 
+默认识别器只输出一个业务路由或 `orchestrate` 控制路由。普通业务路由直接进入父领域 Agent；复合请求进入 Supervisor，拆解后按每项原文证据分别计算 Embedding / LLM 融合分数。业务标签仍为 13 个，编排路由单独增加一个定义向量。
+
+`SINGLE_INTENT_FAST_PATH_ENABLED` 默认为 `true`，使已确认的普通业务路由直接派发父领域 Agent；`orchestrate` 始终进入 Supervisor。关闭此项或注入缺少默认父领域 Agent 的旧团队时，普通路由使用保留的 Supervisor 检查路径。
+
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `INTENT_EMBEDDING_TOP_K` | `6` | 全标签 Embedding 分数中保留的诊断候选数；不裁剪 LLM 意图树 |
 | `INTENT_EMBEDDING_MODEL` / `_REVISION` / `_DEVICE` | `BAAI/bge-base-zh-v1.5` / 固定 revision / 自动 | 意图相似度编码器；每个意图只缓存一个定义向量 |
 | `INTENT_EMBEDDING_CACHE_SIZE` | 内置默认 | 编码结果 LRU 大小 |
-| `INTENT_EMBEDDING_PRELOAD` | `true` | 启动时预热 13 个意图定义向量 |
-| `INTENT_FUSION_ALPHA` | `0.10` | `final_score = α × embedding_score + (1-α) × tree_score` 中的 Embedding 权重 |
+| `INTENT_EMBEDDING_PRELOAD` | `true` | 启动时预热 13 个业务定义和 1 个 orchestrate 控制路由向量 |
+| `INTENT_FUSION_ALPHA` | `0.05` | 应用组合层的 Embedding 权重；`final_score = α × embedding_score + (1-α) × tree_score`，2026-10-04 离线校准，非正确概率；可用环境变量覆盖 |
 | `INTENT_CLEAR_THRESHOLD` | `0.70` | 融合分达到该值且 LLM 给出原文证据时冻结执行 |
 | `INTENT_LOW_THRESHOLD` | `0.40` | 融合分位于该值与 CLEAR 阈值之间时向用户澄清；更低视为未匹配 |
 
-默认主链路同时启动全标签 Embedding 和 LLM 完整意图树推理，然后只做一次逐标签融合。Embedding 不生成可执行意图，也不裁剪 LLM 的标签空间；LLM 通道失败时系统不会仅凭相似度自动执行。历史 few-shot、Platt 校准和 Jev 模块保留给离线对照评测，不接入默认应用装配。当前仓库中的旧意图报告是在改造前生成的，不能直接作为该策略的效果结论；修改 `α` 或两个阈值后必须重新运行开发集校准与独立冻结测试集。
+默认主链路同时启动全标签 Embedding 和 LLM 完整意图树推理，然后只做一次逐标签融合。Embedding 不生成可执行意图，也不裁剪 LLM 的标签空间；LLM 通道失败时系统不会仅凭相似度自动执行。历史 few-shot、Platt 校准和 Jev 模块保留给离线对照评测，不接入默认应用装配。
+
+上下文整理、来源校验与识别现已[拆成独立边界](intent-context-boundaries.md)。没有来源时直接保留原句；少量完整公共 FAQ 模板（套餐价格、退款条件、发票入口等）在没有待澄清事项时也直接保留原句。有指代、省略、待澄清事项或未命中模板时，仍先独立整理并校验，再让两路识别读取同一整理后问题。模板只减少上下文调用，不取代意图识别、来源校验或融合门禁。
+
+拆分前策略使用 `evaluation/fixtures/supervisor_intent_final_v2.json` 的 100 条版本化离线集评测，两次运行的主指标一致：Intent Set Exact Match 为 `94.0%`，Macro-F1 为 `96.5234%`，Micro-F1 为 `97.0874%`。报告保存在 `evaluation/reports/supervisor_intent_current_v2_live.json`，并由 `supervisor_intent_latest_manifest.json` 锁定数据、配置与 SHA256；它不证明拆分后新模型边界的效果。该数据集为合成离线回归集，独立业务复核仍为 `pending`，且 `production_evidence=false`；修改模型输入输出边界、`α`、阈值、意图定义或模型后必须重新运行评测。旧 90 条 few-shot 报告及 manifest 继续作为历史基线保留，不能与当前结果混算。
 
 ## 11. RAG 检索与重排
 
@@ -142,15 +156,15 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RAG_FAST_PATH_MIN_SCORE` / `_MARGIN` / `_CHANNEL_SCORE` | `0.78` / `0.12` / `0.35` | 仅给非 RRF 自定义检索器的兼容回退 |
 | `RAG_HEADING_LEXICAL_WEIGHT` | `0.50` | 标题字段的词法权重 |
 | `RAG_VECTOR_CANDIDATE_MULTIPLIER` / `_MIN` | `4` / `20` | 向量候选数 = max(倍数×top_k, 下限) |
-| `AGENT_INITIAL_RETRIEVAL_ENABLED` | `true` | 首检索前置（Runtime 先检索再决策） |
-| `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | 检索后的结构化证据判断 |
-| `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 没有系统首轮检索时的总调用上限，范围 1–3；有系统首轮检索时使用下述请求级预算 |
+| `AGENT_INITIAL_RETRIEVAL_ENABLED` | `false` | 保留历史调用兼容；领域 Agent 不统一前置单跳检索，已确认的简单公共 FAQ 可按模板前置 FAQ 检索 |
+| `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | `agentic_rag` 工具内部检索后的结构化证据判断；FAQ 与单跳路径不强制多跳反思 |
+| `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 外层工具调用与 Agentic 工具内部知识检索各自的上限，范围 1–3；内部上限包含首次取证 |
 
-系统首轮知识检索最多执行 3 个子查询，Runtime 为该请求额外预留 1 次缺口补检索：
-首轮 1 / 2 / 3 次对应总上限 2 / 3 / 4 次。预算只统计已授权的知识检索工具，
-其他只读工具不增加额度；证据完整时直接作答，不要求用完预算。
-模型提示与执行前检查使用同一个请求级上限，关闭结构化反思也不会绕过预算。
-Trace 和检索上下文仍记录真实调用次数；预算保存在单次运行内，不影响并发请求。
+领域 Agent 对命中完整公共 FAQ 模板、且与冻结的单个业务标签一致的单诉求请求，先通过受控 ToolBinding 执行 `faq_search`，再让模型根据证据作答，省去首次工具选择调用。`orchestrate` 请求的子任务全部保留原模型工具选择路径。缺少 FAQ 工具、多个标签、个人记录、复合问题或未命中模板时，仍由模型选择检索工具。预取的 FAQ 也计入预算，保留文档作用域、证据治理和响应护栏；证据不足时允许按原预算补搜。执行元数据记录 `simple-public-faq-v1` / `faq_prefetch`。
+Agentic 工具内部另有请求级预算，默认执行一次混合检索，证据不足时最多补搜一次；个人记录查询先调用只读业务工具，按需补充公开规则。
+内部仅暴露混合检索与当前用户范围内的只读查询工具，不允许递归 Agentic 调用或写操作。关闭结构化反思也不会绕过预算。
+历史 Runtime 显式注入多个初始检索的兼容调用仍按首轮次数加一次缺口补搜计数；当前生产 Agentic 工具使用显式预算覆盖该规则。
+默认应用没有真实业务查询后台，需通过 `build_app_services(readonly_business_query=...)` 注入受控只读适配器；未接入时不生成个人状态结论。
 
 ## 12. Trace、健康检查与可观测性
 

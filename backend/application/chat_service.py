@@ -6,13 +6,16 @@ import sqlite3
 import logging
 import time
 import uuid
-from dataclasses import dataclass
+import redis
+from dataclasses import dataclass, replace
+from response.input_secrets import SECRET, redact_secrets
 from datetime import datetime
 from typing import Any, Dict
 
 from agents.intent_orchestrator import Request as OrchestrationRequest
-from memory.conversation_state import merge_case_state
+from memory.conversation_state import merge_case_state, update_discussion_state
 from monitor.execution_trace import utc_now_iso
+from mcp.retrieval_contracts import FAQ_SEARCH, HYBRID_SEARCH, evidence_events
 from runtime.conversation_turn_gate import (
     ConversationGateUnavailableError,
     ConversationLeaseLostError,
@@ -76,6 +79,8 @@ class ChatService:
     async def handle(self, command: ChatCommand) -> ChatOutcome:
         """Execute one complete conversation turn without transport concerns."""
 
+        exposed_secret = bool(SECRET.search(command.message))
+        command = replace(command, message=redact_secrets(command.message))
         request_id = command.request_id or str(uuid.uuid4())[:8]
         trace_id = self.traces.new_trace_id()
         trace_started_at = utc_now_iso()
@@ -137,11 +142,12 @@ class ChatService:
             message=command.message,
             user_id=command.user_id,
             conv_id=command.conv_id,
-            short_term_context=short_term.to_text(),
-            long_term_context=long_term.to_text(),
-            intent_context=short_term.summary,
-            case_state=case_state.to_intent_context(),
-            history=history,
+            short_term_context=redact_secrets(short_term.to_text()),
+            long_term_context=redact_secrets(long_term.to_text()),
+            intent_context=redact_secrets(short_term.summary),
+            case_state=redact_secrets(case_state.to_intent_context()),
+            history=redact_secrets(history),
+            exposed_secret=exposed_secret,
             request_id=request_id,
             trace_recorder=trace_recorder,
             turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0),
@@ -193,10 +199,10 @@ class ChatService:
             logger.warning("Trace final summary write failed: %s", ex)
 
         knowledge_used = any(
-            event.get("tool_name") == "knowledge_search"
+            event.get("tool_name") in {FAQ_SEARCH, HYBRID_SEARCH}
             and event.get("success")
             and not event.get("fallback_used")
-            for event in result.tool_events
+            for event in evidence_events(result.tool_events)
         )
         next_case_state = None
         if result.case_update_mode != "preserve":
@@ -211,6 +217,10 @@ class ChatService:
                 status=result.status,
                 reason_code=result.reason_code,
             )
+        discussion = update_discussion_state(next_case_state or case_state, command.message,
+                                              result.supervisor_analysis or {})
+        if discussion is not None:
+            next_case_state = discussion
         memory_persisted = await persist_chat_memory(
             self.memory,
             user_id=command.user_id,
@@ -287,10 +297,15 @@ class ChatService:
 def intent_values(result: Any) -> list[str]:
     """Return the canonical fine-grained intent values for persistence."""
 
-    return [
+    values = [
         intent.value
         for intent in (getattr(result, "intents", None) or [])
     ]
+    primary = getattr(result, "primary_intent", None)
+    if primary is not None and primary.value in values:
+        values.remove(primary.value)
+        values.insert(0, primary.value)
+    return values
 
 
 async def enqueue_profile_update(
@@ -390,6 +405,16 @@ async def persist_chat_memory(
         persisted = False
         logger.error(
             "Conversation message persistence failed; returning generated response: %s",
+            type(ex).__name__,
+        )
+    except redis.RedisError as ex:
+        # The durable turn precedes Redis publication. Keep the generated reply,
+        # report persistence failure and let the next read rebuild the view.
+        persisted = False
+        if owned_commit:
+            case_state = None
+        logger.error(
+            "Redis short-term publication failed; returning generated response: %s",
             type(ex).__name__,
         )
 

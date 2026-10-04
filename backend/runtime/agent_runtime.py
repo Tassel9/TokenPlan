@@ -11,7 +11,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Mapping, Optional, Tupl
 
 from core.deepseek_client import deepseek_request_options, extract_text
 from core.payload_fingerprint import payload_hmac_sha256
-from mcp.tool_capabilities import KNOWLEDGE_RETRIEVE
+from mcp.tool_capabilities import KNOWLEDGE_AGENTIC, KNOWLEDGE_FAQ, KNOWLEDGE_RETRIEVE
 from monitor.execution_trace import TraceEventType
 from runtime.action_protocol import ActionType, AgentAction, parse_agent_action
 from runtime.agent_state import AgentRunResult, AgentRunStatus, AgentStep
@@ -37,9 +37,9 @@ CompletionReviewProvider = Callable[[Dict[str, Any]], Union[Awaitable[Any], Any]
 class BoundedAgentRuntime:
     """Run an auditable Decide -> Tool -> Observe loop with governed tools."""
 
-    PROMPT_VERSION = "customer-service-agent-loop-v8"
+    PROMPT_VERSION = "customer-service-agent-loop-v10-request-retrieval-budget"
     RETRIEVAL_REFLECTION_PROMPT_VERSION = (
-        "customer-service-agent-loop-v9-retrieval-reflection"
+        "customer-service-agent-loop-v10-retrieval-reflection-budget"
     )
 
     def __init__(
@@ -90,6 +90,7 @@ class BoundedAgentRuntime:
         initial_read_tool_name: str = "",
         initial_read_tool_arguments: Optional[Mapping[str, Any]] = None,
         initial_read_calls: Optional[List[Mapping[str, Any]]] = None,
+        retrieval_call_limit: Optional[int] = None,
     ) -> AgentRunResult:
         started = time.monotonic()
         if not intent_id.strip():
@@ -119,7 +120,7 @@ class BoundedAgentRuntime:
         retrieval_tool_names = {
             str(schema.get("name") or "")
             for schema in tool_schemas
-            if KNOWLEDGE_RETRIEVE in {
+            if {KNOWLEDGE_RETRIEVE, KNOWLEDGE_FAQ, KNOWLEDGE_AGENTIC} & {
                 str(capability or "").strip()
                 for capability in (schema.get("capabilities") or [])
             }
@@ -175,6 +176,20 @@ class BoundedAgentRuntime:
                     reason_code="initial_retrieval",
                 ))
 
+        initial_retrieval_count = sum(
+            action.tool_name in retrieval_tool_names for action in initial_actions
+        )
+        # 首轮按子句取证后仍预留一次 gap 检索；预算只属于本次运行，
+        # 不能修改共享 Runtime 的配置或把多次真实调用记成一次。
+        request_max_retrieval_calls = (
+            initial_retrieval_count + 1
+            if initial_retrieval_count
+            else self._max_retrieval_calls
+        )
+        if retrieval_call_limit is not None:
+            request_max_retrieval_calls = max(1, min(3, int(retrieval_call_limit)))
+        retrieval_call_count = 0
+
         while True:
             step_index += 1
             if step_index > self._max_steps:
@@ -209,6 +224,8 @@ class BoundedAgentRuntime:
                 non_read_outcome_uncertain=non_read_outcome_uncertain,
                 completion_retry_pending=completion_retry_pending,
                 retrieval_tool_names=retrieval_tool_names,
+                max_retrieval_calls=request_max_retrieval_calls,
+                initial_retrieval_calls=initial_retrieval_count,
             )
             automatic_initial_retrieval = bool(initial_actions)
             decision_started = time.monotonic()
@@ -318,8 +335,8 @@ class BoundedAgentRuntime:
                     violation = validate_retrieval_transition(
                         action,
                         retrieval_tool_names=retrieval_tool_names,
-                        search_count=int(retrieval_snapshot["search_count"]),
-                        max_search_calls=self._max_retrieval_calls,
+                        search_count=retrieval_call_count,
+                        max_search_calls=request_max_retrieval_calls,
                         visible_document_ids={
                             str(item.get("document_id") or "")
                             for item in retrieval_context.final_contexts()
@@ -564,6 +581,31 @@ class BoundedAgentRuntime:
                     stage_timings_ms=stage_timings_ms,
                 )
 
+            if (
+                action.tool_name in retrieval_tool_names
+                and retrieval_call_count >= request_max_retrieval_calls
+            ):
+                # 预算独立于反思开关和检索是否成功，所有知识调用执行前
+                # 都受此硬限制（包括系统注入的初始调用）。
+                steps.append(AgentStep(
+                    step_index=step_index,
+                    action=action.action,
+                    reason_code="retrieval_budget_exhausted",
+                    state_after=AgentRunStatus.HANDOFF,
+                    tool_name=action.tool_name,
+                    success=False,
+                    error="knowledge retrieval call budget exhausted",
+                ))
+                return self._terminal_result(
+                    run_id, agent_type, AgentRunStatus.HANDOFF,
+                    "检索次数已经达到上限，建议补充信息或转人工核验。",
+                    success=False, reason_code="retrieval_budget_exhausted",
+                    steps=steps, tool_events=tool_events,
+                    evidence_ids=evidence_ids, artifact=artifact,
+                    started=started, escalate=True,
+                    stage_timings_ms=stage_timings_ms,
+                )
+
             signature = self._tool_signature(action)
             if signature in called_signatures:
                 duplicate_side_effect = tool_side_effects.get(
@@ -645,6 +687,8 @@ class BoundedAgentRuntime:
                 reason_code=action.reason_code,
                 metadata={"arguments_hmac_sha256": arguments_hmac_sha256},
             )
+            if action.tool_name in retrieval_tool_names:
+                retrieval_call_count += 1
             try:
                 result = await self._tool_manager.call(
                     str(action.tool_name),
@@ -986,8 +1030,15 @@ class BoundedAgentRuntime:
         non_read_outcome_uncertain: bool = False,
         completion_retry_pending: bool = False,
         retrieval_tool_names: Optional[set[str]] = None,
+        max_retrieval_calls: Optional[int] = None,
+        initial_retrieval_calls: int = 0,
     ) -> Dict[str, Any]:
         tools = tool_schemas
+        retrieval_limit = (
+            self._max_retrieval_calls
+            if max_retrieval_calls is None
+            else max_retrieval_calls
+        )
         retrieval_context = self._retrieval_context_state(
             observations,
             retrieval_tool_names or set(),
@@ -1024,7 +1075,7 @@ class BoundedAgentRuntime:
    - complete=true时必须relevant=true且至少引用一篇文档，missing_information和next_query必须为空；此时不得继续调用知识检索工具。
    - complete=false时必须用missing_information写清一个未覆盖的信息点。若仍要检索，next_query必须围绕“用户原始主题 + 该缺口 + 已知关键实体”生成，并与实际工具参数query一致；不得与历史Query仅有空格、标点或大小写差异。
    - complete=false时优先补齐缺口：围绕missing_information生成更具体的next_query并立即调用知识检索工具；应替换同义表达或拆分未覆盖的子问题，不要只重复历史Query的措辞；检索预算未用尽时不得直接HANDOFF；只有缺口无法通过检索补足（需要用户本人信息或后台状态）时，才用ASK_USER或HANDOFF说明原因。
-   - 本请求最多执行{self._max_retrieval_calls}次知识检索。达到上限仍不完整时，只能ASK_USER或HANDOFF，不能FINAL，也不能继续检索。"""
+   - 本请求最多执行{retrieval_limit}次知识检索。达到上限仍不完整时，只能ASK_USER或HANDOFF，不能FINAL，也不能继续检索。"""
             action_schema = (
                 '{{"action":"ASK_USER|CALL_TOOL|HANDOFF|FINAL",'
                 '"tool_name":null,"arguments":{},"message":"面向用户的文本",'
@@ -1045,6 +1096,17 @@ class BoundedAgentRuntime:
                 '{{"action":"ASK_USER|CALL_TOOL|HANDOFF|FINAL",'
                 '"tool_name":null,"arguments":{},"message":"面向用户的文本",'
                 '"reason_code":"简短原因码"}}'
+            )
+            if retrieval_tool_names:
+                retrieval_rule += (
+                    f"本请求最多执行{retrieval_limit}次知识检索。"
+                    "达到上限仍不完整时，只能ASK_USER或HANDOFF，不能继续检索。"
+                )
+        if initial_retrieval_calls:
+            retrieval_rule += (
+                f"\n系统首轮安排{initial_retrieval_calls}次知识检索，"
+                f"首轮结束后最多补检索{max(0, retrieval_limit - initial_retrieval_calls)}次；"
+                "已有证据完整时直接作答，不必用完预算。"
             )
         prompt = f"""你正在处理一个有边界的客服意图，每次只能决定一个动作。
 
@@ -1127,7 +1189,8 @@ JSON格式：
             "accumulated_evidence": accumulated_evidence,
             "retrieval_context": retrieval_snapshot,
             "retrieval_reflection_required": reflection_required,
-            "max_retrieval_calls": self._max_retrieval_calls,
+            "max_retrieval_calls": retrieval_limit,
+            "initial_retrieval_calls": initial_retrieval_calls,
             "terminal_only_reason": terminal_only_reason,
             "completion_retry_pending": completion_retry_pending,
         }

@@ -198,7 +198,7 @@ class AgenticRagReactTrajectoryTests(unittest.IsolatedAsyncioTestCase):
                     first_data[0]["document_id"],
                 )
                 self.assertEqual(
-                    "customer-service-agent-loop-v8",
+                    "customer-service-agent-loop-v10-request-retrieval-budget",
                     payload["prompt_version"],
                 )
                 self.assertEqual(

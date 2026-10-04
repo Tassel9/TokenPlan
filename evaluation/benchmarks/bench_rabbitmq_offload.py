@@ -222,6 +222,10 @@ async def main() -> int:
         revision=None,
     )
     memory = MemoryManager(
+        redis_host=os.getenv("REDIS_HOST", "localhost"),
+        redis_port=int(os.getenv("REDIS_PORT", "6379")),
+        redis_db=int(os.getenv("REDIS_DB", "0")),
+        redis_password=os.getenv("REDIS_PASSWORD") or None,
         session_db_path=str(temp_root / "sessions.sqlite3"),
         chroma_host="127.0.0.1",
         chroma_port=1,  # 强制本地内嵌 Chroma，避免占用宿主 8001（已被其他项目占用）

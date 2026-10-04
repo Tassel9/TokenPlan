@@ -28,6 +28,8 @@ class CustomerServiceCase:
     last_intents: List[str] = field(default_factory=list)
     last_action: str = ""
     unresolved_question: str = ""
+    # User statements only; these are discussion context, not verified business status.
+    discussion_messages: List[str] = field(default_factory=list)
     consecutive_unmatched_turns: int = 0
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -57,6 +59,7 @@ class CustomerServiceCase:
         state.last_intents = _unique_strings(data.get("last_intents"))
         state.submitted_materials = _unique_strings(data.get("submitted_materials"))
         state.pending_slots = _unique_strings(data.get("pending_slots"))
+        state.discussion_messages = _unique_strings(data.get("discussion_messages"))[-4:]
         try:
             state.consecutive_unmatched_turns = max(
                 0, int(data.get("consecutive_unmatched_turns", 0))
@@ -83,6 +86,7 @@ class CustomerServiceCase:
             "last_intents": self.last_intents,
             "last_action": self.last_action,
             "unresolved_question": self.unresolved_question,
+            "discussion_messages": self.discussion_messages,
             "consecutive_unmatched_turns": self.consecutive_unmatched_turns,
         }
 
@@ -229,6 +233,34 @@ def _detect_action(text: str) -> str:
         if any(pattern in lowered for pattern in patterns):
             return action
     return ""
+
+
+def update_discussion_state(state: CustomerServiceCase, message: str,
+                            analysis: Mapping[str, Any]) -> Optional[CustomerServiceCase]:
+    """Persist validated discussion independently of intent execution/CaseUpdate.
+
+    Low confidence must not erase the user's topic. Only user words are stored;
+    no model rewrite or claimed business completion is promoted to a fact.
+    """
+    rewrite = analysis.get("rewrite") or {}
+    if rewrite.get("status") not in {"not_needed", "resolved"}:
+        return None
+    if analysis.get("scope_status") == "out_of_scope":
+        messages = []
+    elif analysis.get("scope_status") == "in_scope" and analysis.get("intents"):
+        if rewrite.get("status") == "resolved" and state.discussion_messages:
+            messages = [state.discussion_messages[0], *state.discussion_messages[1:], message]
+            messages = [messages[0], *messages[-3:]] if len(messages) > 4 else messages
+        else:
+            messages = [message]
+        messages = _unique_strings([text[:600] for text in messages])
+    else:
+        return None
+    if messages == state.discussion_messages:
+        return None
+    updated = CustomerServiceCase.from_dict(state.to_dict(), user_id="state", conv_id=state.case_id)
+    updated.discussion_messages = messages
+    return updated
 
 
 def _pending_slots(state: CustomerServiceCase, intents: List[str]) -> List[str]:

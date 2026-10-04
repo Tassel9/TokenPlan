@@ -9,9 +9,12 @@ from core.supervisor_decision import FineGrainedIntent
 
 
 class AgentRoute(str, Enum):
+    SUBSCRIPTION = "subscription"
+    BILLING = "billing"
+    SUPPORT = "support"
+    # Retained only to decode historical serialized routes.
     RAG_KNOWLEDGE = "rag_knowledge"
     BUSINESS_DATA_QUERY = "business_data_query"
-    BUSINESS_OPERATION = "business_operation"
 
 
 class HandoffPolicy(str, Enum):

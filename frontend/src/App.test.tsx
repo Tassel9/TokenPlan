@@ -28,11 +28,11 @@ const responseFixture: ChatResponse = {
       ],
     },
   },
-  agent_type: 'technical',
+  agent_type: 'support',
   escalated: false,
   latency_ms: 680,
   knowledge_used: true,
-  agent_types: ['technical', 'billing'],
+  agent_types: ['support', 'billing'],
   status: 'COMPLETED',
   overall_status: 'COMPLETED',
   response_action: 'ANSWER',
@@ -44,7 +44,7 @@ const responseFixture: ChatResponse = {
     {
       intent: 'technical_troubleshooting',
       status: 'COMPLETED',
-      agent_type: 'technical',
+      agent_type: 'support',
       latency_ms: 320,
       selected_skill_ids: ['technical-troubleshooting'],
     },
@@ -53,7 +53,7 @@ const responseFixture: ChatResponse = {
       status: 'COMPLETED',
       agent_type: 'billing',
       latency_ms: 290,
-      selected_skill_ids: ['payment-support'],
+      selected_skill_ids: ['billing-policy'],
     },
   ],
   intent_result_summary: {},
@@ -104,8 +104,9 @@ describe('TokenPlan workspace', () => {
 
     await user.click(screen.getByRole('button', { name: /查看本次处理过程/ }))
     expect(screen.getAllByText('技术排障').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('账单 Agent').length).toBeGreaterThan(0)
-    expect(screen.getAllByText('technical-troubleshooting、payment-support').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('用户支持 Agent').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('交易与账务 Agent').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('technical-troubleshooting、billing-policy').length).toBeGreaterThan(0)
     expect(screen.getAllByText('trace-demo-001').length).toBeGreaterThan(0)
   })
 })

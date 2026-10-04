@@ -1,4 +1,4 @@
-"""SQLite authority for one conversation's messages, summary, case and turn results."""
+"""Durable conversation archive, recovery views, case and fenced turn results."""
 from __future__ import annotations
 
 import json
@@ -90,6 +90,11 @@ class SQLiteSessionStore:
             CREATE INDEX IF NOT EXISTS idx_agent_memory_scope
                 ON agent_memory(user_id, conv_id, case_id, agent_name, created_at);
         """)
+        columns = {row[1] for row in self._connection.execute("PRAGMA table_info(conversations)")}
+        if "view_revision" not in columns:
+            self._connection.execute(
+                "ALTER TABLE conversations ADD COLUMN view_revision INTEGER NOT NULL DEFAULT 0"
+            )
 
     def _cleanup_expired(self, db: sqlite3.Connection, now: float) -> None:
         if now - self._last_cleanup < 3600:
@@ -239,7 +244,7 @@ class SQLiteSessionStore:
             history.extend((user_payload, assistant_payload))
             history = history[-history_max:]
             db.execute(
-                "UPDATE conversations SET revision=?, hot_json=?, hot_expires_at=?, "
+                "UPDATE conversations SET revision=?, view_revision=view_revision+1, hot_json=?, hot_expires_at=?, "
                 "history_json=?, history_expires_at=?, "
                 "summary_expires_at=CASE WHEN summary_v2!='' OR summary_legacy!='' "
                 "THEN ? ELSE summary_expires_at END, "
@@ -269,7 +274,7 @@ class SQLiteSessionStore:
             hot.extend(payloads)
             history.extend(payloads)
             db.execute(
-                "UPDATE conversations SET revision=?, hot_json=?, hot_expires_at=?, "
+                "UPDATE conversations SET revision=?, view_revision=view_revision+1, hot_json=?, hot_expires_at=?, "
                 "history_json=?, history_expires_at=?, "
                 "summary_expires_at=CASE WHEN summary_v2!='' OR summary_legacy!='' "
                 "THEN ? ELSE summary_expires_at END WHERE user_id=? AND conv_id=?",
@@ -302,6 +307,28 @@ class SQLiteSessionStore:
         row = self._row(user_id, conv_id)
         return int(row["revision"]) if row else 0
 
+    def short_term_stamp(self, user_id: str, conv_id: str) -> Tuple[int, int]:
+        """Read only the turn and derived-view versions for Redis freshness checks."""
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT revision, view_revision FROM conversations WHERE user_id=? AND conv_id=?",
+                (user_id, conv_id),
+            ).fetchone()
+        return (int(row[0]), int(row[1])) if row else (0, 0)
+
+    def short_term_snapshot(self, user_id: str, conv_id: str) -> Optional[dict]:
+        """One consistent recovery snapshot; never refresh its expiry on a read."""
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT revision, view_revision, hot_json, hot_expires_at, "
+                "summary_v2, summary_legacy, summary_expires_at "
+                "FROM conversations WHERE user_id=? AND conv_id=?", (user_id, conv_id),
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(zip(("revision", "generation", "hot_json", "hot_expires_at",
+                         "summary_v2", "summary_legacy", "summary_expires_at"), tuple(row)))
+
     def publish(self, user_id: str, conv_id: str, *, expected_revision: int,
                 token: str, summary: str, payloads: List[str], ttl: int) -> bool:
         with self._write() as db:
@@ -318,7 +345,7 @@ class SQLiteSessionStore:
                 "UPDATE conversations SET summary_v2=CASE WHEN ?!='' THEN ? ELSE summary_v2 END, "
                 "summary_legacy=CASE WHEN ?!='' THEN '' ELSE summary_legacy END, "
                 "summary_expires_at=CASE WHEN ?!='' THEN ? ELSE summary_expires_at END, "
-                "hot_json=?, hot_expires_at=? WHERE user_id=? AND conv_id=?",
+                "view_revision=view_revision+1, hot_json=?, hot_expires_at=? WHERE user_id=? AND conv_id=?",
                 (summary, summary, summary, summary, time.time() + ttl,
                  json.dumps(payloads, ensure_ascii=False),
                  time.time() + ttl if payloads else 0, user_id, conv_id),
@@ -329,7 +356,7 @@ class SQLiteSessionStore:
         with self._write() as db:
             self._ensure(db, user_id, conv_id)
             db.execute(
-                "UPDATE conversations SET hot_json=?, hot_expires_at=? "
+                "UPDATE conversations SET view_revision=view_revision+1, hot_json=?, hot_expires_at=? "
                 "WHERE user_id=? AND conv_id=?",
                 (json.dumps(payloads, ensure_ascii=False),
                  time.time() + ttl if payloads else 0, user_id, conv_id),

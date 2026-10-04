@@ -1,4 +1,4 @@
-"""Validated semantic analysis emitted by the IntentRecognizer."""
+"""Shared semantic types and validators, including legacy Supervisor envelopes."""
 from __future__ import annotations
 
 import json
@@ -124,6 +124,17 @@ INTENT_SPECS: Dict[FineGrainedIntent, IntentSpec] = {
 INTENT_DEFINITIONS: Dict[FineGrainedIntent, str] = {
     intent: spec.decision_text for intent, spec in INTENT_SPECS.items()
 }
+
+# The intent tree is the authoritative boundary of the three consultation Agents.
+PARENT_INTENT_AGENTS = {
+    "套餐与权益": "subscription",
+    "交易与账务": "billing",
+    "用户支持": "support",
+}
+
+
+def agent_for_intent(intent: FineGrainedIntent | str) -> str:
+    return PARENT_INTENT_AGENTS[INTENT_SPECS[FineGrainedIntent(intent)].domain]
 
 
 class RewriteStatus(str, Enum):
@@ -289,6 +300,13 @@ class SupervisorAnalysis:
     intents: tuple[SupervisorIntent, ...]
     scope_status: ScopeStatus
     reason_code: str = ""
+    primary_intent_id: str = ""
+
+    @property
+    def primary_intent(self) -> Optional[FineGrainedIntent]:
+        selected = next((item for item in self.intents
+                         if item.intent_id == self.primary_intent_id), None)
+        return selected.label if selected else (self.intents[0].label if self.intents else None)
 
     @property
     def intent_labels(self) -> List[FineGrainedIntent]:
@@ -299,16 +317,29 @@ class SupervisorAnalysis:
         return [item.to_dict() for item in self.intents]
 
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        result = {
             "rewrite": self.rewrite.to_dict(),
             "intents": self.intent_rows,
             "scope_status": self.scope_status.value,
             "reason_code": self.reason_code,
         }
+        if self.primary_intent_id:
+            result["primary_intent_id"] = self.primary_intent_id
+        return result
 
 
 class SupervisorDecisionValidator:
     """Fail-closed validation for first-round Supervisor semantics."""
+
+    @classmethod
+    def validate_rewrite(cls, raw: Any, **kwargs: Any) -> SupervisorRewrite:
+        """Public source validator reused by the upstream context boundary."""
+        return cls._validate_rewrite(raw, **kwargs)
+
+    @classmethod
+    def validate_intents(cls, raw: Any, original_query: str) -> List[SupervisorIntent]:
+        """Public label/evidence validator, independent of context rewriting."""
+        return cls._validate_intents(raw, original_query)
 
     @classmethod
     def validate_analysis(

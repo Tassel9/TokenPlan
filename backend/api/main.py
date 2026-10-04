@@ -564,7 +564,7 @@ async def search(
         scope=scope,
     )
     tool_context: Dict[str, Any] = {
-        "agent_type": "rag_knowledge",
+        "agent_type": "subscription",
         "run_id": f"search-{uuid.uuid4().hex[:8]}",
         "step_id": "retrieval",
     }

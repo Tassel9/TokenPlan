@@ -5,7 +5,7 @@ description: >-
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  token-plan-owner-agent: billing
 ---
 
 # 退款政策咨询

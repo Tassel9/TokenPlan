@@ -30,7 +30,7 @@ def _tool(
         handler=_handler,
         schema={"type": "object", "properties": {}},
         capabilities=[capability],
-        allowed_agents=allowed_agents or ["rag_knowledge"],
+        allowed_agents=allowed_agents or ["subscription"],
     )
 
 
@@ -50,17 +50,17 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
         registry.register(_tool(
             "tokenplan_kb_query",
             KNOWLEDGE_RETRIEVE,
-            allowed_agents=["rag_knowledge"],
+            allowed_agents=["subscription"],
         ))
 
         general = ToolBroker(registry).bind(
             intent_id="intent-rag",
-            agent_type="rag_knowledge",
+            agent_type="subscription",
             required_capabilities=[KNOWLEDGE_RETRIEVE],
         )
         technical = ToolBroker(registry).bind(
             intent_id="intent-technical",
-            agent_type="business_data_query",
+            agent_type="billing",
             required_capabilities=[KNOWLEDGE_RETRIEVE],
         )
 
@@ -76,11 +76,11 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
         registry.register(_tool("record_writer", "record.write"))
         binding = ToolBroker(registry).bind(
             intent_id="intent-1",
-            agent_type="rag_knowledge",
+            agent_type="subscription",
             required_capabilities=["record.read"],
         )
         context = {
-            "agent_type": "rag_knowledge",
+            "agent_type": "subscription",
             "intent_id": "intent-1",
             "tool_binding": binding.to_context(),
         }
@@ -111,7 +111,7 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
         registry.register(_tool("record_writer", "record.write"))
         binding = ToolBroker(registry).bind(
             intent_id="intent-1",
-            agent_type="rag_knowledge",
+            agent_type="subscription",
             required_capabilities=["record.read"],
         )
 
@@ -131,7 +131,7 @@ class ToolDiscoveryContractTests(unittest.IsolatedAsyncioTestCase):
             tool_manager=registry,
             decision_provider=provider,
         ).run(
-            agent_type="rag_knowledge",
+            agent_type="subscription",
             system_prompt="test",
             message="read record",
             tool_binding=binding,
@@ -153,7 +153,7 @@ description: Public TokenPlan subscription guidance.
 required-capabilities: knowledge.retrieve
 metadata:
   version: "1.0.0"
-  token-plan-owner-agent: rag_knowledge
+  token-plan-owner-agent: subscription
 ---
 
 # General knowledge
@@ -183,12 +183,12 @@ Use the bound public-knowledge capability.
                 })
 
             skill_binding = skills.bind_for_agent(
-                "rag_knowledge",
+                "subscription",
                 ["general-knowledge"],
             )[0]
             tool_binding = ToolBroker(tools).bind(
                 intent_id="intent-1",
-                agent_type="rag_knowledge",
+                agent_type="subscription",
                 required_capabilities=skill_binding.required_capabilities,
             )
             result = await BoundedAgentRuntime(
@@ -197,7 +197,7 @@ Use the bound public-knowledge capability.
                 tool_manager=tools,
                 decision_provider=provider,
             ).run(
-                agent_type="rag_knowledge",
+                agent_type="subscription",
                 system_prompt=skill_binding.prompt_fragment,
                 message="TokenPlan 套餐权益规则",
                 focus="解释套餐权益规则",

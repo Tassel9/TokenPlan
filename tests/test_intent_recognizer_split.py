@@ -5,6 +5,7 @@ from agents.agent_registry import AgentRegistration, AgentRegistry
 from agents.intent_orchestrator import IntentOrchestrator, Request
 from agents.specialist_agents import AgentExecution, IntentExecutionMeta
 from agents.supervisor_lead import SupervisorAction, SupervisorLead
+from core.intent_pipeline import IntentRecognitionPipeline
 from core.intent_recognizer import IntentRecognizer
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import SupervisorDecisionValidator
@@ -67,7 +68,7 @@ class _Agent:
 def registry():
     return AgentRegistry(
         AgentRegistration(name, f"{name} work", _Agent(name), name)
-        for name in ("rag_knowledge", "business_data_query", "business_operation")
+        for name in ("rag_knowledge", "business_data_query")
     )
 
 
@@ -80,10 +81,11 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
 
         def recognize(payload):
             seen.append(payload)
-            return {"analysis": analysis_payload()}
+            return {"analysis": {key: value for key, value in analysis_payload().items() if key != "rewrite"}}
 
-        outcome = await IntentRecognizer(
+        outcome = await IntentRecognitionPipeline(
             self.context(),
+            recognizer_type=IntentRecognizer,
             decision_provider=recognize,
         ).recognize(QUERY)
 
@@ -224,12 +226,18 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                 "supporting_text": ["插件报401"],
             }]
             recognized["reason_code"] = "technical"
-            return {"analysis": recognized}
+            intent = recognized["intents"][0]
+            return {"analysis": {
+                "route": intent["label"], "supporting_text": intent["supporting_text"],
+                "tree_score": intent["tree_score"], "scope_status": "in_scope", "reason_code": "technical",
+            }}
 
         def plan(payload):
             planning_payloads.append(payload)
             if not payload["observations"]:
                 return {
+                    "analysis": {key: payload["frozen_analysis"][key]
+                                 for key in ("intents", "scope_status", "reason_code")},
                     "action": "SEND_MESSAGES",
                     "barrier": "all_settled",
                     "messages": [{
@@ -246,8 +254,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             }
 
         health = AgentHealthTracker()
-        # 该用例验证“识别 → Supervisor 规划”的模型边界；单意图快速通道
-        # （SINGLE_INTENT_FAST_PATH_ENABLED）会按设计跳过 Supervisor，这里显式关闭。
+        # 默认单意图输出也必须由 Supervisor 检查完整原句是否还有其他诉求。
         orchestrator = IntentOrchestrator(
             "test",
             base_url="https://example.invalid",
@@ -256,14 +263,15 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             supervisor_context=self.context(),
             intent_decision_provider=recognize,
             supervisor_decision_provider=plan,
-            single_intent_fast_path_enabled=False,
+            single_intent_fast_path_enabled=True,
         )
         result = await orchestrator.run(Request("插件报401", "u1", "c1"))
 
         self.assertEqual("COMPLETED", result.status)
         self.assertEqual(1, len(recognition_payloads))
         self.assertGreaterEqual(len(planning_payloads), 2)
-        self.assertFalse(planning_payloads[0]["analysis_required"])
+        self.assertTrue(planning_payloads[0]["analysis_required"])
+        self.assertTrue(planning_payloads[0]["intent_review_required"])
         self.assertEqual(
             ["插件报401"],
             planning_payloads[0]["intent_recognition"]["recognized_intents"][0][
@@ -282,7 +290,11 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                 "supporting_text": ["插件报401"],
                 "tree_score": 0.50,
             }]
-            return {"analysis": recognized}
+            intent = recognized["intents"][0]
+            return {"analysis": {
+                "route": intent["label"], "supporting_text": intent["supporting_text"],
+                "tree_score": intent["tree_score"], "scope_status": "in_scope", "reason_code": "technical",
+            }}
 
         def plan(payload):
             planning_payloads.append(payload)
@@ -296,7 +308,7 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             supervisor_context=self.context(),
             intent_decision_provider=recognize,
             supervisor_decision_provider=plan,
-            single_intent_fast_path_enabled=False,
+            single_intent_fast_path_enabled=True,
         )
 
         result = await orchestrator.run(Request("插件报401", "u1", "c1"))

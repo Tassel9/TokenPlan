@@ -1,6 +1,6 @@
-# 固定混合检索与有限补查
+# Agentic RAG：证据反思与有限补查
 
-领域 Agent 使用同一个 `knowledge_search` 获取公开规则：向量召回与 BM25 / SQLite FTS5 关键词召回 → RRF 融合 → BGE 重排 → 返回知识证据。
+当前默认路径是 Agentic RAG：首轮取证后由领域 Agent 判断证据是否足够，再决定补查、作答、澄清或询问是否转人工。底层每次检索使用同一个 `knowledge_search` 获取公开规则，固定执行向量召回与 BM25 / SQLite FTS5 关键词召回 → RRF 融合 → BGE 重排 → 返回知识证据。
 
 默认首轮在模型决策前检索。原执行 Query 只有一个子句时直接使用原文；多个子句按已有规则最多拆成三路。取得证据后，当前领域 Agent 提交 `retrieval_reflection`，只引用模型实际可见的文档，判断相关性、完整性和缺失信息。
 

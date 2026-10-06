@@ -216,7 +216,7 @@ class IntentOrchestrator:
         agent_registry: Optional[AgentRegistry] = None,
         dispatch_mode: str = "parallel",
         agent_initial_retrieval_enabled: bool = True,
-        agentic_rag_reflection_enabled: bool = False,
+        agentic_rag_reflection_enabled: bool = True,
         agentic_rag_max_search_calls: int = 2,
         single_intent_fast_path_enabled: bool = True,
         intent_recall_threshold: float = 0.40,
@@ -245,9 +245,8 @@ class IntentOrchestrator:
             model=model,
             tool_manager=tool_manager,
             decision_provider=decision_provider,
-            # Evidence reflection belongs inside the agentic_rag tool. FAQ and
-            # single-hop calls do not require the multi-hop decision loop.
-            retrieval_reflection_enabled=False,
+            # The same domain Agent reviews evidence before a bounded follow-up.
+            retrieval_reflection_enabled=agentic_rag_reflection_enabled,
             min_evidence_hint_count=0,
             max_retrieval_calls=agentic_rag_max_search_calls,
             resource_limits=resource_limits,
@@ -276,7 +275,7 @@ class IntentOrchestrator:
                     name=AgentType.SUBSCRIPTION.value,
                     description=(
                         "父意图：套餐与权益。负责套餐、购买流程、变更、退订与权益咨询；"
-                        "按问题类型使用 FAQ、单跳或 Agentic RAG，只读查询个人套餐与权益"
+                        "使用固定混合检索回答公开规则；个人状态需人工核验"
                     ),
                     instance=subscription,
                     skill_owner=subscription.skill_owner,
@@ -285,14 +284,14 @@ class IntentOrchestrator:
                     name=AgentType.BILLING.value,
                     description=(
                         "父意图：交易与账务。负责支付异常、发票与退款咨询；"
-                        "按问题类型使用 FAQ、单跳或 Agentic RAG，只读核验订单与账务记录"
+                        "使用固定混合检索解释公开流程；个人账务需人工核验"
                     ),
                     instance=billing,
                     skill_owner=billing.skill_owner,
                 ),
                 AgentRegistration(
                     name=AgentType.SUPPORT.value,
-                    description="父意图：用户支持。负责登录、安全指引、技术排障、投诉与反馈咨询；按问题类型选择检索工具",
+                    description="父意图：用户支持。负责登录、安全指引、技术排障、投诉与反馈咨询；使用固定混合检索",
                     instance=support,
                     skill_owner=support.skill_owner,
                 ),

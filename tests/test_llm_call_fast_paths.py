@@ -125,123 +125,132 @@ class Knowledge:
         self.empty, self.conflict = empty, conflict
 
     async def faq_search(self, params, tool_context):
-        self.calls.append(("faq_search", dict(params), dict(tool_context)))
-        docs = [] if self.empty else [{"document_id": "faq-1", "content": "月付套餐价格为 99 元。"}]
+        raise AssertionError("default hybrid path must not invoke FAQ")
+
+    async def search(self, params, tool_context):
+        self.calls.append(("knowledge_search", dict(params), dict(tool_context)))
+        docs = [] if self.empty and len(self.calls) == 1 else [
+            {"document_id": "doc-1", "content": "月付套餐价格为 99 元。"}]
         metadata = {"evidence_metadata": {"knowledge_governance": {
             "status": "conflict", "conflict_keys": ["price"]}}} if self.conflict else {}
         return ToolExecutionPayload(docs, metadata)
 
-    async def search(self, params, tool_context):
-        self.calls.append(("knowledge_search", dict(params), dict(tool_context)))
-        return ToolExecutionPayload([{"document_id": "doc-1", "content": "月付套餐价格为 99 元。"}])
 
-
-class FaqPrefetchTests(unittest.IsolatedAsyncioTestCase):
-    def build(self, knowledge, decide, agent_type=SubscriptionAgent, faq=True):
+class HybridInitialRetrievalTests(unittest.IsolatedAsyncioTestCase):
+    def build(self, knowledge, decide, *, initial=True):
         tools = ToolRegistry()
         suite = RetrievalToolSuite(knowledge)
-        suite.register(tools)
-        if not faq:
-            tools.unregister("faq_search")
+        suite.register_hybrid(tools)
         runtime = BoundedAgentRuntime(client=None, model="test", tool_manager=tools,
-            decision_provider=decide, min_evidence_hint_count=0)
-        return agent_type(runtime, tool_broker=ToolBroker(tools)), suite
+            decision_provider=decide, min_evidence_hint_count=0,
+            retrieval_reflection_enabled=True)
+        return SubscriptionAgent(runtime, tool_broker=ToolBroker(tools),
+                                 initial_retrieval_enabled=initial), suite
 
     def request(self, query="月付套餐多少钱？", intent="subscription_info_query", number="1"):
-        return AgentInput("req" + number, query, query, "u1", "c1", "i" + number, intent)
+        return AgentInput("req"+number,query,query,"u1","c1","i"+number,intent)
 
-    async def test_prefetch_has_evidence_before_only_model_call(self):
-        seen = []
+    @staticmethod
+    def complete():
+        return json.dumps({"action":"FINAL","message":"月付套餐价格为 99 元。",
+            "reason_code":"answered","retrieval_reflection":{
+                "relevant":True,"complete":True,"supporting_document_ids":["doc-1"],
+                "missing_information":"","next_query":""}},ensure_ascii=False)
+
+    async def test_initial_hybrid_has_evidence_before_only_model_call(self):
+        seen=[]
         def decide(payload):
             seen.append(payload)
-            self.assertEqual("faq_search", payload["observations"][0]["tool_name"])
-            return json.dumps({"action": "FINAL", "message": "月付套餐价格为 99 元。", "reason_code": "answered"})
-        knowledge = Knowledge()
-        agent, suite = self.build(knowledge, decide)
+            self.assertEqual("knowledge_search",payload["observations"][0]["tool_name"])
+            self.assertTrue(payload["retrieval_reflection_required"])
+            self.assertNotIn("faq_search",payload["allowed_tools"])
+            self.assertNotIn("agentic_rag",payload["allowed_tools"])
+            return self.complete()
+        knowledge=Knowledge()
+        agent,suite=self.build(knowledge,decide)
         try:
-            result = await agent.handle(self.request())
-            self.assertEqual("COMPLETED", result.result.status)
-            self.assertEqual(1, len(seen))
-            self.assertEqual("faq_search", knowledge.calls[0][0])
-            self.assertEqual("月付套餐多少钱？", knowledge.calls[0][1]["query"])
-            self.assertEqual("u1", knowledge.calls[0][2]["user_id"])
-            self.assertEqual("faq_prefetch", result.meta.routing["retrieval_path"])
+            result=await agent.handle(self.request())
+            self.assertEqual("COMPLETED",result.result.status)
+            self.assertEqual(1,len(seen))
+            self.assertEqual("knowledge_search",knowledge.calls[0][0])
+            self.assertEqual("月付套餐多少钱？",knowledge.calls[0][1]["query"])
+            self.assertEqual("u1",knowledge.calls[0][2]["user_id"])
         finally:
             await suite.close()
 
-    async def test_empty_faq_can_use_hybrid_fallback_without_repeating_faq(self):
-        seen = []
+    async def test_empty_hybrid_can_use_same_outlet_for_specific_gap(self):
+        seen=[]
         def decide(payload):
             seen.append(payload)
-            if len(payload["observations"]) == 1:
-                return json.dumps({"action": "CALL_TOOL", "tool_name": "knowledge_search",
-                                   "arguments": {"query": "月付套餐官方价格"}, "reason_code": "missing_price"})
-            return json.dumps({"action": "FINAL", "message": "月付套餐价格为 99 元。", "reason_code": "answered"})
-        knowledge = Knowledge(empty=True)
-        agent, suite = self.build(knowledge, decide)
+            if len(payload["observations"])==1:
+                return json.dumps({"action":"CALL_TOOL","tool_name":"knowledge_search",
+                    "arguments":{"query":"月付套餐官方价格"},"reason_code":"missing_price",
+                    "retrieval_reflection":{"relevant":False,"complete":False,
+                        "supporting_document_ids":[],"missing_information":"缺少价格",
+                        "next_query":"月付套餐官方价格"}},ensure_ascii=False)
+            return self.complete()
+        knowledge=Knowledge(empty=True)
+        agent,suite=self.build(knowledge,decide)
         try:
-            result = await agent.handle(self.request())
-            self.assertEqual("COMPLETED", result.result.status)
-            self.assertEqual(["faq_search", "knowledge_search"], [call[0] for call in knowledge.calls])
-            self.assertEqual(2, len(seen))
+            result=await agent.handle(self.request())
+            self.assertEqual("COMPLETED",result.result.status)
+            self.assertEqual(["knowledge_search","knowledge_search"],[v[0] for v in knowledge.calls])
+            self.assertEqual(2,len(seen))
         finally:
             await suite.close()
 
-    async def test_complex_personal_and_mismatched_labels_do_not_prefetch(self):
-        cases = [
-            ("我的套餐剩余额度是多少？", "subscription_info_query"),
-            ("比较月付和年付套餐", "subscription_info_query"),
-            ("月付套餐多少钱？", "subscription_info_query,refund_handling"),
-            ("月付套餐多少钱？", "refund_handling"),
-        ]
-        for query, label in cases:
-            with self.subTest(query=query, label=label):
-                seen = []
+    async def test_question_labels_do_not_switch_public_retrieval_tier(self):
+        cases=[("我的套餐剩余额度是多少？","subscription_info_query"),
+            ("比较月付和年付套餐","subscription_info_query"),
+            ("月付套餐多少钱？","subscription_info_query,refund_handling"),
+            ("月付套餐多少钱？","refund_handling")]
+        for query,label in cases:
+            with self.subTest(query=query,label=label):
+                seen=[]
                 def decide(payload):
                     seen.append(payload)
-                    return json.dumps({"action": "ASK_USER", "message": "请补充信息", "reason_code": "needs_detail"})
-                knowledge = Knowledge()
-                agent, suite = self.build(knowledge, decide)
+                    return json.dumps({"action":"ASK_USER","message":"请补充信息",
+                        "reason_code":"needs_detail","retrieval_reflection":{
+                            "relevant":True,"complete":False,"supporting_document_ids":["doc-1"],
+                            "missing_information":"需要个人记录","next_query":""}},ensure_ascii=False)
+                knowledge=Knowledge()
+                agent,suite=self.build(knowledge,decide)
                 try:
-                    await agent.handle(self.request(query, label))
-                    self.assertEqual([], seen[0]["observations"])
-                    self.assertEqual([], knowledge.calls)
+                    await agent.handle(self.request(query,label))
+                    self.assertTrue(knowledge.calls)
+                    self.assertEqual({"knowledge_search"},{v[0] for v in knowledge.calls})
+                    self.assertEqual(query,knowledge.calls[0][1]["query"])
                 finally:
                     await suite.close()
 
-    async def test_missing_faq_binding_retains_model_tool_selection(self):
-        seen = []
+    async def test_explicitly_disabled_initial_retrieval_keeps_no_prefetch(self):
+        seen=[]
         def decide(payload):
             seen.append(payload)
-            return json.dumps({"action": "ASK_USER", "message": "请补充信息", "reason_code": "needs_detail"})
-        agent, suite = self.build(Knowledge(), decide, faq=False)
+            return json.dumps({"action":"ASK_USER","message":"请补充信息","reason_code":"needs_detail"})
+        agent,suite=self.build(Knowledge(),decide,initial=False)
         try:
             await agent.handle(self.request())
-            self.assertEqual([], seen[0]["observations"])
+            self.assertEqual([],seen[0]["observations"])
         finally:
             await suite.close()
 
-    async def test_compound_request_permission_keeps_normal_selection_for_simple_subtask(self):
-        seen = []
-        def decide(payload):
-            seen.append(payload)
-            return json.dumps({"action": "ASK_USER", "message": "请补充信息", "reason_code": "needs_detail"})
-        knowledge = Knowledge()
-        agent, suite = self.build(knowledge, decide)
+    async def test_faq_permission_flag_does_not_change_hybrid_initial_search(self):
+        knowledge=Knowledge()
+        agent,suite=self.build(knowledge,lambda _:self.complete())
         try:
-            await agent.handle(replace(self.request(), faq_prefetch_allowed=False))
-            self.assertEqual([], seen[0]["observations"])
-            self.assertEqual([], knowledge.calls)
+            result=await agent.handle(replace(self.request(),faq_prefetch_allowed=False))
+            self.assertEqual("COMPLETED",result.result.status)
+            self.assertEqual(["knowledge_search"],[v[0] for v in knowledge.calls])
         finally:
             await suite.close()
 
-    async def test_prefetched_conflicting_evidence_still_fails_response_guard(self):
-        agent, suite = self.build(Knowledge(conflict=True), lambda _: json.dumps({
-            "action": "FINAL", "message": "月付套餐价格为 99 元。", "reason_code": "answered"}))
+    async def test_conflicting_initial_hybrid_evidence_fails_response_guard(self):
+        agent,suite=self.build(Knowledge(conflict=True),lambda _:self.complete())
         try:
-            result = await agent.handle(self.request())
-            guarded = ResponseGuard().check(result.result.conclusion, tool_events=result.meta.tool_events)
+            result=await agent.handle(self.request())
+            guarded=ResponseGuard().check("月付套餐价格为 99 元。",tool_events=result.meta.tool_events)
             self.assertFalse(guarded.passed)
-            self.assertIn("conflict", guarded.reason_code)
+            self.assertIn("conflict",guarded.reason_code)
         finally:
             await suite.close()

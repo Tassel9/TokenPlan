@@ -48,6 +48,16 @@ class RetrievalToolSuite:
     async def close(self) -> None:
         await self.client.close()
 
+    def register_hybrid(self, registry: ToolRegistry) -> None:
+        """Bind the single public hybrid-search outlet used by the application."""
+        registry.register(Tool(
+            name=HYBRID_SEARCH,
+            description="向量与 BM25/FTS5 混合召回、RRF 融合和重排",
+            handler=self.knowledge.search, schema=SEARCH_SCHEMA,
+            allowed_agents=list(DOMAIN_AGENTS), capabilities=[KNOWLEDGE_RETRIEVE],
+            side_effect="read", evidence_type="knowledge_retrieval", max_retries=1,
+        ))
+
     def register(self, registry: ToolRegistry) -> None:
         for name, description, handler, capability in (
             (FAQ_SEARCH, "FAQ 简单 RAG：单次向量检索，不改写、不做关键词召回或重排", self.knowledge.faq_search, KNOWLEDGE_FAQ),

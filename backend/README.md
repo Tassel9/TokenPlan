@@ -7,7 +7,7 @@
 | 入口与应用编排 | `api/`、`cli.py`、`app_services.py`、`application/` | HTTP/CLI 入口、依赖装配和稳定的应用流程 |
 | Agent 决策 | `agents/`、`core/` | Supervisor、套餐与权益 / 交易与账务 / 用户支持三个领域 Agent、意图识别和模型客户端 |
 | 执行与治理 | `runtime/`、`response/`、`skills/` | 受控执行、工具绑定、响应检查和 Skill 目录 |
-| 数据与集成 | `mcp/`、`memory/` | FAQ / 单跳 / Agentic RAG 工具、只读业务查询接口、会话状态和长期记忆 |
+| 数据与集成 | `mcp/`、`memory/` | 固定混合检索工具、会话状态和长期记忆 |
 | 可观测性 | `monitor/` | Trace、指标和性能监控 |
 | 通用扩展 | `tools/` | 后端通用工具的预留位置 |
 

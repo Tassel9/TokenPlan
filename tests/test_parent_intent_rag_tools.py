@@ -74,7 +74,7 @@ class ParentIntentTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await context.client.close()
 
-    async def test_domain_skill_binding_keeps_all_three_retrieval_tools(self):
+    async def test_domain_skill_binding_uses_only_hybrid_retrieval(self):
         captured = {}
         class Runtime:
             async def run(self, **kwargs):
@@ -90,8 +90,11 @@ class ParentIntentTests(unittest.IsolatedAsyncioTestCase):
             agent = SubscriptionAgent(Runtime(), skill_registry=skills, tool_broker=ToolBroker(tools))
             query = "比较月付和年付套餐，并说明变更规则"
             await agent.handle(AgentInput("req", query, query, "u1", "c1", "i1", "subscription_info_query"))
-            self.assertTrue({"faq_search", "knowledge_search", "agentic_rag"} <= set(captured["tool_binding"].tool_names))
-            self.assertIsNone(captured["initial_read_calls"])
+            names = set(captured["tool_binding"].tool_names)
+            self.assertIn("knowledge_search", names)
+            self.assertTrue({"faq_search", "agentic_rag"}.isdisjoint(names))
+            self.assertTrue(captured["initial_read_calls"])
+            self.assertEqual({"knowledge_search"}, {v["tool_name"] for v in captured["initial_read_calls"]})
         finally:
             await suite.close()
 

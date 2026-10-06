@@ -56,3 +56,18 @@ docs/assets/urbanops-*.png
 # 本地工具临时目录
 .lark-tmp/
 .pytest_cache/
+
+# Local retrieval experiments and new evaluation datasets (not published)
+/evaluation/fixtures/
+/docs/adaptive-rag-*.md
+/docs/rag-versions-archive-*.md
+/backend/core/retrieval_policy.py
+/backend/runtime/retrieval_budget.py
+/backend/runtime/grounding_review.py
+/evaluation/*adaptive*.py
+/evaluation/*rag_scenarios*.py
+/evaluation/*rag_boundaries*.py
+/evaluation/project_rag_scenarios*.py
+/evaluation/build_project_rag*.py
+/tests/test_adaptive*.py
+/tests/test_light_capability_retrieval*.py

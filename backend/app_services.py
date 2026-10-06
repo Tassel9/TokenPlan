@@ -264,7 +264,7 @@ def build_app_services(
         max_search_calls=_env_int("AGENTIC_RAG_MAX_SEARCH_CALLS", 2),
         reflection_enabled=_env_bool("AGENTIC_RAG_REFLECTION_ENABLED", True),
     )
-    retrieval_tools.register(resolved_tools)
+    retrieval_tools.register_hybrid(resolved_tools)
 
     catalog_path = os.getenv("SKILL_CATALOG_PATH") or str(
         pathlib.Path(__file__).parent / "skills" / "catalog"
@@ -325,7 +325,7 @@ def build_app_services(
         intent_low_threshold=supervisor_options["intent_low_threshold"],
         agent_initial_retrieval_enabled=_env_bool(
             "AGENT_INITIAL_RETRIEVAL_ENABLED",
-            False,
+            True,
         ),
         agentic_rag_reflection_enabled=_env_bool(
             "AGENTIC_RAG_REFLECTION_ENABLED",

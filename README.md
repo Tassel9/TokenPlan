@@ -19,7 +19,7 @@
 订阅客服请求通常不是一个孤立的分类问题：用户可能在同一条消息里同时咨询套餐和扣款，也可能用“第二个”“还是刚才那笔”延续前文；回答依据又分散在套餐规则、账单政策和技术文档中。TokenPlan 将这些问题收敛到一条可追踪的处理链路：
 
 - 理解一条消息中仍然成立的多个诉求，并区分否定、举例和背景描述。
-- 按套餐与权益、交易与账务、用户支持三个父意图分派诉求；领域 Agent 自行选择 FAQ、单跳或 Agentic RAG 工具。
+- 按套餐与权益、交易与账务、用户支持三个父意图分派诉求；领域 Agent 使用固定混合检索工具，根据证据缺口有限补查。
 - 从受治理的业务知识中检索回答依据，证据不足时澄清或转人工，而不是补造结论。
 - 延续近期对话、案件状态和稳定用户信息，支持跨轮指代与处理进度衔接。
 - 限制每个任务可加载的业务规范和工具范围，保留执行记录便于排查。
@@ -63,7 +63,7 @@ sequenceDiagram
     participant Supervisor as Supervisor
     participant Agent as 三个父意图领域 Agent
     participant Capability as Skill Registry / ToolBroker
-    participant RAG as 分档检索与只读查询工具
+    participant RAG as 混合检索工具
     participant Guard as 回复检查
 
     User->>Entry: 提交当前消息与会话标识
@@ -100,8 +100,8 @@ sequenceDiagram
     end
     Agent->>Capability: 申请当前任务所需业务规范与工具
     Capability-->>Agent: 返回技能与受控工具绑定
-    Agent->>RAG: 按问题类型选择 FAQ / 单跳 / Agentic 工具
-    RAG-->>Agent: 返回经过治理的知识或只读记录及证据状态
+    Agent->>RAG: 调用 knowledge_search，必要时围绕证据缺口补查
+    RAG-->>Agent: 返回经过治理的知识证据
     alt 单个业务诉求
         Agent-->>Coordinator: 返回答复或询问人工办理
     else orchestrate 复合诉求
@@ -135,17 +135,17 @@ sequenceDiagram
 
 接口见[上下文、识别、校验分离](docs/intent-context-boundaries.md)，路由改造的初始结果见[离线评测](docs/orchestrate-routing-evaluation-20261004.md)，后续多轮上下文、引用与边界修复见[2026-10-04 修复评测](docs/context-repairs-evaluation-20261004.md)。
 
-### 🔍 按问题类型选择 RAG 工具
+### 🔍 固定混合检索与有限补查
 
-三个领域 Agent 共用分档检索工具，按当前问题的取证难度选择路径；普通请求按路由直接分派，复合请求由 Supervisor 安排阶段。
+三个领域 Agent 共用 `knowledge_search`。每次调用固定执行向量与 BM25 / SQLite FTS5 混合召回、RRF 融合和 BGE 重排，返回带来源的公开知识证据。
 
-命中完整公共 FAQ 模板、且与已确认单个标签一致的单诉求问题，由代码前置 FAQ 检索，再让领域模型根据证据作答；没有待澄清事项时也可跳过上下文整理模型。当前模板覆盖部分套餐价格与权益、退款条件与流程、发票入口与材料问法，仍保留双通道识别、来源校验与融合门禁。复合请求的子任务、个人记录和未命中模板的问题继续由领域 Agent 的模型选择工具，详见[FAQ 调用优化记录](docs/llm-call-fast-paths-evaluation-20261004.md)。
+- 首轮取证 — 默认在模型决策前检索，单句使用原执行 Query，多子句最多拆成三路。
+- 证据判断 — 当前领域 Agent 提交 `retrieval_reflection`，引用模型可见证据，判断相关性、完整性与具体缺口。
+- 有限补查 — 有明确可检索缺口时，使用同一个工具生成不重复的查询；预算为首轮真实调用数加一次补查，重复查询、无效引用和超预算调用由 Runtime 拦截。
+- 个人状态边界 — 默认只提供公开知识检索；个人订单、扣款、退款、套餐和权益状态需后台或人工核验，公开规则不能代替个人记录。
+- 证据不足 — 保留不确定性，澄清缺失信息或询问是否转人工，不声称查询或办理已完成。
 
-- FAQ — `faq_search` 做一次向量检索，不做关键词召回、查询改写或重排。
-- 单跳 — `knowledge_search` 做 BM25 / SQLite FTS5 与向量混合召回、RRF 融合，默认使用 BGE 重排。
-- 多跳与证据充分性 — `agentic_rag` 在受控工具内部执行有界的取证、证据判断与缺口补搜；默认最多两次知识检索，不递归调用自身，不注册第四个领域 Agent。
-- 个人订单、套餐与权益 — 由所属领域 Agent 调用 `agentic_rag`，工具内读取服务端用户范围下的业务记录，再结合必要规则作答。真实只读后台通过 `build_app_services(readonly_business_query=...)` 注入；默认未接入时明确无法核验，订单号缺失时追问。
-- 证据边界 — 知识冲突、过期或证据不足时，回复会保留不确定性并给出下一步处理方式。
+默认应用仅提供这一检索出口，不按问题复杂度切换工具。查询与执行预算由代码限制，证据含义及答案仍由模型判断；详细边界见[混合检索说明](docs/hybrid-rag.md)。恢复后尚未重新完成端到端效果评测，不宣称整体降本或质量提升。
 
 ### 🧠 分层记忆
 
@@ -162,7 +162,7 @@ sequenceDiagram
 
 ### 🤝 多 Agent 编排（Supervisor + 三个父意图 Agent）
 
-Supervisor 按意图树父节点分派与收口，领域 Agent 选择检索工具并处理本领域诉求，结果统一回传汇总。
+Supervisor 按意图树父节点分派与收口，领域 Agent 使用混合检索处理本领域诉求，结果统一回传汇总。
 
 - 父意图分工 — `subscription` 覆盖套餐与权益，`billing` 覆盖交易与账务，`support` 覆盖用户支持。运行时校验诉求与接收 Agent 的父意图归属，跨父意图分别派发，同父意图可以合并。
 - 咨询边界 — 代购、退款提交、退订和账户修改等诉求先询问是否转人工，三个领域 Agent 都不执行写操作。
@@ -173,7 +173,7 @@ Supervisor 按意图树父节点分派与收口，领域 Agent 选择检索工�
 
 Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露，工具按任务绑定。
 
-- 业务 SOP 治理 — Skill Registry 根据 Supervisor 已确认的诉求选择当前领域 Agent 对应的业务技能，并校验 Agent 与技能的归属关系；业务规范绑定后仍保留三档检索工具。
+- 业务 SOP 治理 — Skill Registry 根据 Supervisor 已确认的诉求选择当前领域 Agent 对应的业务技能，并校验 Agent 与技能的归属关系；业务规范绑定后仅提供同一混合检索出口。
 - 渐进式披露 — 提示词只注入技能核心契约与资源目录描述符，资源正文按需读取，减少全量注入导致的注意力涣散。
 - 任务级工具边界 — ToolBroker 按任务能力创建本次执行可用的工具边界。
 
@@ -196,9 +196,9 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | RoutingIntentRecognizer | 对整理后的问题并行计算 Embedding / LLM，只输出一个业务路由或 orchestrate |
 | 外部校验器 / IntentRecognitionPipeline | 校验上下文、路由证据和分数；复合请求拆解后对每项业务诉求分别校验与融合 |
 | Supervisor | 拆解复合请求并记录主诉求，冻结后决定阶段并发、依赖顺序、澄清、人工确认和最终汇总 |
-| 领域 Agent | 按套餐与权益、交易与账务、用户支持三个父意图分工，自行选择检索工具；业务办理诉求询问是否转人工 |
+| 领域 Agent | 按套餐与权益、交易与账务、用户支持三个父意图分工，使用混合检索并有限补查；业务办理诉求询问是否转人工 |
 | Skill Registry / ToolBroker | 管理业务规范、授权边界与任务级工具绑定 |
-| RAG 工具 | FAQ 简单向量检索、单跳混合检索与重排、Agentic 证据判断与补搜 / 只读业务核验 |
+| RAG 工具 | `knowledge_search`：向量与 BM25 混合召回、RRF 融合、BGE 重排 |
 | 分层记忆 | SQLite 维护窗口、摘要、归档、CaseState 与轮次提交，ChromaDB 维护长期稳定事实 |
 | 输入密钥保护 / Response Guard / Trace | 脱敏匹配到的密钥、检查最终回复并记录可诊断的执行过程 |
 
@@ -208,7 +208,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 
 本 README 不发布评测分数，也不把历史或其他业务领域的数据当作 TokenPlan 成绩。对外结论应能够追溯到当前 TokenPlan 业务用例、评测配置和生成报告；生产表现需要独立的线上观测证据。
 
-当前实现与离线对照见[路由评测](docs/orchestrate-routing-evaluation-20261004.md)、[FAQ 调用优化](docs/llm-call-fast-paths-evaluation-20261004.md)和[后续上下文修复评测](docs/context-repairs-evaluation-20261004.md)。前两份记录保留各自历史版本，当前修复结论以后一份的最终版本为准。原始模型报告保存在本地忽略目录，公开仓库提交冻结用例、评测脚本和说明；代码回归、语义识别与端到端回答质量分别验证。
+当前检索流程以[混合检索说明](docs/hybrid-rag.md)为准；历史离线对照仅适用于各自记录的版本。新评测数据集、参考答案和原始模型报告仅保存在本地，不随本次同步上传。代码回归、语义识别与端到端回答质量分别验证。
 
 多轮进度承接、隐含对象恢复及只读后台未连接时的能力表述仍有失败案例，详见修复评测中的剩余问题。有限 FAQ 模板内减少模型调用，不代表整体成本下降或回答质量已稳定。
 

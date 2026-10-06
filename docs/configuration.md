@@ -156,8 +156,8 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RAG_FAST_PATH_MIN_SCORE` / `_MARGIN` / `_CHANNEL_SCORE` | `0.78` / `0.12` / `0.35` | 仅给非 RRF 自定义检索器的兼容回退 |
 | `RAG_HEADING_LEXICAL_WEIGHT` | `0.50` | 标题字段的词法权重 |
 | `RAG_VECTOR_CANDIDATE_MULTIPLIER` / `_MIN` | `4` / `20` | 向量候选数 = max(倍数×top_k, 下限) |
-| `AGENT_INITIAL_RETRIEVAL_ENABLED` | `false` | 保留历史调用兼容；领域 Agent 不统一前置单跳检索，已确认的简单公共 FAQ 可按模板前置 FAQ 检索 |
-| `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | `agentic_rag` 工具内部检索后的结构化证据判断；FAQ 与单跳路径不强制多跳反思 |
+| `AGENT_INITIAL_RETRIEVAL_ENABLED` | `true` | 领域 Agent 首轮自动执行固定混合检索；多子句最多拆成三路 |
+| `AGENTIC_RAG_REFLECTION_ENABLED` | `true` | 保留兼容变量名；默认混合检索后由当前领域 Agent 提交证据反思，再决定是否补查 |
 | `AGENTIC_RAG_MAX_SEARCH_CALLS` | `2` | 外层工具调用与 Agentic 工具内部知识检索各自的上限，范围 1–3；内部上限包含首次取证 |
 
 领域 Agent 对命中完整公共 FAQ 模板、且与冻结的单个业务标签一致的单诉求请求，先通过受控 ToolBinding 执行 `faq_search`，再让模型根据证据作答，省去首次工具选择调用。`orchestrate` 请求的子任务全部保留原模型工具选择路径。缺少 FAQ 工具、多个标签、个人记录、复合问题或未命中模板时，仍由模型选择检索工具。预取的 FAQ 也计入预算，保留文档作用域、证据治理和响应护栏；证据不足时允许按原预算补搜。执行元数据记录 `simple-public-faq-v1` / `faq_prefetch`。

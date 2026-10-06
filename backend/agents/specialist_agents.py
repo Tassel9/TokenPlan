@@ -546,23 +546,13 @@ def _split_retrieval_queries(query: str, *, limit: int = 3) -> List[str]:
 
 
 class DomainAgent(BaseAgent):
-    """Own one parent intent and choose a retrieval tool for each question."""
+    """Answer one parent intent with the shared, bounded hybrid-search tool."""
 
-    optional_tool_capabilities = (KNOWLEDGE_FAQ, KNOWLEDGE_RETRIEVE, KNOWLEDGE_AGENTIC)
+    optional_tool_capabilities = (KNOWLEDGE_RETRIEVE,)
     backend_required_patterns = ()
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Only a validated, complete public FAQ receives automatic retrieval.
-        # Other requests still choose FAQ / single-hop / agentic in the model.
-        kwargs["initial_retrieval_enabled"] = False
-        super().__init__(*args, **kwargs)
 
     async def handle(self, req: AgentInput) -> AgentExecution:
         execution = await super().handle(req)
-        if any(step.get("tool_name") == FAQ_SEARCH and step.get("reason_code") == "initial_retrieval"
-               for step in execution.meta.steps):
-            execution.meta.routing.update({"retrieval_policy": SIMPLE_FAQ_POLICY_VERSION,
-                                           "retrieval_path": "faq_prefetch"})
         for event in reversed(execution.meta.tool_events):
             if event.get("tool_name") != "agentic_rag" or not event.get("success"):
                 continue
@@ -580,14 +570,6 @@ class DomainAgent(BaseAgent):
             ), execution.meta)
         return execution
 
-    def _initial_read_calls(self, req: AgentInput, tool_binding: Optional[ToolBinding]) -> Optional[List[Dict[str, Any]]]:
-        label = simple_faq_intent(req.execution_query)
-        # The template never overrides frozen labels or a multi-intent task.
-        if not req.faq_prefetch_allowed or label is None or req.intent.strip() != label:
-            return None
-        if tool_binding is None or FAQ_SEARCH not in tool_binding.tool_names:
-            return None
-        return [{"tool_name": FAQ_SEARCH, "arguments": {"query": req.execution_query, "top_k": 5}}]
 
     public_policy_question = re.compile(
         r"(?:怎么|如何|什么条件|哪些条件|规则|政策|流程|步骤|需要什么|多久)"
@@ -600,14 +582,11 @@ class DomainAgent(BaseAgent):
         "私有业务数据请交给只读查询能力；业务办理请询问用户是否需要转人工。"
     )
     system_prompt = (
-        "你是 TokenPlan 的领域咨询执行单元，根据本领域冻结诉求选择合适的只读工具。"
-        "FAQ、常见问答和单一明确事实使用 faq_search（简单向量 RAG）；"
-        "单跳问题使用 knowledge_search（关键词与向量混合召回加重排）；"
-        "多跳、需要多份证据关联或判断证据是否充分的问题使用 agentic_rag。"
-        "查询个人订单、当前套餐、权益和剩余额度时也必须使用 agentic_rag："
-        "resource=order 查询订单并携带 record_id，resource=account 查询当前套餐与权益；"
-        "公开知识问题使用 resource=knowledge。未取得只读后台记录时不能核验个人状态。"
-        "agentic_rag 返回 WAITING_USER 或 HANDOFF 时保留其未解决状态与问题，不得改写为已完成。"
+        "你是 TokenPlan 的领域咨询执行单元，仅用 knowledge_search 读取本领域公开知识。"
+        "系统首轮自动执行混合检索，单句使用原执行Query，多子句最多拆成三路。"
+        "取得证据后必须提交retrieval_reflection，引用当前可见证据并说明相关性与完整性。"
+        "只有具体证据缺口才使用同一个knowledge_search补查，next_query不得重复；完整时直接作答。"
+        "默认未提供个人后台查询，公开知识不能核验个人订单、套餐、权益、账务或退款状态。"
         "不得把公开知识推断成用户本人的订单、账单、退款、订阅或账户状态，也不得执行写操作。"
         "用户要求“简单说/简短重述/再简单点”时，输出精简要点（保留结论与关键步骤），不得重复上一条的完整细节。"
         "问题涉及团队/多人场景时，结合并发占用、共享凭据与配置、网络侧因素给出针对性分析。"

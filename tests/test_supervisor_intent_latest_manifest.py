@@ -17,6 +17,8 @@ MANIFEST_PATH = (
 
 class SupervisorIntentLatestManifestTests(unittest.TestCase):
     def test_manifest_locks_current_report_dataset_and_runtime_config(self):
+        if not MANIFEST_PATH.exists():
+            self.skipTest("Local evaluation reports are deliberately excluded from the public repository")
         manifest = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
         report_path = ROOT / manifest["report"]["path"]
         reproducibility_path = ROOT / manifest["reproducibility_run"]["path"]

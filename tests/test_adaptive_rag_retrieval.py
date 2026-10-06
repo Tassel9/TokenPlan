@@ -635,7 +635,7 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("发票怎么开", parts[-1])
         self.assertIn("席位怎么加", parts[-1])
 
-    async def test_domain_agent_chooses_retrieval_tier_before_any_initial_search(self):
+    async def test_domain_agent_automatically_retrieves_hybrid_query_clauses(self):
         captured = {}
 
         class RecordingRuntime:
@@ -695,7 +695,9 @@ class RetrievalQuerySplitTests(unittest.IsolatedAsyncioTestCase):
         ))
 
         calls = captured.get("initial_read_calls")
-        self.assertIsNone(calls)
+        self.assertEqual(2, len(calls))
+        self.assertEqual({"knowledge_search"}, {v["tool_name"] for v in calls})
+        self.assertEqual(_split_retrieval_queries(query), [v["arguments"]["query"] for v in calls])
 
 
 class RagAgentPromptContractTests(unittest.TestCase):

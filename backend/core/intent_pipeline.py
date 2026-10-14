@@ -12,7 +12,6 @@ from core.intent_embedding import IntentEmbeddingIndex, IntentEmbeddingResult
 from core.intent_fusion import IntentFusionAssessment, IntentFusionPolicy
 from core.intent_recognizer import IntentRecognitionProvider, IntentRecognizer
 from core.intent_validation import ContextResultValidator, IntentResultValidator, RouteResultValidator
-from core.routing_intent_recognizer import RoutingIntentRecognizer
 from core.intent_routes import ORCHESTRATE_ROUTE
 from core.query_context import PreparedQueryContext, QueryContextProcessor, QueryContextProvider
 from core.supervisor_context import SupervisorContext
@@ -104,9 +103,9 @@ class IntentRecognitionGate:
 
 
 class IntentRecognitionPipeline:
-    """Only this composition accepts history/CaseState and returns routable semantics."""
+    """Prepare context once and freeze the whole-query intent set for routing."""
 
-    POLICY_VERSION = "intent-pipeline-v8-business-or-orchestrate"
+    POLICY_VERSION = "intent-pipeline-v11-frozen-multi-intent"
 
     def __init__(self, context: SupervisorContext, *, recognizer: Optional[IntentRecognizer] = None,
                  embedding_index: Optional[IntentEmbeddingIndex] = None,
@@ -118,7 +117,7 @@ class IntentRecognitionPipeline:
                  fusion_policy: Optional[IntentFusionPolicy] = None, llm_bulkhead: Any = None,
                  intent_fusion_alpha: float = .10, intent_clear_threshold: float = .70,
                  intent_low_threshold: float = .40,
-                 recognizer_type: type[IntentRecognizer] = RoutingIntentRecognizer) -> None:
+                 recognizer_type: type[IntentRecognizer] = IntentRecognizer) -> None:
         self.recognizer = recognizer or recognizer_type(
             context, embedding_index=embedding_index, decision_provider=decision_provider, llm_bulkhead=llm_bulkhead)
         self.context_processor = context_processor or QueryContextProcessor(

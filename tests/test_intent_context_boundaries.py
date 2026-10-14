@@ -333,7 +333,7 @@ class IntentContextBoundaryTests(unittest.IsolatedAsyncioTestCase):
                                           supervisor_decision_provider=lambda _: None)
         try:
             self.assertIsInstance(orchestrator.intent_pipeline, IntentRecognitionPipeline)
-            self.assertIsInstance(orchestrator.intent_recognizer, IntentRecognizer)
+            self.assertIs(type(orchestrator.intent_recognizer), IntentRecognizer)
         finally:
             await orchestrator._client.close()
 

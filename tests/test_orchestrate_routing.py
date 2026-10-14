@@ -8,6 +8,7 @@ from agents.intent_orchestrator import IntentOrchestrator, Request
 from application.chat_service import intent_values
 from core.intent_embedding import IntentEmbeddingResult, IntentEmbeddingScore
 from core.intent_pipeline import IntentRecognitionPipeline
+from core.routing_intent_recognizer import RoutingIntentRecognizer
 from core.supervisor_decision import FineGrainedIntent
 from tests.test_single_route_supervisor import (
     Agent, QUERY, SPANS, LABELS, build, context, decomposition, route, send,
@@ -75,8 +76,9 @@ class OrchestrateRoutingTests(unittest.IsolatedAsyncioTestCase):
             await orchestrator.close()
 
     async def test_control_route_is_confirmed_without_a_business_intent(self):
-        result = await IntentRecognitionPipeline(context(), embedding_index=Index(),
-                                                decision_provider=lambda _: compound()).recognize(QUERY)
+        result = await IntentRecognitionPipeline(
+            context(), recognizer_type=RoutingIntentRecognizer, embedding_index=Index(),
+            decision_provider=lambda _: compound()).recognize(QUERY)
         self.assertEqual("ready", result.status)
         self.assertEqual("orchestrate", result.route)
         self.assertEqual((), result.execution_analysis.intents)
@@ -84,12 +86,15 @@ class OrchestrateRoutingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_control_route_ambiguity_and_low_score_do_not_dispatch(self):
         for score, status in ((.5, "needs_clarification"), (.2, "unmatched")):
-            result = await IntentRecognitionPipeline(context(), decision_provider=lambda _: compound(score)).recognize(QUERY)
+            result = await IntentRecognitionPipeline(
+                context(), recognizer_type=RoutingIntentRecognizer,
+                decision_provider=lambda _: compound(score)).recognize(QUERY)
             self.assertEqual(status, result.status)
 
     async def test_compound_route_requires_multiple_distinct_original_spans(self):
         for spans in ([SPANS[0]], [SPANS[0], SPANS[0]], [QUERY, SPANS[0]], [SPANS[0], "伪造证据"]):
-            result = await IntentRecognitionPipeline(context(), embedding_index=Index(),
+            result = await IntentRecognitionPipeline(
+                context(), recognizer_type=RoutingIntentRecognizer, embedding_index=Index(),
                 decision_provider=lambda _, spans=spans: route("orchestrate", spans)).recognize(QUERY)
             self.assertEqual("needs_clarification", result.status)
 
@@ -98,9 +103,17 @@ class OrchestrateRoutingTests(unittest.IsolatedAsyncioTestCase):
         registry = AgentRegistry(AgentRegistration(name, name, agent, name) for name, agent in agents.items())
         def unexpected(_):
             self.fail("single business route must not call Supervisor")
-        orchestrator = IntentOrchestrator("test", base_url="https://example.invalid", supervisor_context=context(),
-            agent_registry=registry, intent_decision_provider=lambda _: route("technical_troubleshooting", ["插件报401"]),
-            intent_embedding_index=Index(), supervisor_decision_provider=unexpected)
+        supervisor_context = context()
+        route_pipeline = IntentRecognitionPipeline(
+            supervisor_context,
+            recognizer_type=RoutingIntentRecognizer,
+            embedding_index=Index(),
+            decision_provider=lambda _: route("technical_troubleshooting", ["插件报401"]),
+        )
+        orchestrator = IntentOrchestrator(
+            "test", base_url="https://example.invalid", supervisor_context=supervisor_context,
+            agent_registry=registry, intent_recognizer=route_pipeline,
+            supervisor_decision_provider=unexpected)
         try:
             result = await orchestrator.run(Request("插件报401", "u", "c"))
             self.assertEqual("COMPLETED", result.status)

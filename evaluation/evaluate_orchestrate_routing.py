@@ -56,6 +56,7 @@ async def run(args):
     from core.embedding_provider import BGEEmbeddingProvider, BGE_DEFAULT_MODEL, BGE_DEFAULT_REVISION
     from core.intent_embedding import IntentEmbeddingIndex
     from core.intent_pipeline import IntentRecognitionPipeline
+    from core.routing_intent_recognizer import RoutingIntentRecognizer
     from core.supervisor_context import SupervisorContext
     from agents.agent_registry import AgentRegistration, AgentRegistry
     from agents.supervisor_lead import SupervisorLead
@@ -70,6 +71,7 @@ async def run(args):
         revision=os.getenv('INTENT_EMBEDDING_REVISION', BGE_DEFAULT_REVISION),
         device=os.getenv('INTENT_EMBEDDING_DEVICE') or None))
     pipeline = IntentRecognitionPipeline(context, embedding_index=index,
+        recognizer_type=RoutingIntentRecognizer,
         intent_fusion_alpha=args.alpha, intent_clear_threshold=args.clear_threshold)
     class UnusedAgent:
         async def handle(self, request):

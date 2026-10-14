@@ -11,7 +11,7 @@
   </p>
 
   <p>面向 AI Coding 订阅用户的 <strong>Supervisor Multi-Agent</strong> 客服系统。</p>
-  <p>在一个对话入口中理解订阅客服诉求：单诉求直接交给领域咨询 Agent，复合诉求由 Supervisor 拆解并协调，最终生成一份统一回复。</p>
+  <p>在一个对话入口中一次识别完整订阅客服诉求：简单单诉求可直接交给领域咨询 Agent，其余由 Supervisor 基于冻结意图协调，最终生成一份统一回复。</p>
 </div>
 
 ## 项目解决什么问题
@@ -38,7 +38,7 @@
 
 ![TokenPlan 多诉求协作与统一回复](docs/assets/tokenplan-agent-result.png)
 
-系统确认单个业务路由或复合诉求入口，再按套餐与权益、交易与账务、用户支持三个父意图分派；复合诉求由 Supervisor 汇总成一份连贯答复。
+系统先一次识别并冻结当前消息中的完整意图集合，再按套餐与权益、交易与账务、用户支持三个父意图分派；多诉求由 Supervisor 编排并汇总成一份连贯答复。
 
 **多轮上下文追问**
 
@@ -59,7 +59,7 @@ sequenceDiagram
     participant Pipeline as IntentRecognitionPipeline
     participant Context as 上下文整理
     participant Validator as 外部校验
-    participant Recognizer as 单路由识别器
+    participant Recognizer as 多意图识别器
     participant Supervisor as Supervisor
     participant Agent as 三个父意图领域 Agent
     participant Capability as Skill Registry / ToolBroker
@@ -80,31 +80,29 @@ sequenceDiagram
     Validator-->>Pipeline: 通过或上游澄清 / 停止
     Pipeline->>Recognizer: 原句 + 同一整理后问题，不传历史 / CaseState
     par 全标签 Embedding
-        Recognizer->>Recognizer: 计算 13 个业务定义及 orchestrate 相似度
+        Recognizer->>Recognizer: 计算 13 个业务定义相似度
     and LLM 完整意图树
-        Recognizer->>Recognizer: 一个业务路由或 orchestrate、原文证据与分数
+        Recognizer->>Recognizer: 识别完整意图集合、原文证据与分数
     end
     Recognizer-->>Pipeline: 未校验的双路信号
-    Pipeline->>Validator: 校验合法标签、范围结构与当前原文证据
+    Pipeline->>Validator: 校验全部标签、范围结构与当前原文证据
     Validator-->>Pipeline: 返回校验结果
-    Pipeline->>Pipeline: 校验与融合门禁，确认路由
-    Pipeline-->>Coordinator: 返回业务路由或编排入口
-    alt 单个业务诉求
+    Pipeline->>Pipeline: 逐项融合与门禁，冻结可执行意图集合
+    Pipeline-->>Coordinator: 返回冻结意图、置信度与原文证据
+    alt 可直接委派的单个知识诉求
         Coordinator->>Agent: 按固定父领域直接派发
-    else orchestrate 复合诉求
-        Coordinator->>Supervisor: 完整原句 + 已校验的上下文与路由证据
-        Supervisor->>Supervisor: 拆解诉求，确定主诉求与依赖
-        Supervisor->>Validator: 校验全部业务标签与当前原文证据
-        Supervisor->>Supervisor: 按每个诉求的证据计算 Embedding / LLM 融合并冻结
+    else 需要编排的诉求集合
+        Coordinator->>Supervisor: 完整原句 + 冻结意图集合与证据
+        Supervisor->>Supervisor: 只确定主诉求、依赖与执行阶段，不重做意图识别
         Supervisor->>Agent: 按阶段并发或顺序派发已确认诉求
     end
     Agent->>Capability: 申请当前任务所需业务规范与工具
     Capability-->>Agent: 返回技能与受控工具绑定
     Agent->>RAG: 调用 knowledge_search，必要时围绕证据缺口补查
     RAG-->>Agent: 返回经过治理的知识证据
-    alt 单个业务诉求
+    alt 直接委派
         Agent-->>Coordinator: 返回答复或询问人工办理
-    else orchestrate 复合诉求
+    else Supervisor 编排
         Agent-->>Supervisor: 返回处理结果与证据状态
         Supervisor-->>Coordinator: 按主诉求汇总，并说明未解决事项
     end
@@ -117,19 +115,19 @@ sequenceDiagram
 
 独立诉求可以在同一阶段并发处理并等待收敛后汇总；存在前后依赖时按阶段推进。关键前置步骤失败后，下游依赖任务不会继续执行，系统转为澄清或人工处理，并在执行记录中保留本阶段结果。
 
-上下文整理使用来源编号，代码从受控来源回填原文后再校验；识别器使用当前消息的片段编号回填路由证据。对话历史优先保留用户描述，讨论对象保存在案件状态中，即使上一轮因低置信度未派发，也可为后续追问提供上下文。讨论内容不等于已核验的个人业务记录。
+上下文整理使用来源编号，代码从受控来源回填原文后再校验；识别器使用当前消息的片段编号回填每个意图的证据。对话历史优先保留用户描述，讨论对象保存在案件状态中，即使上一轮因低置信度未派发，也可为后续追问提供上下文。讨论内容不等于已核验的个人业务记录。
 
 ## 核心能力
 
 订阅客服通常围绕当前诉求展开，也可能出现相关复合请求、多轮指代、规则分散和敏感操作。TokenPlan 保留这些处理能力，但不预设复合请求占真实流量的比例。
 
-### 🧭 单路由识别与复合诉求编排
+### 🧭 多意图识别与诉求编排
 
-先整理上下文，再识别、校验和调度：Embedding 与 LLM 意图树对同一整理后问题并行计算，识别器只输出一个业务路由或 `orchestrate`。普通诉求直接交给对应领域 Agent；复合诉求交给 Supervisor 拆解、确定主次和依赖，再按每个诉求的原文证据做融合校验。
+先整理上下文，再识别、校验和调度：Embedding 与 LLM 完整意图树对同一整理后问题并行计算，识别器一次输出当前消息中的完整意图集合；外层流水线按每项原文证据校验、融合并冻结。Supervisor 只消费冻结结果，负责确定主次、依赖、执行阶段和最终汇总，不再做第二次意图识别。
 
-- 职责分离 — RoutingIntentRecognizer 选择唯一入口，不输出子任务列表；`orchestrate` 是控制路由，业务标签仍为 13 个。
+- 职责分离 — IntentRecognizer 负责整句多意图识别，Supervisor 负责路由与编排；冻结后不能增删、改名或替换意图。`RoutingIntentRecognizer` 仅保留为显式兼容和对照模式，不是默认装配。
 - 主次明确 — Supervisor 记录 `primary_intent_id`：用户明确强调时遵从其重点，否则按当前诉求在原文中的顺序选择。置信度只用于校验，不能代替重要程度。
-- 逐项校验 — 拆出的每项诉求使用自己的原文证据计算 Embedding，与该项 LLM 分数融合。独立的不确定事项单独澄清，其他已确认事项继续回答；不确定的前置事项会阻止后续依赖。
+- 逐项校验 — 每项已识别诉求使用自己的原文证据计算 Embedding，与该项 LLM 分数融合。独立的不确定事项单独澄清，其他已确认事项继续回答；不确定的前置事项会阻止后续依赖。
 - 门禁与澄清 — 融合分是放行依据，不是正确概率；范围、来源或分数未通过时，结合已有问题追问缺失信息，避免反复询问用户已经说明的故障。
 - 职责边界 — 领域 Agent 回答咨询、检索知识及查询受控只读记录；代购、退款提交、退订或修改账户的要求需询问是否由人工办理，不宣称已经操作或转接。
 
@@ -193,9 +191,9 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | FastAPI / CLI | 负责传输协议、请求校验和入口级保护 |
 | ChatService | 统一 HTTP 与 CLI 的单轮应用流程，负责上下文读取、编排调用、状态合并和记忆写入 |
 | QueryContextProcessor | 上游整理指代与实体，提出问题改写和来源编号；代码回填原文后交外部校验，不选择意图 |
-| RoutingIntentRecognizer | 对整理后的问题并行计算 Embedding / LLM，只输出一个业务路由或 orchestrate |
-| 外部校验器 / IntentRecognitionPipeline | 校验上下文、路由证据和分数；复合请求拆解后对每项业务诉求分别校验与融合 |
-| Supervisor | 拆解复合请求并记录主诉求，冻结后决定阶段并发、依赖顺序、澄清、人工确认和最终汇总 |
+| IntentRecognizer | 对整理后的完整问题运行 LLM 意图树，输出全部当前诉求及各自原文证据 |
+| 外部校验器 / IntentRecognitionPipeline | 校验上下文、全部意图与证据，并结合全标签 Embedding 逐项融合后冻结意图集合 |
+| Supervisor | 只消费冻结意图，决定父领域 Agent、主诉求、阶段并发、依赖顺序、澄清、人工确认和最终汇总 |
 | 领域 Agent | 按套餐与权益、交易与账务、用户支持三个父意图分工，通过 Agentic RAG 检索并判断证据，根据缺口有限补查；业务办理诉求询问是否转人工 |
 | Skill Registry / ToolBroker | 管理业务规范、授权边界与任务级工具绑定 |
 | RAG 工具 | `knowledge_search`：向量与 BM25 混合召回、RRF 融合、BGE 重排 |
@@ -218,7 +216,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | :--- | :--- | :--- |
 | 应用与接口 | Python 3.12、FastAPI、Pydantic、AsyncIO | 应用服务、接口和运行时数据契约 |
 | 模型 | DeepSeek、BGE Embedding、BGE Reranker | 语义理解、向量表示与知识排序 |
-| Agent 协作 | RoutingIntentRecognizer、Supervisor、三个领域 Agent、Skill Registry、ToolBroker | 单路由识别、复合诉求拆解、父意图分派与结果汇总 |
+| Agent 协作 | IntentRecognizer、Supervisor、三个领域 Agent、Skill Registry、ToolBroker | 整句多意图识别、冻结结果编排、父意图分派与结果汇总 |
 | 检索 | ChromaDB、SQLite FTS5 | 向量与关键词混合检索 |
 | 记忆与异步任务 | SQLite、ChromaDB、RabbitMQ | 短期窗口与摘要、会话归档、长期事实与异步更新 |
 | 前端 | React、TypeScript、Vite | 会话工作台与状态展示 |

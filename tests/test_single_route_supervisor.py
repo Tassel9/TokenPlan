@@ -29,11 +29,31 @@ def route(name="technical_troubleshooting", spans=None, score=.95, scope="in_sco
                          "tree_score": score, "scope_status": scope, "reason_code": "test_route"}}
 
 
+def recognized(name="technical_troubleshooting", spans=None, score=.95, scope="in_scope"):
+    """Default whole-query intent-recognition payload used by integration tests."""
+    evidence = list(SPANS[:1] if spans is None else spans)
+    intents = ([] if scope != "in_scope" or name is None else [{
+        "intent_id": f"intent-1-{name}",
+        "label": name,
+        "supporting_text": evidence,
+        "tree_score": score,
+    }])
+    return {"analysis": {
+        "intents": intents,
+        "scope_status": scope,
+        "reason_code": "test_intent",
+    }}
+
+
 def decomposition(labels=LABELS, spans=SPANS, score=.95):
     return {"intents": [{"intent_id": f"intent-{index}-{label}", "label": label,
                          "supporting_text": [span], "tree_score": score}
                         for index, (label, span) in enumerate(zip(labels, spans), 1)],
             "scope_status": "in_scope", "reason_code": "current_requests"}
+
+
+def recognized_set(labels=LABELS, spans=SPANS, score=.95):
+    return {"analysis": decomposition(labels, spans, score)}
 
 
 def send(index, recipient="rag_knowledge", analysis=None):
@@ -72,9 +92,16 @@ def build(recognize, plan, *, first_status="COMPLETED", index=None):
     agents = {name: Agent(name, first_status if name == "rag_knowledge" else "COMPLETED")
               for name in ("rag_knowledge", "business_data_query")}
     registry = AgentRegistry(AgentRegistration(name, name, agent, name) for name, agent in agents.items())
+    supervisor_context = context()
+    route_pipeline = IntentRecognitionPipeline(
+        supervisor_context,
+        recognizer_type=RoutingIntentRecognizer,
+        embedding_index=index,
+        decision_provider=recognize,
+    )
     orchestrator = IntentOrchestrator(
-        "test", base_url="https://example.invalid", supervisor_context=context(), agent_registry=registry,
-        intent_decision_provider=recognize, supervisor_decision_provider=plan, intent_embedding_index=index,
+        "test", base_url="https://example.invalid", supervisor_context=supervisor_context, agent_registry=registry,
+        intent_recognizer=route_pipeline, supervisor_decision_provider=plan,
         single_intent_fast_path_enabled=True)
     return orchestrator, agents
 
@@ -82,8 +109,9 @@ def build(recognize, plan, *, first_status="COMPLETED", index=None):
 class SingleRouteRecognitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_single_business_route_is_frozen_without_decomposition(self):
         seen = []
-        pipeline = IntentRecognitionPipeline(context(), embedding_index=Index(), decision_provider=lambda p: (
-            seen.append(p) or route("technical_troubleshooting", ["插件报401"])))
+        pipeline = IntentRecognitionPipeline(
+            context(), recognizer_type=RoutingIntentRecognizer, embedding_index=Index(),
+            decision_provider=lambda p: (seen.append(p) or route("technical_troubleshooting", ["插件报401"])))
         result = await pipeline.recognize("插件报401")
         self.assertIsInstance(pipeline.recognizer, RoutingIntentRecognizer)
         self.assertEqual("ready", result.status)
@@ -93,8 +121,9 @@ class SingleRouteRecognitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("orchestrate", {label for group in seen[0]["candidate_intent_tree"] for label in group["intents"]})
 
     async def test_compound_route_does_not_export_business_subtasks(self):
-        result = await IntentRecognitionPipeline(context(), embedding_index=Index(),
-                                                decision_provider=lambda _: route()).recognize(QUERY)
+        result = await IntentRecognitionPipeline(
+            context(), recognizer_type=RoutingIntentRecognizer, embedding_index=Index(),
+            decision_provider=lambda _: route()).recognize(QUERY)
         self.assertEqual("ready", result.status)
         self.assertEqual(LABELS[0], result.route)
         self.assertEqual(1, len(result.to_dict()["recognized_intents"]))
@@ -104,7 +133,9 @@ class SingleRouteRecognitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ambiguous_or_low_compound_route_never_becomes_ready(self):
         for score, status in ((.5, "needs_clarification"), (.2, "unmatched")):
-            result = await IntentRecognitionPipeline(context(), decision_provider=lambda _: route(score=score)).recognize(QUERY)
+            result = await IntentRecognitionPipeline(
+                context(), recognizer_type=RoutingIntentRecognizer,
+                decision_provider=lambda _: route(score=score)).recognize(QUERY)
             self.assertEqual(status, result.status)
             self.assertFalse(result.execution_analysis.intents)
 
@@ -117,15 +148,18 @@ class SingleRouteRecognitionTests(unittest.IsolatedAsyncioTestCase):
         malformed.append(multi)
         for raw in malformed:
             with self.subTest(raw=raw):
-                result = await IntentRecognitionPipeline(context(), embedding_index=Index(),
-                                                        decision_provider=lambda _: raw).recognize(QUERY)
+                result = await IntentRecognitionPipeline(
+                    context(), recognizer_type=RoutingIntentRecognizer, embedding_index=Index(),
+                    decision_provider=lambda _: raw).recognize(QUERY)
                 self.assertEqual("needs_clarification", result.status)
                 self.assertTrue(result.decision_errors)
                 self.assertFalse(result.execution_analysis.intents)
 
     async def test_out_of_scope_has_no_business_or_orchestration_route(self):
-        result = await IntentRecognitionPipeline(context(), decision_provider=lambda _: route(
-            None, [], scope="out_of_scope")).recognize("帮我查询淘宝物流")
+        result = await IntentRecognitionPipeline(
+            context(), recognizer_type=RoutingIntentRecognizer,
+            decision_provider=lambda _: route(None, [], scope="out_of_scope")
+        ).recognize("帮我查询淘宝物流")
         self.assertEqual("out_of_scope", result.status)
         self.assertIsNone(result.to_dict()["route"])
 

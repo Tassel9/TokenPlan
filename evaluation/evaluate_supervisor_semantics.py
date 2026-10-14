@@ -175,8 +175,7 @@ async def live_report(
     await embedding_index.preload()
     recognizer = IntentRecognitionPipeline(
         context,
-        # This evaluator measures the frozen historical multi-label protocol,
-        # not the production single-route + Supervisor pipeline.
+        # This evaluator measures the default whole-query multi-intent protocol.
         recognizer_type=IntentRecognizer,
         embedding_index=embedding_index,
         intent_fusion_alpha=fusion_alpha,

@@ -114,16 +114,16 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 
 ## 10. 意图识别
 
-默认识别器只输出一个业务路由或 `orchestrate` 控制路由。普通业务路由直接进入父领域 Agent；复合请求进入 Supervisor，拆解后按每项原文证据分别计算 Embedding / LLM 融合分数。业务标签仍为 13 个，编排路由单独增加一个定义向量。
+默认 `IntentRecognizer` 对完整问题一次输出全部当前诉求及各自原文证据，随后按意图分别计算 Embedding / LLM 融合分数并冻结。Supervisor 只消费冻结意图，负责父领域 Agent 选择、依赖编排和汇总，不再次识别或拆分用户诉求。业务标签仍为 13 个；`RoutingIntentRecognizer` 的 `orchestrate` 控制路由只在显式兼容或对照模式中使用。
 
-`SINGLE_INTENT_FAST_PATH_ENABLED` 默认为 `true`，使已确认的普通业务路由直接派发父领域 Agent；`orchestrate` 始终进入 Supervisor。关闭此项或注入缺少默认父领域 Agent 的旧团队时，普通路由使用保留的 Supervisor 检查路径。
+`SINGLE_INTENT_FAST_PATH_ENABLED` 默认为 `true`，使有限的、已确认的单个知识诉求直接派发父领域 Agent。关闭此项或遇到多意图、个人数据请求及其他非快速路径时，同一冻结意图集合进入 Supervisor 编排，不触发第二次意图识别。
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `INTENT_EMBEDDING_TOP_K` | `6` | 全标签 Embedding 分数中保留的诊断候选数；不裁剪 LLM 意图树 |
 | `INTENT_EMBEDDING_MODEL` / `_REVISION` / `_DEVICE` | `BAAI/bge-base-zh-v1.5` / 固定 revision / 自动 | 意图相似度编码器；每个意图只缓存一个定义向量 |
 | `INTENT_EMBEDDING_CACHE_SIZE` | 内置默认 | 编码结果 LRU 大小 |
-| `INTENT_EMBEDDING_PRELOAD` | `true` | 启动时预热 13 个业务定义和 1 个 orchestrate 控制路由向量 |
+| `INTENT_EMBEDDING_PRELOAD` | `true` | 启动时预热业务意图定义；显式路由兼容模式还会使用 orchestrate 控制路由向量 |
 | `INTENT_FUSION_ALPHA` | `0.05` | 应用组合层的 Embedding 权重；`final_score = α × embedding_score + (1-α) × tree_score`，2026-10-04 离线校准，非正确概率；可用环境变量覆盖 |
 | `INTENT_CLEAR_THRESHOLD` | `0.70` | 融合分达到该值且 LLM 给出原文证据时冻结执行 |
 | `INTENT_LOW_THRESHOLD` | `0.40` | 融合分位于该值与 CLEAR 阈值之间时向用户澄清；更低视为未匹配 |

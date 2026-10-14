@@ -220,41 +220,43 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
 
         def recognize(payload):
             recognition_payloads.append(payload)
-            recognized = analysis_payload("插件报401")
-            recognized["intents"] = [{
-                **analysis_payload()["intents"][0],
-                "supporting_text": ["插件报401"],
-            }]
-            recognized["reason_code"] = "technical"
-            intent = recognized["intents"][0]
             return {"analysis": {
-                "route": intent["label"], "supporting_text": intent["supporting_text"],
-                "tree_score": intent["tree_score"], "scope_status": "in_scope", "reason_code": "technical",
+                key: value for key, value in analysis_payload().items()
+                if key != "rewrite"
             }}
 
         def plan(payload):
             planning_payloads.append(payload)
-            if not payload["observations"]:
+            if payload["round_index"] == 1:
                 return {
-                    "analysis": {key: payload["frozen_analysis"][key]
-                                 for key in ("intents", "scope_status", "reason_code")},
                     "action": "SEND_MESSAGES",
-                    "barrier": "all_settled",
+                    "barrier": "all_success",
                     "messages": [{
                         "recipient": "rag_knowledge",
                         "content": "排查插件报401",
                         "intent_ids": ["intent-1-technical_troubleshooting"],
                     }],
-                    "reason_code": "dispatch",
+                    "reason_code": "dispatch_first",
+                }
+            if payload["round_index"] == 2:
+                return {
+                    "action": "SEND_MESSAGES",
+                    "barrier": "all_success",
+                    "messages": [{
+                        "recipient": "business_data_query",
+                        "content": "核查重复扣款",
+                        "intent_ids": ["intent-2-payment_issue"],
+                    }],
+                    "reason_code": "dispatch_second",
                 }
             return {
                 "action": "FINAL",
-                "message": "技术问题已处理。",
+                "message": "两个问题均已处理。",
                 "reason_code": "done",
             }
 
         health = AgentHealthTracker()
-        # 默认单意图输出也必须由 Supervisor 检查完整原句是否还有其他诉求。
+        # 默认识别器一次性冻结整句中的全部意图；Supervisor 只做编排。
         orchestrator = IntentOrchestrator(
             "test",
             base_url="https://example.invalid",
@@ -265,16 +267,24 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
             supervisor_decision_provider=plan,
             single_intent_fast_path_enabled=True,
         )
-        result = await orchestrator.run(Request("插件报401", "u1", "c1"))
+        result = await orchestrator.run(Request(QUERY, "u1", "c1"))
 
         self.assertEqual("COMPLETED", result.status)
         self.assertEqual(1, len(recognition_payloads))
-        self.assertGreaterEqual(len(planning_payloads), 2)
-        self.assertTrue(planning_payloads[0]["analysis_required"])
-        self.assertTrue(planning_payloads[0]["intent_review_required"])
+        self.assertGreaterEqual(len(planning_payloads), 3)
+        self.assertFalse(planning_payloads[0]["analysis_required"])
+        self.assertFalse(planning_payloads[0]["intent_review_required"])
+        self.assertEqual([], planning_payloads[0]["candidate_intents"])
+        self.assertEqual(2, len(planning_payloads[0]["frozen_analysis"]["intents"]))
         self.assertEqual(
-            ["插件报401"],
+            ["排查插件报401"],
             planning_payloads[0]["intent_recognition"]["recognized_intents"][0][
+                "source_spans"
+            ],
+        )
+        self.assertEqual(
+            ["核查重复扣款"],
+            planning_payloads[0]["intent_recognition"]["recognized_intents"][1][
                 "source_spans"
             ],
         )
@@ -290,10 +300,9 @@ class IntentRecognizerSplitTests(unittest.IsolatedAsyncioTestCase):
                 "supporting_text": ["插件报401"],
                 "tree_score": 0.50,
             }]
-            intent = recognized["intents"][0]
             return {"analysis": {
-                "route": intent["label"], "supporting_text": intent["supporting_text"],
-                "tree_score": intent["tree_score"], "scope_status": "in_scope", "reason_code": "technical",
+                key: value for key, value in recognized.items()
+                if key != "rewrite"
             }}
 
         def plan(payload):

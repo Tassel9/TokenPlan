@@ -74,7 +74,7 @@ from skills.registry import SkillRegistry
 
 logger = logging.getLogger(__name__)
 
-# 已确认业务路由按父领域直接委派；下列有限映射兼容没有 route 的旧识别契约。
+# 默认多意图契约中，只有下列已确认知识诉求允许跳过 Supervisor 直接委派。
 _FAST_PATH_INTENT_AGENTS: Dict[FineGrainedIntent, str] = {
     FineGrainedIntent.SUBSCRIPTION_INFO_QUERY: AgentType.SUBSCRIPTION.value,
     FineGrainedIntent.ACCOUNT_LOGIN_ISSUE: AgentType.SUPPORT.value,
@@ -916,11 +916,19 @@ class IntentOrchestrator:
                 "intent_confidence": recognition.confidence,
                 "recognition_retrieval": recognition.retrieval,
                 "intent_recognition": recognition.to_dict(),
-                "review_primary_intent": bool(recognition.route) and recognition.route != ORCHESTRATE_ROUTE,
-                "additional_intent_policy": self._intent_pipeline.fusion_policy if recognition.route else None,
-                "decompose_requests": recognition.route == ORCHESTRATE_ROUTE,
-                "decomposition_embedding_index": getattr(self._intent_pipeline, "embedding_index", None),
             })
+            # The default recognizer already returns the complete, validated
+            # intent set. Supervisor consumes that frozen result and only owns
+            # routing/orchestration. Keep the former route-review behavior only
+            # for explicitly injected routing-only comparison pipelines.
+            pipeline_recognizer = getattr(self._intent_pipeline, "recognizer", None)
+            if bool(getattr(pipeline_recognizer, "ROUTING_ONLY", False)):
+                supervisor_options.update({
+                    "review_primary_intent": bool(recognition.route) and recognition.route != ORCHESTRATE_ROUTE,
+                    "additional_intent_policy": self._intent_pipeline.fusion_policy if recognition.route else None,
+                    "decompose_requests": recognition.route == ORCHESTRATE_ROUTE,
+                    "decomposition_embedding_index": getattr(self._intent_pipeline, "embedding_index", None),
+                })
         fast_route = self._single_intent_fast_route(req.message, recognition)
         if fast_route is not None:
             # 单意图知识问题：代码按固定映射直接委派，跳过 Supervisor 的

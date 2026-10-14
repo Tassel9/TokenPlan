@@ -107,8 +107,12 @@ class ContextFastPathTests(unittest.IsolatedAsyncioTestCase):
                 return IntentEmbeddingResult((IntentEmbeddingScore("subscription_info_query", .6),), "ok", 1)
         def recognize(payload):
             seen.append(payload)
-            return {"analysis": {"route": "subscription_info_query", "tree_score": .95,
-                                 "supporting_text": [query], "scope_status": "in_scope", "reason_code": "pricing"}}
+            return {"analysis": {"intents": [{
+                "intent_id": "intent-1-subscription_info_query",
+                "label": "subscription_info_query",
+                "tree_score": .95,
+                "supporting_text": [query],
+            }], "scope_status": "in_scope", "reason_code": "pricing"}}
         pipeline = IntentRecognitionPipeline(context(), embedding_index=Index(), decision_provider=recognize,
             context_decision_provider=lambda _: self.fail("unexpected context call"))
         result = await pipeline.recognize(query, history=[{"role": "user", "content": "退款条件"}])

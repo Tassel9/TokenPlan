@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 from agents.intent_orchestrator import IntentOrchestratorResult, Request as OrchestrationRequest
+from core.supervisor_decision import RewriteStatus
 from memory.conversation_state import merge_case_state, update_discussion_state
 from memory.consultation_recall import ConsultationRecall, recall_consultation
 from memory.sqlite_session_store import SQLiteSessionStore
@@ -98,15 +99,12 @@ class ChatService:
             trace_recorder = None
 
         try:
-            short_term, long_term, case_state = await asyncio.gather(
+            # 先取补全所需的短期上下文；长期记忆等统一 Query 校验后再召回。
+            short_term, case_state = await asyncio.gather(
                 self.memory.get_short_term_memory(
                     command.user_id,
                     command.conv_id,
                     turn_lease=command.turn_lease,
-                ),
-                self.memory.get_long_term_memory(
-                    command.user_id,
-                    query=command.message,
                 ),
                 self.memory.get_case_state(command.user_id, command.conv_id),
             )
@@ -151,7 +149,6 @@ class ChatService:
             conv_id=command.conv_id,
             short_term_context=redact_secrets("\n\n".join(
                 value for value in (short_term.to_text(), recall.context) if value)),
-            long_term_context=redact_secrets(long_term.to_text()),
             intent_context=redact_secrets(short_term.summary),
             case_state=redact_secrets(case_state.to_intent_context()),
             history=redact_secrets(history),
@@ -173,6 +170,19 @@ class ChatService:
                     original_query=command.message, effective_query=command.message,
                 )
             else:
+                prepare_query = getattr(self.orchestrator, "prepare_query_context", None)
+                prepared = await prepare_query(orchestration_request) if prepare_query is not None else None
+                orchestration_request = replace(orchestration_request, prepared_query=prepared)
+                # 歧义或校验失败时不以原句猜测召回，交给同一补全结果触发澄清/失败处理。
+                if prepared is None or (
+                    prepared.status == "ok"
+                    and prepared.rewrite.status in {RewriteStatus.NOT_NEEDED, RewriteStatus.RESOLVED}
+                ):
+                    recall_query = prepared.rewrite.effective_query if prepared is not None else command.message
+                    long_term = await self.memory.get_long_term_memory(command.user_id, query=recall_query)
+                    orchestration_request = replace(
+                        orchestration_request, long_term_context=redact_secrets(long_term.to_text()),
+                    )
                 result = await self.orchestrator.run(orchestration_request)
             if recall.changed:
                 result.supervisor_analysis = dict(result.supervisor_analysis or {})

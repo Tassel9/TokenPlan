@@ -42,7 +42,7 @@ from core.intent_embedding import IntentEmbeddingIndex
 from core.intent_recognizer import IntentRecognitionProvider, IntentRecognizer
 from core.intent_pipeline import IntentRecognitionOutcome, IntentRecognitionPipeline
 from core.intent_routes import ORCHESTRATE_ROUTE
-from core.query_context import QueryContextProvider
+from core.query_context import PreparedQueryContext, QueryContextProvider
 from core.intent_recognition_tool import IntentRecognitionTool
 from core.supervisor_context import SupervisorContext
 from core.supervisor_decision import (
@@ -107,6 +107,8 @@ class Request:
     approval_id: str = ""
     idempotency_key: str = ""
     exposed_secret: bool = False
+    # 本轮已校验的补全结果：长期记忆召回与意图识别共用，保留 message 作为原文证据。
+    prepared_query: Optional[PreparedQueryContext] = None
 
 
 @dataclass
@@ -453,12 +455,30 @@ class IntentOrchestrator:
             "delegation_analysis": execution,
         }
 
+    async def prepare_query_context(self, req: Request) -> Optional[PreparedQueryContext]:
+        """先完成统一的 Query 补全，供应用层召回记忆及后续识别复用。"""
+        from response.input_secrets import SECRET
+
+        # 问候、转人工和密钥拦截沿用原来的短路边界，不额外调用补全模型。
+        if req.exposed_secret or SECRET.search(req.message) or self._intent_pipeline is None:
+            return None
+        if RequestControlPolicy.evaluate(req.message).action in {
+            RequestControlAction.RESPOND, RequestControlAction.HANDOFF,
+        }:
+            return None
+        return await self._intent_pipeline.prepare_query(
+            req.message, case_state=req.case_state, history=req.history, context=req.intent_context,
+        )
+
     async def run(self, req: Request) -> IntentOrchestratorResult:
         from response.input_secrets import SECRET, SAFE_RESPONSE, redact_secrets
         exposed_secret = req.exposed_secret or bool(SECRET.search(req.message))
         if exposed_secret:
             req = replace(req, message=redact_secrets(req.message))
         started = time.monotonic()
+        # 补全已在应用层执行，仍计入原有编排耗时，避免阶段耗时大于总耗时。
+        if req.prepared_query is not None:
+            started -= req.prepared_query.latency_ms / 1000
         timings = {
             "query_context_ms": 0.0,
             "intent_recognition_ms": 0.0,
@@ -569,12 +589,19 @@ class IntentOrchestrator:
 
         recognition: Optional[IntentRecognitionOutcome] = None
         if self._intent_pipeline is not None:
-            recognition = await self._intent_pipeline.recognize(
-                req.message,
-                case_state=req.case_state,
-                history=req.history,
-                context=req.intent_context,
-            )
+            if req.prepared_query is not None:
+                # 只接受本轮原文对应的结果，避免误用其他请求的补全内容；失败结果也不重试改写。
+                if req.prepared_query.original_query != req.message:
+                    raise ValueError("prepared query does not match request message")
+                recognition = await self._intent_pipeline.recognize_prepared(req.prepared_query)
+            else:
+                # 兼容直接调用编排器的入口，仍由原流水线完成补全与识别。
+                recognition = await self._intent_pipeline.recognize(
+                    req.message,
+                    case_state=req.case_state,
+                    history=req.history,
+                    context=req.intent_context,
+                )
             timings["query_context_ms"] = recognition.context_latency_ms
             timings["intent_recognition_ms"] = max(0.0, recognition.latency_ms - recognition.context_latency_ms)
             timings["intent_embedding_ms"] = recognition.retrieval.latency_ms

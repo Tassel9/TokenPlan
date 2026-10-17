@@ -1,6 +1,7 @@
 """Live context tool contract selecting facts instead of reproducing them."""
 from pydantic import BaseModel, ConfigDict, Field
 from core.supervisor_decision import EntityKey, RewriteStatus
+from memory.protected_context import ProtectedUpdate
 
 
 class ContextSourceReference(BaseModel):
@@ -17,3 +18,4 @@ class ContextSelectionContract(BaseModel):
     ambiguity_sources: dict[EntityKey, list[str]]
     clarification_question: str
     reason_code: str
+    protected_updates: list[ProtectedUpdate] = Field(default_factory=list)

@@ -91,6 +91,19 @@ class ShortTermMemoryTests(unittest.IsolatedAsyncioTestCase):
             m.content for m in self.manager._read_short_term_messages("u", "c")])
         self.assertEqual(6, self.manager.session_store.count("u", "c", "history"))
 
+    async def test_default_summary_failure_fallback_keeps_twenty_messages_in_complete_turns(self):
+        self.manager._client = SimpleNamespace(messages=SimpleNamespace(
+            create=AsyncMock(side_effect=RuntimeError("LLM unavailable"))))
+        with patch.object(MemoryManager, "SHORT_TERM_TOKEN_LIMIT", 1):
+            for index in range(11):
+                await self.manager.add_turn("u", "c", user_content=f"u{index}",
+                                            assistant_content=f"a{index}")
+        self.assertEqual([content for index in range(1, 11)
+                          for content in (f"u{index}", f"a{index}")],
+                         [m.content for m in self.manager._read_short_term_messages("u", "c")])
+        self.assertEqual(20, self.manager.session_store.count("u", "c", "hot"))
+        self.assertEqual(22, self.manager.session_store.count("u", "c", "history"))
+
     async def test_concurrent_history_restore_builds_one_summary(self):
         self._seed_turns(7, size=40)
         self.manager.session_store.replace_hot("u", "c", [], 60)

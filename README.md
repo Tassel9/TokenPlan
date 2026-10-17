@@ -147,16 +147,15 @@ sequenceDiagram
 
 ### 🧠 分层记忆
 
-基于 SQLite 与 ChromaDB 的分层记忆：SQLite 保存短期会话窗口、增量摘要与有界归档，ChromaDB 保存跨会话用户事实。
+Redis 保存短期窗口、摘要、有界原始归档与任务状态；ChromaDB 保存跨会话主题记忆，SQLite 保留为显式离线兼容后端。
 
-- 存储分工 — SQLite 保存近期消息、增量摘要、有界原始归档和案件状态，ChromaDB 保存可跨会话复用的稳定用户事实，RabbitMQ 承接长期事实更新任务；业务进度留在 CaseState，稳定偏好留在长期事实。
-- 摘要不留缺口 — 近期对话视图按 Token 预算保留全部未摘要轮次，滑出预算的轮次在同一次压缩中并入增量摘要，保证摘要与最近对话之间没有覆盖缺口。
-- 会话一次写 — 同一会话由 SQLite 事务和轮次号保护：子 Agent 按任务 ID 登记独立结果，服务层汇总后一次归档消息和 `CaseState`，再在 SQLite 中一次事务更新窗口与摘要。短期窗口缺失或过期时从仍有效的有界归档重建，迟到的旧轮次摘要不能覆盖新轮次；重启后直接复用已有会话文件。
-- 跨会话承接 — 用户明确提及“上次那个问题”时，按用户检索近期未解决咨询并读取原会话；订单号或主题唯一匹配后恢复咨询对象，多个候选先澄清，下一轮可回复序号继续。候选随案件过期，历史业务状态需重新查询。详见[实现与验证边界](docs/cross-session-consultations-20261004.md)。
-- 讨论对象延续 — CaseState 保留近期用户讨论原文，与业务处理进度分开；明确新主题优先，范围外话题清除旧讨论，助手回复不能成为用户事实证据。
-- 事件式长期事实 — 按“单次抽取 → 服务端校验 → 追加事件 → 读取时归并”更新：模型只提出候选，逐字证据与敏感信息校验通过后才写入，历史值不被覆盖；读取时把事件回放成当前有效画像，撤回与过期都不会回退到旧值。
-- 注入不留漏检 — 默认全量注入全部当前有效非全局事实（闭集 ≤3 条，与查询无关），把“记住了却没用上”的语义召回漏检降为零。
-- 指代消解有边界 — 抽取可附带同会话最近的用户发言消解指代（如“以后就用它了”），但跨轮证据只允许变更或撤回、且操作措辞必须出现在当前消息；助手措辞永远不能成为事实证据。
+- 短期上下文 — 按 Token 预算保留完整问答，超限后压缩旧轮次；约束原话及撤回记录独立于摘要保存。任务条件随任务切换，明确的长期偏好通过长期写入流程保存。
+- 原子提交 — 租约与轮次保护下，通过 Redis Lua 一次提交消息、CaseState、约束和长期更新 Outbox；摘要用 CAS 发布，拒绝迟到旧视图。Redis AOF 使用 everysec，存在异常停机丢失窗口。
+- 后台长期写入 — 默认十轮、空闲、压缩或明确“记住”触发处理。完整原话产生候选，经来源、归属、作用域校验后判断 ADD/SKIP；重复不新增、不续期，明确更正和忘记单独处理。
+- 按任务使用 — 先共用已校验的 Query 补全，再召回相关记忆；不同委派任务分别召回，进入只读上下文快照。历史建议不代表用户选择、授权或已完成操作，当前请求优先。
+- 作用域与恢复 — 用户、会话和 workspace 隔离；跨会话咨询唯一匹配才恢复对象，多候选先澄清。旧业务状态需重新查询，删除和过期不会自动恢复旧值。
+
+实现、配置与迁移见[长期记忆流程](docs/long-term-memory-mem0-runtime.md)、[短期记忆边界](docs/short-term-fidelity-20261005.md)与[本轮修复和验证](docs/memory-boundaries-repair-20261017.md)。本次同步未对已有用户数据执行迁移。
 
 ### 🤝 多 Agent 编排（Supervisor + 三个父意图 Agent）
 
@@ -218,7 +217,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | 模型 | DeepSeek、BGE Embedding、BGE Reranker | 语义理解、向量表示与知识排序 |
 | Agent 协作 | IntentRecognizer、Supervisor、三个领域 Agent、Skill Registry、ToolBroker | 整句多意图识别、冻结结果编排、父意图分派与结果汇总 |
 | 检索 | ChromaDB、SQLite FTS5 | 向量与关键词混合检索 |
-| 记忆与异步任务 | SQLite、ChromaDB、RabbitMQ | 短期窗口与摘要、会话归档、长期事实与异步更新 |
+| 记忆与异步任务 | Redis、ChromaDB、AsyncIO | 短期窗口与归档、长期主题记忆、持久 Outbox 与后台更新；SQLite 离线兼容 |
 | 前端 | React、TypeScript、Vite | 会话工作台与状态展示 |
 | 可观测性 | Prometheus、Execution Trace | 运行指标与执行过程记录 |
 | 部署 | Docker、Docker Compose、Nginx | 服务编排、健康检查与反向代理 |
@@ -231,7 +230,7 @@ Skill Registry 管理业务 SOP：技能先校验归属，内容渐进式披露�
 | :--- | :--- | :--- |
 | Python | 3.12 | 后端运行环境 |
 | Node.js | 22+ | 前端开发与构建 |
-| Docker | Compose v2 | 启动 RabbitMQ、ChromaDB 等依赖 |
+| Docker | Compose v2 | 启动 Redis、ChromaDB 等依赖 |
 | DeepSeek API | 可用 Key | LLM 调用 |
 
 ### 1. 准备配置
@@ -258,8 +257,8 @@ Copy-Item .env.example .env
 
 运行方式不同，基础设施地址也不同：
 
-- **完整 Docker Compose**：Compose 为应用容器注入 RabbitMQ 和 ChromaDB 的容器内地址，SQLite 短期记忆与归档文件保存在 `./data/session`。
-- **本地 Python + Docker 基础设施**：Python 进程从宿主机访问 RabbitMQ 和 ChromaDB，SQLite 会话文件由 `SESSION_DB_PATH` 指定。
+- **完整 Docker Compose**：Compose 注入 Redis 和 ChromaDB 的容器地址，并通过数据卷保存 Redis AOF 与 Chroma 数据。
+- **本地 Python + Docker 基础设施**：Python 进程使用 `.env` 中的宿主机地址访问 Redis 和 ChromaDB。旧 SQLite 会话文件作为显式迁移源保留，切换步骤见[迁移说明](docs/redis-chroma-memory-20261004.md)。
 
 升级已有数据卷时，TokenPlan 默认会使用新的项目专属知识库集合和 FTS 索引。若要继续读取旧索引，请在启动前通过 `RAG_CHROMA_COLLECTION_NAME` 与 `RAG_LEXICAL_INDEX_PATH` 显式指向原集合和文件，核对数据后再安排迁移。
 
@@ -278,10 +277,10 @@ API 文档默认位于 `http://localhost:8000/docs`，Nginx 入口默认位于 `
 先启动基础设施：
 
 ```powershell
-docker compose up -d rabbitmq chromadb
+docker compose up -d redis chromadb
 ```
 
-确认 `.env` 使用宿主机可访问的 RabbitMQ 和 ChromaDB 地址，并保证连接凭据与服务配置一致。完成第 1 步的环境准备后，启动后端：
+确认 `.env` 使用宿主机可访问的 Redis 和 ChromaDB 地址，并保证连接凭据与服务配置一致。完成第 1 步的环境准备后，启动后端：
 
 ```powershell
 .\.venv-win\Scripts\python.exe -m uvicorn --app-dir backend api.main:app --host 0.0.0.0 --port 8000

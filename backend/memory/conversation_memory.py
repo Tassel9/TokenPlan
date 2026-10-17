@@ -1,23 +1,25 @@
-"""Independent short-term and long-term memory stores.
+"""Layered Redis conversation memory and published Chroma user facts.
 
 This module deliberately does not build a flat "Agent memory" snapshot:
 
-* short-term memory is a SQLite message window plus incremental summary and bounded history;
+* short-term memory keeps recent turns, a derived summary, protected user constraints and bounded raw history;
 * long-term memory is an append-only user-fact log plus its current projection.
 
-Request execution state and ``CustomerServiceCase`` belong to working memory.
+``CustomerServiceCase`` is structured task state within short-term memory.
+Request execution state belongs to the request runtime.
 Skills, SOPs and tool policies belong to procedural memory.
 """
 import asyncio
 import hashlib
 import json
+import math
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Tuple
 
-import chromadb
 from anthropic import AsyncAnthropic
 
 from memory.conversation_state import CustomerServiceCase
@@ -30,6 +32,7 @@ from memory.long_term_facts import (
     fact_effective_time,
     is_versioned_fact,
     parse_fact_candidates,
+    purge_expired_fact_events,
     resolve_profile,
     ttl_days_for,
     validate_fact_extraction,
@@ -47,22 +50,23 @@ from core.deepseek_client import (
     extract_text,
     load_deepseek_tokenizer,
 )
-from core.embedding_provider import (
-    BGE_DEFAULT_MODEL,
-    BGE_DEFAULT_REVISION,
-    BGEEmbeddingProvider,
-)
 from runtime.conversation_turn_gate import (
     ConversationLeaseLostError,
 )
 from runtime.resource_limits import ResourceConcurrencyLimits, optional_slot
 from memory.sqlite_session_store import SQLiteSessionStore
+from memory.redis_session_store import RedisSessionStore
+from memory.chroma_profile_store import ChromaProfileStore
+from memory.profile_updates import ProfileUpdateJob
+from core.embedding_provider import BGEEmbeddingProvider, cosine
+from memory.chroma_memory_store import ChromaMemoryStore, SQLiteMemoryStore
+from memory.memory_flow import MemoryFlow
+from memory.protected_context import (fold_protected, render_protected, recall_turns,
+                                      validate_summary_fidelity)
 
 logger = logging.getLogger(__name__)
 
 
-PROFILE_COLLECTION = "user_profile_bge_zh_v1"
-LEGACY_PROFILE_COLLECTION = "user_profile"
 MEMORY_KEY_LABELS = {
     "style.response_length": "回答长度偏好",
     "style.answer_order": "回答顺序偏好",
@@ -70,34 +74,6 @@ MEMORY_KEY_LABELS = {
     "environment.os": "操作系统",
     "environment.ide": "开发工具",
 }
-
-
-def _connect_chroma_client(
-    *,
-    host: str,
-    port: int,
-    path: str,
-    allow_embedded_fallback: bool,
-) -> Any:
-    """Connect to the configured Chroma service; local mode is explicit only."""
-    try:
-        client = chromadb.HttpClient(host=host, port=port)
-        client.heartbeat()
-        logger.info("ChromaDB 已连接: %s:%s", host, port)
-        return client
-    except Exception as ex:
-        if not allow_embedded_fallback:
-            raise RuntimeError(
-                f"ChromaDB 服务不可用: {host}:{port}；未启用本地嵌入式模式"
-            ) from ex
-        logger.warning(
-            "ChromaDB 服务不可用，已显式启用本地嵌入式模式: %s",
-            path,
-        )
-        return chromadb.PersistentClient(
-            path=path,
-            settings=chromadb.Settings(anonymized_telemetry=False),
-        )
 
 
 class MsgRole(Enum):
@@ -110,7 +86,7 @@ class MsgRole(Enum):
 class Message:
     role:       MsgRole
     content:    str
-    timestamp:  datetime = field(default_factory=datetime.now)
+    timestamp:  datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata:   Dict[str, Any] = field(default_factory=dict)
 
 
@@ -124,9 +100,14 @@ class ShortTermMemoryContext:
 
     recent_messages: List[Message]
     summary: str = ""
+    protected_items: List[Dict[str, Any]] = field(default_factory=list)
+    recalled_messages: List[Message] = field(default_factory=list)
 
     def to_text(self) -> str:
         parts: List[str] = []
+        protected = render_protected(self.protected_items)
+        if protected:
+            parts.append(protected)
         if self.summary:
             parts.append(f"[短期会话摘要]\n{_clean_context_text(self.summary)}")
         if self.recent_messages:
@@ -135,6 +116,10 @@ class ShortTermMemoryContext:
                 for message in self.recent_messages
             ]
             parts.append("[最近对话]\n" + "\n".join(lines))
+        if self.recalled_messages:
+            parts.append("[历史原文回查（不覆盖当前有效约束）]\n" + "\n".join(
+                f"[turn_seq={message.metadata.get('turn_seq', 0)}]{message.role.value}: {message.content}"
+                for message in self.recalled_messages))
         return "\n\n".join(parts)
 
 
@@ -144,6 +129,7 @@ class LongTermMemoryContext:
 
     current_profile: Dict[str, Any]
     recalled_facts: List[str] = field(default_factory=list)
+    recalled_memories: List[str] = field(default_factory=list)
 
     def to_text(self) -> str:
         parts: List[str] = []
@@ -160,6 +146,9 @@ class LongTermMemoryContext:
                     for item in self.recalled_facts[:3]
                 )
             )
+        if self.recalled_memories:
+            parts.append("[相关长期记忆；仅作背景，当前请求优先，助手建议不代表用户选择或业务执行结果]\n"
+                         + "\n".join("- " + _clean_context_text(item) for item in self.recalled_memories))
         return "\n\n".join(parts)
 
 
@@ -167,19 +156,18 @@ class MemoryManager:
     """Read and write short-term and long-term memory independently."""
 
     SHORT_TERM_TOKEN_LIMIT = 6000
-    # 兼容保留：视图已改为按 Token 预算保留未摘要轮次（不再固定轮数截断）。
+    # 超限压缩后保留的最近完整轮次；普通读取不按此值截断未摘要消息。
     RECENT_TURNS = 5
     FACT_QUERY_CANDIDATES = 8
     FACT_RECALL_MAX = 3
-    # full=闭集全量注入（默认，与查询无关）；recall=距离门控语义召回。
-    FACT_INJECTION_MODES = ("full", "recall")
     FACT_MAX_DISTANCE = 0.58
+    # recall=有效事实语义召回；full=显式全量注入，供离线兼容使用。
+    FACT_INJECTION_MODES = ("full", "recall")
     GLOBAL_MEMORY_KEYS = ("style.response_length", "style.answer_order")
     SHORT_TERM_TTL = 86400
-    SUMMARY_MAX_CHARS = 1600
-    # 实测：真实模型完成一次结构化增量摘要的自然输出约 900~1600 token
-    # （中文正文 + 条目 JSON 开销），256/1024 会稳定截断 Tool Call 导致摘要失败。
-    # 该值仅是输出上限，不影响实际计费；取 2048 覆盖全部能通过 1600 字校验的合法输出。
+    # 摘要在最终上下文中的子预算，包含摘要标题；与会话窗口使用同一 tokenizer。
+    SUMMARY_TOKEN_LIMIT = 1000
+    # 生成调用还需输出 Tool JSON 和来源字段，不能拿它代替摘要上下文预算。
     SUMMARY_OUTPUT_TOKEN_LIMIT = 2048
     SUMMARY_MAX_ATTEMPTS = 2
     PROFILE_PENDING_TTL = 86400
@@ -188,27 +176,20 @@ class MemoryManager:
     HISTORY_MAX_MESSAGES = 100
     HISTORY_PAGE_SIZE = 50
     HISTORY_MAX_PAGE_SIZE = 100
-    HOT_MEMORY_MAX_MESSAGES = 40
+    HOT_MEMORY_MAX_MESSAGES = 20
     # 长期事实抽取附带的同会话用户发言窗口（仅用于消解指代，不构成新证据）。
     CONTEXT_MAX_TURNS = 3
     CONTEXT_MAX_CHARS = 1200
 
     def __init__(
         self,
-        chroma_host:  str = "localhost",
-        chroma_port:  int = 8000,
-        chroma_path:  str = "./data/chroma",
         api_key:      str = "",
         base_url:     Optional[str] = None,
         model:        str = DEEPSEEK_DEFAULT_MODEL,
-        profile_embedding_model: str = BGE_DEFAULT_MODEL,
-        profile_embedding_revision: str = BGE_DEFAULT_REVISION,
-        profile_embedding_device: Optional[str] = None,
-        profile_embedding_provider: Optional[Any] = None,
-        allow_embedded_chroma_fallback: bool = False,
         resource_limits: Optional[ResourceConcurrencyLimits] = None,
         history_max_messages: int = HISTORY_MAX_MESSAGES,
         history_page_size: int = HISTORY_PAGE_SIZE,
+        history_ttl_seconds: int = HISTORY_TTL,
         hot_memory_max_messages: int = HOT_MEMORY_MAX_MESSAGES,
         short_term_token_limit: int = SHORT_TERM_TOKEN_LIMIT,
         recent_turns: int = RECENT_TURNS,
@@ -217,13 +198,39 @@ class MemoryManager:
         context_extraction_enabled: bool = True,
         context_user_turns: int = CONTEXT_MAX_TURNS,
         context_user_max_chars: int = CONTEXT_MAX_CHARS,
-        fact_injection_mode: str = "full",
+        fact_injection_mode: str = "recall",
         session_db_path: str = "./data/session/conversations.sqlite3",
+        summary_token_limit: int = SUMMARY_TOKEN_LIMIT,
+        memory_backend: str = "redis",
+        redis_host: str = "localhost",
+        redis_port: int = 6379,
+        redis_db: int = 0,
+        redis_password: Optional[str] = None,
+        chroma_host: str = "localhost",
+        chroma_port: int = 8000,
+        session_store: Any = None,
+        profile_store: Any = None,
+        profile_embedding_provider: Any = None,
+        long_term_memory_engine: str = "legacy",
+        memory_store: Any = None,
+        memory_context_token_budget: int = 800,
+        memory_recall_max: int = 5,
+        memory_extraction_token_limit: int = 12000,
+        memory_retention_days: Optional[Dict[str, int]] = None,
     ):
+        self._short_term_token_limit = self._positive_limit(
+            short_term_token_limit, name="short_term_token_limit",
+        )
+        self._history_ttl = self._positive_limit(history_ttl_seconds, name="history_ttl_seconds")
+        self._summary_token_limit = self._positive_limit(
+            summary_token_limit, name="summary_token_limit",
+        )
+        if self._summary_token_limit >= self._short_term_token_limit:
+            raise ValueError("summary_token_limit must be lower than short_term_token_limit")
         mode = str(fact_injection_mode or "").strip().lower()
         if mode not in self.FACT_INJECTION_MODES:
             raise ValueError(
-                "fact_injection_mode 只支持 full（闭集全量注入）或 recall（语义召回）"
+                "fact_injection_mode 只支持 full 或 recall"
             )
         self._fact_injection_mode = mode
         kwargs: Dict[str, Any] = {"api_key": api_key}
@@ -240,24 +247,19 @@ class MemoryManager:
                 "DeepSeek tokenizer 加载或计数自检失败，拒绝启动短期记忆"
             ) from ex
 
-        self._profile_embedding_model = self._safe_text(profile_embedding_model).strip()
-        self._profile_embedding_revision = self._safe_text(
-            profile_embedding_revision
-        ).strip()
-        if not self._profile_embedding_model:
-            raise RuntimeError("LONG_TERM_MEMORY_EMBEDDING_MODEL 不能为空")
-        if not self._profile_embedding_revision:
-            raise RuntimeError("LONG_TERM_MEMORY_EMBEDDING_REVISION 不能为空")
-        self._profile_embedding_provider = (
-            profile_embedding_provider
-            or BGEEmbeddingProvider(
-                model_name=self._profile_embedding_model,
-                device=profile_embedding_device,
-                revision=self._profile_embedding_revision,
-            )
+        if memory_backend not in {"redis", "sqlite"}:
+            raise ValueError("memory_backend must be redis or sqlite")
+        self._session_store = session_store if session_store is not None else (
+            SQLiteSessionStore(session_db_path) if memory_backend == "sqlite" else
+            RedisSessionStore(host=redis_host, port=redis_port, db=redis_db, password=redis_password)
         )
-
-        self._session_store = SQLiteSessionStore(session_db_path)
+        self._profile_store = profile_store if profile_store is not None else (
+            ChromaProfileStore(self._session_store, host=chroma_host, port=chroma_port,
+                               embedding_provider=profile_embedding_provider)
+            if isinstance(self._session_store, RedisSessionStore) else self._session_store
+        )
+        self._profile_embedding_provider = profile_embedding_provider or getattr(
+            self._profile_store, "_embedding_provider", None) or BGEEmbeddingProvider()
         self._history_max_messages = self._positive_limit(
             history_max_messages,
             name="history_max_messages",
@@ -269,10 +271,6 @@ class MemoryManager:
         self._hot_memory_max_messages = self._positive_limit(
             hot_memory_max_messages,
             name="hot_memory_max_messages",
-        )
-        self._short_term_token_limit = self._positive_limit(
-            short_term_token_limit,
-            name="short_term_token_limit",
         )
         self._recent_turns = self._positive_limit(
             recent_turns,
@@ -296,74 +294,24 @@ class MemoryManager:
             name="context_user_max_chars",
         )
 
-        chroma = _connect_chroma_client(
-            host=chroma_host,
-            port=chroma_port,
-            path=chroma_path,
-            allow_embedded_fallback=allow_embedded_chroma_fallback,
-        )
-
-        # 新集合仅接受显式 BGE 向量，避免继续使用 Chroma 默认英文 Embedding。
-        self._profile = chroma.get_or_create_collection(
-            PROFILE_COLLECTION,
-            metadata={
-                "hnsw:space": "cosine",
-                "embedding_model": self._profile_embedding_model,
-                "embedding_revision": self._profile_embedding_revision,
-            },
-            embedding_function=None,
-        )
-        stored_embedding_model = self._safe_text(
-            (getattr(self._profile, "metadata", None) or {}).get(
-                "embedding_model",
-                "",
-            )
-        ).strip()
-        if stored_embedding_model and stored_embedding_model != self._profile_embedding_model:
-            raise RuntimeError(
-                "长期记忆集合的 embedding_model 与当前配置不一致: "
-                f"stored={stored_embedding_model}, configured={self._profile_embedding_model}"
-            )
-        stored_embedding_revision = self._safe_text(
-            (getattr(self._profile, "metadata", None) or {}).get(
-                "embedding_revision",
-                "",
-            )
-        ).strip()
-        if (
-            stored_embedding_revision
-            and stored_embedding_revision != self._profile_embedding_revision
-        ):
-            raise RuntimeError(
-                "长期记忆集合的 embedding_revision 与当前配置不一致: "
-                f"stored={stored_embedding_revision}, "
-                f"configured={self._profile_embedding_revision}"
-            )
-        collection_names = {
-            str(getattr(collection, "name", collection))
-            for collection in chroma.list_collections()
-        }
-        self._legacy_profile = (
-            chroma.get_collection(
-                LEGACY_PROFILE_COLLECTION,
-                embedding_function=None,
-            )
-            if LEGACY_PROFILE_COLLECTION in collection_names
-            else None
-        )
-        self._migrate_legacy_profile_events()
-        # Chroma 没有跨记录事务；条带锁只处理本进程内同用户的并发追加/清除。
         self._profile_locks = [asyncio.Lock() for _ in range(64)]
-
-    def preload_profile_embedding(self) -> None:
-        """Fail startup if the configured long-term-memory model cannot encode."""
-        self._profile_embedding_provider.embed_sync(
-            "长期记忆向量模型自检",
-            is_query=False,
-        )
+        if long_term_memory_engine not in {"legacy", "mem0_flow"}:
+            raise ValueError("long_term_memory_engine must be legacy or mem0_flow")
+        self._long_term_memory_engine = long_term_memory_engine
+        self._memory_flow = None
+        if long_term_memory_engine == "mem0_flow":
+            generic_store = memory_store if memory_store is not None else (
+                ChromaMemoryStore(self._session_store, host=chroma_host, port=chroma_port,
+                                  embedding_provider=self._profile_embedding_provider)
+                if isinstance(self._session_store, RedisSessionStore) else
+                SQLiteMemoryStore(self._session_store, self._profile_embedding_provider))
+            self._memory_flow = MemoryFlow(self, generic_store, token_budget=memory_context_token_budget,
+                                          max_memories=memory_recall_max,
+                                          extraction_token_limit=memory_extraction_token_limit,
+                                          retention_days=memory_retention_days)
 
     @property
-    def session_store(self) -> Optional[SQLiteSessionStore]:
+    def session_store(self) -> Any:
         return getattr(self, "_session_store", None)
 
     # ── 写入 ──────────────────────────────────────────────────────────────────
@@ -390,7 +338,7 @@ class MemoryManager:
         user_metadata: Optional[Dict[str, Any]] = None,
         assistant_metadata: Optional[Dict[str, Any]] = None,
     ) -> None:
-        """Append one user/assistant turn in one SQLite transaction."""
+        """Append one user/assistant turn in one atomic session commit."""
         messages = [
             self._message(MsgRole.USER, user_content, user_metadata),
             self._message(MsgRole.ASSISTANT, assistant_content, assistant_metadata),
@@ -434,7 +382,18 @@ class MemoryManager:
             )
             case_payload = json.dumps(normalized_case.to_dict(), ensure_ascii=False)
 
-        committed = self.session_store.commit_turn(
+        profile_args = {}
+        if user_meta.get("profile_update_enabled") and isinstance(self.session_store, RedisSessionStore):
+            effective_at = datetime.fromisoformat(user_meta["profile_effective_at"])
+            job = ProfileUpdateJob.create(user_id=user_id, conv_id=conv_id,
+                user_message=self._safe_text(user_content), effective_at=effective_at,
+                turn_seq=normalized_seq,
+                assistant_message=self._safe_text(assistant_content) if getattr(self, "_memory_flow", None) else "",
+                workspace_id=str(user_meta.get("memory_workspace_id", "")),
+                target_ids=tuple(user_meta.get("memory_target_ids", ())))
+            events = self._pending_events_for_job(job)
+            profile_args = {"profile_job": job.to_body().decode("utf-8"), "pending_events": events}
+        committed = await asyncio.to_thread(self.session_store.commit_turn,
                 user_id, conv_id,
                 token=self._safe_text(gate_token),
                 turn_seq=normalized_seq,
@@ -442,9 +401,10 @@ class MemoryManager:
                 assistant_payload=assistant_payload,
                 case_json=case_payload,
                 short_ttl=self.SHORT_TERM_TTL,
-                history_ttl=self.HISTORY_TTL,
+                history_ttl=getattr(self, "_history_ttl", self.HISTORY_TTL),
                 case_ttl=self.CASE_TTL,
                 history_max=self._history_max_messages,
+                **profile_args,
         )
         if int(committed or 0) != 1:
             raise ConversationLeaseLostError(
@@ -469,10 +429,10 @@ class MemoryManager:
         if not payloads:
             return
 
-        self.session_store.append(
+        await asyncio.to_thread(self.session_store.append,
                 user_id, conv_id, payloads,
                 short_ttl=self.SHORT_TERM_TTL,
-                history_ttl=self.HISTORY_TTL,
+                history_ttl=getattr(self, "_history_ttl", self.HISTORY_TTL),
                 history_max=self._history_max_messages,
         )
         await self._after_short_term_append(user_id, conv_id)
@@ -491,38 +451,46 @@ class MemoryManager:
             "_hot_memory_max_messages",
             self.HOT_MEMORY_MAX_MESSAGES,
         )
+        attempted = False
         try:
             # 按实际注入的“摘要 + 最近对话”文本统一计算 Token。
             _, summary = self._read_short_term_summary(user_id, conv_id)
             messages = self._read_all_hot_messages(user_id, conv_id)
+            protected = self._read_protected_items(user_id, conv_id)
             if (
-                self._count_short_term_tokens(messages, summary)
+                self._count_short_term_tokens(messages, summary, protected_items=protected)
                 > getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT)
-                or len(messages) > hot_max
+                or self._count_short_term_tokens([], summary)
+                > getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)
             ):
+                attempted = True
                 await self._compress(
                     user_id,
                     conv_id,
                     gate_key=gate_key,
                     gate_token=gate_token,
-                    force=len(messages) > hot_max,
                 )
         finally:
             # 摘要服务不可用时仍保留一个硬上限，避免近期对话无限增长。
-            hot_count = session_store.count(user_id, conv_id, "hot")
-            if hot_count > hot_max:
-                messages = self._read_all_hot_messages(user_id, conv_id)
+            hot_count = await asyncio.to_thread(session_store.count,user_id, conv_id, "hot")
+            if attempted and hot_count > hot_max:
+                stamp, messages, summary_model, rendered = await asyncio.to_thread(self._short_term_source,user_id, conv_id)
+                protected = self._read_protected_items(user_id, conv_id)
+                if (self._count_short_term_tokens(messages, rendered, protected_items=protected)
+                        <= getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT)
+                        and self._count_short_term_tokens([], rendered)
+                        <= getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)):
+                    return  # Successful compression must not activate the failure cap.
                 keep = self._select_recent_complete_turns_by_message_cap(
                     messages,
                     hot_max,
                 )
-                summary_model, _ = self._read_short_term_summary(user_id, conv_id)
-                published = self._publish_short_term_view(
+                published = await asyncio.to_thread(self._publish_short_term_view,
                     user_id,
                     conv_id,
                     summary=(summary_model.model_dump_json() if summary_model else ""),
                     messages=keep,
-                    expected_revision=self._conversation_revision(user_id, conv_id),
+                    expected_revision=stamp,
                     gate_key=gate_key,
                     gate_token=gate_token,
                 )
@@ -543,11 +511,12 @@ class MemoryManager:
         effective_at: datetime,
         event_id: str,
     ) -> int:
-        """Stage explicit mutations so reads never fall back to stale Chroma data."""
+        """Stage explicit mutations so reads never fall back to stale stored data."""
         normalized_user_id = self._safe_text(user_id).strip()
         normalized_conv_id = self._safe_text(conv_id).strip()
         normalized_event_id = self._safe_text(event_id).strip()
-        mutations = detect_pending_memory_mutations(user_message)
+        mutations = (self._memory_flow.explicit_candidates(user_message)
+                     if getattr(self, "_memory_flow", None) else detect_pending_memory_mutations(user_message))
         if not normalized_user_id or not normalized_event_id or not mutations:
             return 0
 
@@ -579,13 +548,41 @@ class MemoryManager:
             )
         return staged
 
+    def _pending_events_for_job(self, job: ProfileUpdateJob) -> List[Dict[str, Any]]:
+        effective_time = datetime.fromisoformat(job.effective_at)
+        events = []
+        mutations = (self._memory_flow.explicit_candidates(job.user_message)
+                     if getattr(self, "_memory_flow", None) else detect_pending_memory_mutations(job.user_message))
+        if getattr(self, "_memory_flow", None) and job.target_ids:
+            from memory.long_term_memories import projections
+            rows = self._memory_flow.store.list_profile_events(job.user_id)
+            keys = {key for row in rows if row["id"] in job.target_ids
+                    or row["metadata"].get("target_id") in job.target_ids
+                    for key in projections(row["metadata"])}
+            existing = {candidate.memory_key for candidate in mutations}
+            mutations += [MemoryFactCandidate(key, "", "retract", job.user_message)
+                          for key in keys - existing]
+        for mutation in mutations:
+            payload = json.dumps({
+                "schema_version": "profile-pending-v1", "event_id": job.job_id,
+                "user_id": job.user_id, "conv_id": job.conv_id,
+                "memory_key": mutation.memory_key, "value": mutation.value,
+                "operation": mutation.operation, "effective_at": job.effective_at,
+            }, ensure_ascii=False, separators=(",", ":"))
+            events.append({"key": mutation.memory_key, "event_id": job.job_id,
+                           "micros": int(effective_time.timestamp()*1_000_000),
+                           "payload": payload, "ttl": self._pending_profile_ttl_seconds})
+        if getattr(self, "_memory_flow", None):
+            events.extend(self._memory_flow.pending_events(job))
+        return events
+
     async def clear_staged_profile_update(
         self,
         user_id: str,
         *,
         event_id: str,
     ) -> int:
-        """Clear only Pending profile fields owned by one abandoned queue job."""
+        """Clear only Pending profile fields owned by one abandoned update."""
         return self._clear_profile_pending_event(user_id, event_id)
 
     async def update_profile(
@@ -622,12 +619,18 @@ class MemoryManager:
         只有 source_text 能回指用户原话（当前消息，或同会话最近的用户发言）
         且通过服务端规则的候选才会落库；跨轮证据只允许 supersede/retract，
         且变更/撤回措辞必须出现在当前消息。普通摘要、Assistant 陈述和模型
-        推断都不能直接成为长期事实。异常向上抛出，由 RabbitMQ 消费者决定
-        重试或转入死信队列。
+        推断都不能直接成为长期事实。异常向上抛出，由后台协程重试；耗尽
+        重试后保留失败记录及 Pending 覆盖。
         """
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
-        pending_for_event = self._pending_profile_for_event(user_id, event_id)
+        pending_for_event = await asyncio.to_thread(self._pending_profile_for_event, user_id, event_id)
+        if getattr(self, "_memory_flow", None):
+            job = ProfileUpdateJob.create(user_id=user_id, conv_id=conv_id,
+                user_message=user_message, effective_at=effective_at or datetime.now(timezone.utc),
+                turn_seq=turn_seq)
+            await self._memory_flow.process_batch([job])
+            return
         explicit_message = self._safe_text(user_message).strip()
         if explicit_message:
             latest_user = Message(
@@ -648,7 +651,7 @@ class MemoryManager:
             return
 
         user_text = self._safe_text(latest_user.content)
-        context_user_text = self._recent_user_evidence(
+        context_user_text = await asyncio.to_thread(self._recent_user_evidence,
             user_id,
             conv_id,
             current_message=user_text,
@@ -663,13 +666,13 @@ class MemoryManager:
                 user_id,
                 pending_for_event,
             ):
-                raise RuntimeError("Pending 长期事实尚未写入 ChromaDB")
+                raise RuntimeError("Pending 长期事实尚未写入长期事实库")
             self._clear_profile_pending_event(user_id, event_id)
             return
 
         lock = self._profile_locks[self._profile_lock_index(user_id)]
         async with lock:
-            self._apply_profile_candidates(
+            await asyncio.to_thread(self._apply_profile_candidates,
                 user_id=user_id,
                 conv_id=conv_id,
                 source_message=latest_user,
@@ -713,6 +716,110 @@ class MemoryManager:
             context_user_text=context_user_text,
         )
 
+    async def process_explicit_profile_update(self, job: ProfileUpdateJob) -> None:
+        """Apply unambiguous explicit changes/erasure without an LLM call."""
+        if getattr(self, "_memory_flow", None):
+            await self._memory_flow.process_explicit(job)
+            return
+        candidates = detect_pending_memory_mutations(job.user_message)
+        if not candidates:
+            raise ValueError("explicit profile update has no deterministic candidate")
+        candidates = parse_fact_candidates({"facts": [candidate.__dict__ for candidate in candidates]},
+                                           user_text=job.user_message)
+        await self._apply_profile_job(job, candidates)
+
+    async def process_profile_update_batch(self, jobs: List[ProfileUpdateJob]) -> None:
+        """Extract once for a complete conversation batch, keeping turn provenance."""
+        if getattr(self, "_memory_flow", None):
+            await self._memory_flow.process_batch(jobs)
+            return
+        if not jobs:
+            return
+        if len({(job.user_id, job.conv_id) for job in jobs}) != 1:
+            raise ValueError("profile extraction batch crosses user/conversation scope")
+        jobs = sorted(jobs, key=lambda job: (job.effective_at, int(job.turn_seq or 0), job.job_id))
+        inputs, contexts = [], {}
+        for index, job in enumerate(jobs):
+            prior = [previous.user_message for previous in jobs[:index]]
+            # Also retain referents preceding the first buffered turn, without
+            # reading a rolling summary or treating assistant text as evidence.
+            context = (await asyncio.to_thread(self._recent_user_evidence,
+                job.user_id, job.conv_id, current_message=job.user_message,
+                turn_seq=int(job.turn_seq))) if int(job.turn_seq or 0) > 0 else ""
+            if prior and self._context_extraction_enabled and not context:
+                context = self._user_evidence_context(prior)
+            contexts[job.job_id] = context
+            inputs.append({"job_id": job.job_id, "user_text": job.user_message,
+                           "context_user_text": context})
+        prompt = build_fact_extraction_prompt(user_text="", context_user_text="") + "\n\n" + (
+            "本次一次处理同一会话的多轮用户原话。逐轮独立应用上面的字段、来源和操作规则。"
+            "不能把不同轮次拼成一条事实，也不能把后续轮次当作先前轮次的来源。"
+            "context_user_text 只供该轮明确 supersede/retract 的指代消解，不能从中新增事实。"
+            "必须为每个输入 job_id 返回一次结果，无事实时 facts=[]；不要遗漏、重复或新增 job_id。"
+            '唯一输出格式：{"updates":[{"job_id":"输入 ID","facts":[]}]}。\n'
+            + json.dumps(inputs, ensure_ascii=False)
+        )
+        async with optional_slot(self._llm_bulkhead):
+            response = await self._client.messages.create(
+                model=self._model, max_tokens=4096, temperature=0.0,
+                messages=[{"role": "user", "content": prompt}],
+                **deepseek_request_options(),
+            )
+        payload = json.loads(extract_text(response))
+        if not isinstance(payload, dict) or set(payload) != {"updates"} or not isinstance(payload["updates"], list):
+            raise ValueError("invalid batch extraction envelope")
+        proposals = {}
+        for update in payload["updates"]:
+            if not isinstance(update, dict) or set(update) != {"job_id", "facts"}:
+                raise ValueError("invalid batch extraction entry")
+            job_id = update["job_id"]
+            if not isinstance(job_id, str) or job_id not in contexts or job_id in proposals:
+                raise ValueError("unknown or duplicated batch job ID")
+            proposals[job_id] = validate_fact_extraction({"facts": update["facts"]})
+        if set(proposals) != set(contexts):
+            raise ValueError("batch extraction omitted source turns")
+        # Validate the whole response before mutating any facts.
+        accepted = [(job, parse_fact_candidates(proposals[job.job_id],
+                    user_text=job.user_message, context_user_text=contexts[job.job_id]))
+                    for job in jobs]
+        for job, candidates in accepted:
+            await self._apply_profile_job(job, candidates)
+
+    async def _apply_profile_job(self, job: ProfileUpdateJob, candidates: List[MemoryFactCandidate]) -> None:
+        pending = await asyncio.to_thread(self._pending_profile_for_event, job.user_id, job.job_id)
+        if candidates:
+            lock = self._profile_locks[self._profile_lock_index(job.user_id)]
+            async with lock:
+                await asyncio.to_thread(self._apply_profile_candidates,
+                    user_id=job.user_id, conv_id=job.conv_id,
+                    source_message=Message(role=MsgRole.USER, content=job.user_message,
+                                           timestamp=datetime.fromisoformat(job.effective_at)),
+                    candidates=candidates)
+        if pending and not await asyncio.to_thread(self._pending_event_materialized, job.user_id, pending):
+            raise RuntimeError("Pending 长期事实写入后校验失败")
+        await asyncio.to_thread(self._clear_profile_pending_event, job.user_id, job.job_id)
+
+    async def cleanup_expired_profile_facts(self, *, now: Optional[datetime] = None) -> int:
+        """Run physical retention cleanup outside the chat request path."""
+        store = getattr(self, "_profile_store", self._session_store)
+        when = now or datetime.now(timezone.utc)
+        users = await asyncio.to_thread(lambda: list(store.iter_profile_users()))
+        changed = await self._memory_flow.cleanup(now=when) if getattr(self, "_memory_flow", None) else 0
+        for user_id in users:
+            try:
+                rows = await asyncio.to_thread(store.list_profile_events, user_id)
+                cleaned = purge_expired_fact_events(rows, now=when)
+                pending_cleanup = await asyncio.to_thread(
+                    getattr(store, "has_pending_profile_cleanup", lambda user: False), user_id)
+                if cleaned != rows or pending_cleanup:
+                    await asyncio.to_thread(store.mutate_profile_events, user_id,
+                        lambda current: purge_expired_fact_events(current, now=when))
+                    changed += 1
+            except Exception as ex:
+                logger.warning("长期事实物理清理失败，保留待清理记录: user=%s error=%s",
+                               user_id, type(ex).__name__)
+        return changed
+
     def _recent_user_evidence(
         self,
         user_id: str,
@@ -754,14 +861,18 @@ class MemoryManager:
                 if self._safe_text(users[index].content).strip() == normalized_current:
                     users.pop(index)
                     break
+        return self._user_evidence_context([message.content for message in users])
+
+    def _user_evidence_context(self, contents: List[str]) -> str:
+        """Preserve complete recent user messages within the context limits."""
         max_turns = getattr(self, "_context_user_turns", self.CONTEXT_MAX_TURNS)
         remaining = max(
             0,
             int(getattr(self, "_context_user_max_chars", self.CONTEXT_MAX_CHARS)),
         )
         selected: List[str] = []
-        for message in reversed(users):
-            content = self._safe_text(message.content).strip()
+        for text in reversed(contents):
+            content = self._safe_text(text).strip()
             if not content:
                 continue
             if selected and len(content) > remaining:
@@ -780,13 +891,34 @@ class MemoryManager:
         conv_id: str,
         *,
         turn_lease: Any = None,
+        query: str = "",
     ) -> ShortTermMemoryContext:
         """Read the current view, rebuilding it from bounded history when needed."""
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
-        messages = self._read_short_term_messages(user_id, conv_id)
-        _, summary = self._read_short_term_summary(user_id, conv_id)
-        history_count = self.session_store.count(user_id, conv_id, "history")
+        _, messages, _, summary = await asyncio.to_thread(self._short_term_source,user_id, conv_id, bounded=True)
+        summary_limit = getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)
+        if self._count_short_term_tokens([], summary) > summary_limit:
+            # An existing database or a lowered budget may contain an older,
+            # oversized summary. Rewrite it under the current Token contract.
+            lease = turn_lease
+            async with self._short_term_lock(user_id, conv_id):
+                _, current_summary = await asyncio.to_thread(self._read_short_term_summary,user_id, conv_id)
+                if self._count_short_term_tokens([], current_summary) > summary_limit:
+                    await self._compress(
+                        user_id, conv_id, force=True,
+                        gate_key=lease.key if lease is not None else "",
+                        gate_token=lease.token if lease is not None else "",
+                    )
+                _, messages, _, summary = await asyncio.to_thread(self._short_term_source,user_id, conv_id, bounded=True)
+            if self._count_short_term_tokens([], summary) > summary_limit:
+                # Keep the stored source available for retry, but never inject
+                # an oversized summary after a failed repair.
+                messages = await asyncio.to_thread(self._read_history_messages,
+                    user_id, conv_id, end=self._history_max_messages - 1,
+                )
+                summary = ""
+        history_count = await asyncio.to_thread(self.session_store.count,user_id, conv_id, "history")
         if not messages or (not summary and history_count > len(messages)):
             lease = turn_lease
             messages, summary = await self._restore_short_term_from_history(
@@ -795,13 +927,26 @@ class MemoryManager:
                 gate_key=lease.key if lease is not None else "",
                 gate_token=lease.token if lease is not None else "",
             )
-        return ShortTermMemoryContext(
-            recent_messages=self._select_recent_turns_within_budget(
-                messages,
-                summary=summary,
-            ),
-            summary=summary,
-        )
+        if self._count_short_term_tokens([], summary) > summary_limit:
+            # Restoration or a concurrent writer can also expose an old view.
+            messages = await asyncio.to_thread(self._read_history_messages,
+                user_id, conv_id, end=self._history_max_messages - 1,
+            )
+            summary = ""
+        protected = self._read_protected_items(user_id, conv_id, query=query)
+        recent = self._select_recent_turns_within_budget(messages, summary=summary, protected_items=protected)
+        context = ShortTermMemoryContext(recent, summary, protected)
+        if query:
+            history = await asyncio.to_thread(self._read_history_messages, user_id, conv_id)
+            recalled = recall_turns(history, query, recent)
+            starts = [i for i, message in enumerate(recalled) if message.role == MsgRole.USER]
+            for i, start in enumerate(starts):
+                turn = recalled[start:(starts[i+1] if i+1 < len(starts) else len(recalled))]
+                candidate = context.recalled_messages + turn
+                if self._count_short_term_tokens(recent, summary, protected_items=protected,
+                    recalled_messages=candidate) <= getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT):
+                    context = ShortTermMemoryContext(recent, summary, protected, candidate)
+        return context
 
     async def _restore_short_term_from_history(
         self,
@@ -816,28 +961,33 @@ class MemoryManager:
         async with lock:
             # Another request may have completed restoration while this request
             # was waiting for the process-local lock.
-            current_messages = self._read_short_term_messages(user_id, conv_id)
-            current_model, current_summary = self._read_short_term_summary(
-                user_id,
-                conv_id,
-            )
-            history_count = self.session_store.count(user_id, conv_id, "history")
+            base_revision, current_messages, current_model, current_summary = await asyncio.to_thread(self._short_term_source,user_id, conv_id, bounded=True)
+            history_count = await asyncio.to_thread(self.session_store.count,user_id, conv_id, "history")
             if current_messages and (current_summary or history_count <= len(current_messages)):
                 return current_messages, current_summary
 
-            base_revision = self._conversation_revision(user_id, conv_id)
-            history = self._read_history_messages(
+            history = await asyncio.to_thread(self._read_history_messages,
                 user_id, conv_id, end=self._history_max_messages - 1,
             )
             if not history:
                 return [], current_summary
 
-            # A surviving summary already covers the older part of history.
-            # Reuse it and restore only the bounded recent complete turns.
+            # Below the trigger, restore all unsummarized turns. Only
+            # generating a new summary resets the recent-turn window.
+            protected = self._read_protected_items(user_id, conv_id)
+            needs_compression = not bool(current_summary) and (
+                self._count_short_term_tokens(history, protected_items=protected)
+                > getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT)
+            )
             recent = self._select_recent_turns_within_budget(
                 history,
+                protected_items=protected,
                 summary=current_summary,
-                reserve_summary_output=not bool(current_summary),
+                reserve_summary_output=needs_compression and not bool(current_summary),
+                max_turns=(
+                    getattr(self, "_recent_turns", self.RECENT_TURNS)
+                    if needs_compression else None
+                ),
             )
             restored_model = current_model
             restored_summary = current_summary
@@ -847,12 +997,13 @@ class MemoryManager:
                     old_summary="",
                     old_summary_model=None,
                     messages=history[:older_count],
+                    protected_items=protected,
                 )
                 restored_summary = (
                     restored_model.to_context_text() if restored_model else ""
                 )
 
-            published = self._publish_short_term_view(
+            published = await asyncio.to_thread(self._publish_short_term_view,
                 user_id,
                 conv_id,
                 summary=(restored_model.model_dump_json() if restored_model else ""),
@@ -875,62 +1026,135 @@ class MemoryManager:
             )
             return recent, restored_summary
 
-    async def get_long_term_memory(
-        self,
-        user_id: str,
-        *,
-        query: str = "",
-    ) -> LongTermMemoryContext:
-        """Read bounded current memories; historical values never enter prompts.
+    async def get_long_term_memory(self, user_id: str, *, query: str = "",
+                                   conv_id: str = "", workspace_id: str = "",
+                                   queries: Optional[List[str]] = None) -> LongTermMemoryContext:
+        if getattr(self, "_memory_flow", None):
+            return await self._memory_flow.recall(user_id, query, conv_id=conv_id,
+                                                workspace_id=workspace_id, queries=queries)
+        return await self._get_legacy_long_term_memory(user_id, query=query)
 
-        默认 full 模式注入全部当前有效非全局事实（闭集、与查询无关）；
-        环境变量 LONG_TERM_MEMORY_FACT_INJECTION=recall 可切回距离门控召回。
-        """
+    async def prepare_memory_mutation(self, user_id: str, conv_id: str, text: str, *, workspace_id=""):
+        if getattr(self, "_memory_flow", None):
+            return await self._memory_flow.prepare_mutation(user_id, conv_id, text, workspace_id=workspace_id)
+        return (), ""
+
+    async def list_memories(self, user_id: str, *, conv_id="", workspace_id="", include_history=False):
+        if not getattr(self, "_memory_flow", None):
+            raise ValueError("generic memory engine is not enabled")
+        from memory.long_term_memories import expiry_for, utc, visible_rows
+        rows = await asyncio.to_thread(self._memory_flow.store.list_profile_events, user_id)
+        active = visible_rows(rows, conv_id=conv_id, workspace_id=workspace_id)
+        if not include_history:
+            return active
+        active_ids = {row["id"] for row in active}
+        # Only undeleted bodies are available; tombstones never contain old text.
+        return [dict(row, state="active" if row["id"] in active_ids else "superseded")
+                for row in rows if row["metadata"].get("operation") == "ADD"
+                and expiry_for(row, rows) > utc()
+                and (row["metadata"]["scope_type"] == "user"
+                     or (row["metadata"]["scope_type"] == "conversation" and row["metadata"]["scope_id"] == conv_id)
+                     or (row["metadata"]["scope_type"] == "workspace" and row["metadata"]["scope_id"] == workspace_id))]
+
+    async def update_memory(self, user_id: str, memory_id: str, *, user_message: str,
+                            conv_id="", workspace_id="", observed_at=None) -> None:
+        targets, question = await self.prepare_memory_mutation(user_id, conv_id,
+            "修改记忆 " + memory_id, workspace_id=workspace_id)
+        if question or not targets:
+            raise ValueError(question or "generic memory engine is not enabled")
+        job = ProfileUpdateJob.create(user_id=user_id, conv_id=conv_id or "memory-operation",
+            user_message="修改记忆 " + memory_id + "；" + user_message,
+            effective_at=observed_at or datetime.now(timezone.utc), workspace_id=workspace_id,
+            target_ids=targets)
+        await self._memory_flow.process_explicit(job)
+
+    async def forget_memory(self, user_id: str, memory_id: str, *, observed_at=None,
+                            conv_id="", workspace_id="") -> None:
+        if not getattr(self, "_memory_flow", None):
+            raise ValueError("generic memory engine is not enabled")
+        targets, question = await self.prepare_memory_mutation(user_id, conv_id,
+            "忘记记忆 " + memory_id, workspace_id=workspace_id)
+        if question:
+            raise ValueError(question)
+        from memory.profile_updates import ProfileUpdateJob
+        job = ProfileUpdateJob.create(user_id=user_id, conv_id="memory-operation",
+            user_message="忘记记忆 " + memory_id, effective_at=observed_at or datetime.now(timezone.utc),
+            target_ids=targets)
+        await self._memory_flow.process_explicit(job)
+
+    async def _get_legacy_long_term_memory(
+        self, user_id: str, *, query: str = "",
+    ) -> LongTermMemoryContext:
+        """Inject expression preferences, then recall relevant effective facts."""
         user_id = self._safe_text(user_id)
-        query = self._safe_text(query)
-        pending = self._read_pending_profile(user_id)
+        semantic = getattr(self, "_fact_injection_mode", "recall") == "recall"
+        pending = await asyncio.to_thread(self._read_pending_profile, user_id)
+        published_store = isinstance(getattr(self, "_profile_store", None), ChromaProfileStore)
         try:
-            rows = self._get_profile_rows(user_id)
-            resolved = resolve_profile(rows)
+            for _ in range(8 if published_store else 1):
+                before = (await asyncio.to_thread(self.session_store.profile_read_stamp, user_id)
+                          if published_store else None)
+                pending = await asyncio.to_thread(self._read_pending_profile, user_id)
+                rows = await asyncio.to_thread(self._get_profile_rows, user_id)
+                pending = self._active_pending_profile(rows, pending)
+                resolved = resolve_profile(rows)
+                if semantic:
+                    recalled = await self._search_current_profile_facts(
+                        user_id, query, rows=rows,
+                        current_event_ids=set(resolved.current_event_ids), pending=pending)
+                else:
+                    recalled = self._current_injected_facts(resolved.profile)
+                if published_store:
+                    latest_pending = await asyncio.to_thread(self._read_pending_profile, user_id)
+                    latest_pending = self._active_pending_profile(rows, latest_pending)
+                    after = await asyncio.to_thread(self.session_store.profile_read_stamp, user_id)
+                    if before != after or latest_pending != pending:
+                        continue
+                # Expiry can pass while query embedding is loading. Do not use
+                # the pre-embedding projection for the final global preferences.
+                resolved = resolve_profile(rows)
+                profile = (resolved.profile if resolved.has_versioned_facts
+                           else self._legacy_profile_from_rows(rows))
+                current_profile = (self._global_profile_view(profile)
+                                   if semantic or resolved.has_versioned_facts else profile)
+                recalled_pending_keys = ({item.split("=", 1)[0] for item in recalled}
+                                         if semantic else None)
+                return self._overlay_pending_profile(
+                    current_profile=current_profile, recalled_facts=recalled,
+                    pending=pending, recalled_pending_keys=recalled_pending_keys)
+            raise RuntimeError("profile/Pending changed too often during recall")
         except Exception as ex:
             logger.warning("用户长期事实读取失败: %s", ex)
+            # Redis Pending remains authoritative for erase/update. Do not fall
+            # back to injecting every non-global preference when recall fails.
+            pending = await asyncio.to_thread(self._read_pending_profile, user_id)
             return self._overlay_pending_profile(
-                current_profile={},
-                recalled_facts=[],
-                pending=pending,
-            )
-        profile = (
-            resolved.profile
-            if resolved.has_versioned_facts
-            else self._legacy_profile_from_rows(rows)
-        )
-        current_profile = (
-            self._global_profile_view(profile)
-            if resolved.has_versioned_facts
-            else profile
-        )
-        if getattr(self, "_fact_injection_mode", "full") == "recall":
-            recalled_facts = await self._search_current_profile_facts(
-                user_id,
-                query,
-                rows=rows,
-                current_event_ids=set(resolved.current_event_ids),
-            )
-        else:
-            # 非全局事实是闭集（≤3 条），全量注入成本可忽略，且避免
-            # “记住了却因语义距离门控没被用上”；误召由按精确键替换的机制兜底。
-            recalled_facts = self._current_injected_facts(profile)
-        return self._overlay_pending_profile(
-            current_profile=current_profile,
-            recalled_facts=recalled_facts,
-            pending=pending,
-        )
+                current_profile={}, recalled_facts=[], pending=pending,
+                recalled_pending_keys=set() if semantic else None)
+
+    @classmethod
+    def _active_pending_profile(cls, rows, pending):
+        current_times = {}
+        for row in rows:
+            key = row.get("metadata", {}).get("memory_key")
+            if key:
+                current_times[key] = max(current_times.get(key, fact_effective_time(row)),
+                                         fact_effective_time(row))
+        active = {}
+        for key, record in pending.items():
+            try:
+                effective = cls._as_utc(datetime.fromisoformat(record["effective_at"]))
+            except (KeyError, TypeError, ValueError):
+                effective = None
+            if effective is None or key not in current_times or effective >= current_times[key]:
+                active[key] = record
+        return active
 
     async def get_case_state(self, user_id: str, conv_id: str) -> CustomerServiceCase:
         """读取当前会话的结构化案件状态。"""
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
-        raw = self.session_store.case(user_id, conv_id)
+        raw = await asyncio.to_thread(self.session_store.case, user_id, conv_id)
         if not raw:
             return CustomerServiceCase.new(user_id, conv_id)
         try:
@@ -948,7 +1172,7 @@ class MemoryManager:
         *,
         state: CustomerServiceCase,
     ) -> CustomerServiceCase:
-        """Persist the already-computed active task state in SQLite."""
+        """Persist the already-computed active task state in the configured session store."""
         user_id = self._safe_text(user_id)
         conv_id = self._safe_text(conv_id)
         normalized = CustomerServiceCase.from_dict(
@@ -957,7 +1181,7 @@ class MemoryManager:
             conv_id=conv_id,
         )
         payload = json.dumps(normalized.to_dict(), ensure_ascii=False)
-        self.session_store.save_case(user_id, conv_id, payload, self.CASE_TTL)
+        await asyncio.to_thread(self.session_store.save_case, user_id, conv_id, payload, self.CASE_TTL)
         return normalized
 
     # ── 压缩（防止 context 爆炸）─────────────────────────────────────────────
@@ -974,19 +1198,20 @@ class MemoryManager:
         """
         短期记忆压缩：
           1. 用旧摘要 + 本次移出近期上下文的消息生成增量摘要
-          2. 新摘要与近期窗口在 SQLite 中一次事务更新，保留原始归档
-          3. 摘要成功后，短期消息窗口保留 Token 预算内最近完整轮次
+          2. 新摘要与近期窗口通过会话存储 CAS 一次更新，保留原始归档
+          3. 摘要成功后保留最近 5 轮完整对话，再继续追加至下次超限
 
         有界原始消息归档独立保存，不会被这里的热记忆重建删除。
         """
-        base_revision = self._conversation_revision(user_id, conv_id)
-        messages = self._read_all_hot_messages(user_id, conv_id)
-        old_summary_model, old_summary = self._read_short_term_summary(user_id, conv_id)
+        base_revision, messages, old_summary_model, old_summary = await asyncio.to_thread(self._short_term_source,user_id, conv_id)
+        protected = self._read_protected_items(user_id, conv_id)
         if (
             not force
             and
-            self._count_short_term_tokens(messages, old_summary)
+            self._count_short_term_tokens(messages, old_summary, protected_items=protected)
             <= getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT)
+            and self._count_short_term_tokens([], old_summary)
+            <= getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)
         ):
             return
 
@@ -994,16 +1219,26 @@ class MemoryManager:
             messages,
             summary=old_summary,
             reserve_summary_output=True,
+            max_turns=getattr(self, "_recent_turns", self.RECENT_TURNS),
+            protected_items=protected,
         )
         keep_start = len(messages) - len(keep)
         to_compress = messages[:keep_start]
-        if not to_compress:
+        if (
+            not to_compress
+            and self._count_short_term_tokens([], old_summary)
+            <= getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)
+        ):
+            # There is no newly retired history to summarize. In particular,
+            # an oversized current turn must not repeatedly rewrite a valid
+            # existing summary on every append.
             return
 
         new_summary = await self._generate_short_term_summary(
             old_summary=old_summary,
             old_summary_model=old_summary_model,
             messages=to_compress,
+            protected_items=protected,
         )
         if not new_summary:
             # 摘要是派生视图；生成失败时绝不能裁剪其原始消息。
@@ -1012,7 +1247,7 @@ class MemoryManager:
         rendered_summary = new_summary.to_context_text()
         kept_turns = sum(1 for message in keep if message.role == MsgRole.USER)
         if (
-            self._count_short_term_tokens(keep, rendered_summary)
+            self._count_short_term_tokens(keep, rendered_summary, protected_items=protected)
             > getattr(self, "_short_term_token_limit", self.SHORT_TERM_TOKEN_LIMIT)
             and kept_turns > 1
         ):
@@ -1023,7 +1258,7 @@ class MemoryManager:
             )
             return
 
-        published = self._publish_short_term_view(
+        published = await asyncio.to_thread(self._publish_short_term_view,
             user_id,
             conv_id,
             summary=new_summary.model_dump_json(),
@@ -1041,12 +1276,17 @@ class MemoryManager:
             )
             return
 
-        # 摘要和近期对话已经在同一个 Lua 脚本中发布；原始 history 不变。
+        # 摘要和近期对话已在同一次会话存储 CAS 中发布；原始 history 不变。
+        if getattr(self, "_memory_flow", None) and hasattr(self.session_store, "flush_memory_turns"):
+            retired_sequences = [self._message_turn_seq(message) for message in to_compress]
+            if retired_sequences:
+                await asyncio.to_thread(self.session_store.flush_memory_turns, user_id, conv_id,
+                                        max(retired_sequences))
         logger.info(
-            "Context View 压缩完成: %s/%s，摘要 %d 字，保留 %d 条完整轮次消息",
+            "Context View 压缩完成: %s/%s，摘要 %d Token，保留 %d 条完整轮次消息",
             user_id,
             conv_id,
-            len(rendered_summary),
+            self._count_short_term_tokens([], rendered_summary),
             len(keep),
         )
 
@@ -1056,9 +1296,18 @@ class MemoryManager:
         old_summary: str,
         old_summary_model: Optional[ShortTermSummaryV2],
         messages: List[Message],
+        protected_items: Optional[List[Dict[str, Any]]] = None,
     ) -> Optional[ShortTermSummaryV2]:
         """Build the validated three-section summary used by compression/recovery."""
-        if not messages:
+        if not messages and not old_summary:
+            return None
+        # Like TaskMind, a summary must reduce the covered source context.
+        # The JSON generation allowance is deliberately a separate budget.
+        summary_limit = min(
+            getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT),
+            self._count_short_term_tokens(messages, old_summary) - 1,
+        )
+        if summary_limit <= 0:
             return None
         source_turns = {
             self._message_turn_seq(message)
@@ -1067,10 +1316,10 @@ class MemoryManager:
         allowed_source_turns = set(source_turns)
         if old_summary_model is not None:
             allowed_source_turns.update(old_summary_model.source_turn_seqs())
-        if old_summary:
-            # 已有摘要在提示词中只呈现渲染文本，模型看不到旧条目的原始轮次；
-            # 0 是 schema 中"继承自已有摘要、原始轮次不可考"的哨兵值，必须接受，
-            # 否则第二次及以后的增量合并会被校验稳定拒绝（实测 100% 失败）。
+        protected_items = protected_items or []
+        allowed_source_turns.update(item["source_turn_seq"] for item in protected_items)
+        if old_summary and old_summary_model is None:
+            # Preserve sentinel zero only for genuinely unsequenced legacy data.
             allowed_source_turns.add(0)
         text = self._safe_text("\n".join(
             f"[turn_seq={self._message_turn_seq(message)}][{message.role.value}] "
@@ -1079,6 +1328,8 @@ class MemoryManager:
         ))
         prompt = self._safe_text(
             "把已有短期摘要与新增旧消息合并成一份结构化增量摘要。"
+            f"最终用于上下文的摘要（含标题）不得超过 {summary_limit} Token；"
+            "必须重写并替换旧摘要，不得追加累计；优先保留当前目标和待解决问题。"
             "current_goal 只记录用户当前明确目标；confirmed_information 只记录用户明确提供或"
             "对话已经确认的信息；open_questions 只记录仍缺失或未解决的问题。"
             "每一项必须填写来源 source_turn_seqs，不得引用输入中不存在的轮次。"
@@ -1086,7 +1337,10 @@ class MemoryManager:
             "订单状态、支付状态、CaseState 字段或原文没有的信息，不要保留重复和已经撤回的内容。"
             "必须严格按 Tool Schema 输出：current_goal 必须是对象，confirmed_information 和 "
             "open_questions 必须是对象数组；禁止把对象编码成 JSON 字符串、XML 或普通文本。\n\n"
-            f"已有摘要：\n{old_summary or '（无）'}\n\n新增旧消息：\n{text}"
+            "独立保护区已保留用户原文，不必重复摘要；不能改变金额、单位、日期或否定条件。"
+            "继承结构化摘要时保留原 source_turn_seqs。\n\n"
+            f"当前有效约束：\n{json.dumps(protected_items, ensure_ascii=False)}\n"
+            f"已有摘要：\n{old_summary_model.model_dump_json() if old_summary_model else old_summary or '（无）'}\n\n新增旧消息：\n{text}"
         )
         last_error: Optional[Exception] = None
         for attempt in range(1, self.SUMMARY_MAX_ATTEMPTS + 1):
@@ -1094,7 +1348,7 @@ class MemoryManager:
             if last_error is not None:
                 retry_note = self._safe_text(
                     "\n\n上一次输出未通过运行时校验。请重新完整提交一次 Tool Call，"
-                    "不要复用错误格式。校验错误：" + str(last_error)[:240]
+                    "压缩为更短的合法摘要，不要复用错误格式。校验错误：" + str(last_error)[:240]
                 )
             try:
                 async with optional_slot(self._llm_bulkhead):
@@ -1114,8 +1368,12 @@ class MemoryManager:
                 summary = parse_summary_tool_response(resp)
                 if not summary.source_turn_seqs().issubset(allowed_source_turns):
                     raise ValueError("short-term summary contains unknown source turns")
-                if len(summary.to_context_text()) > self.SUMMARY_MAX_CHARS:
-                    raise ValueError("short-term summary exceeds character limit")
+                validate_summary_fidelity(summary, messages, old_summary_model, protected_items)
+                summary_tokens = self._count_short_term_tokens([], summary.to_context_text())
+                if summary_tokens > summary_limit:
+                    raise ValueError(
+                        f"short-term summary exceeds Token budget: {summary_tokens} > {summary_limit}"
+                    )
                 return summary
             except Exception as ex:
                 last_error = ex
@@ -1152,7 +1410,7 @@ class MemoryManager:
         *,
         summary: str,
         messages: List[Message],
-        expected_revision: int,
+        expected_revision: Any,
         gate_key: str = "",
         gate_token: str = "",
     ) -> bool:
@@ -1164,8 +1422,8 @@ class MemoryManager:
             ttl=self.SHORT_TERM_TTL,
         )
 
-    def _conversation_revision(self, user_id: str, conv_id: str) -> int:
-        return self.session_store.revision(user_id, conv_id)
+    def _conversation_revision(self, user_id: str, conv_id: str) -> tuple:
+        return self.session_store.short_term_stamp(user_id, conv_id)
 
     def _short_term_lock(self, user_id: str, conv_id: str) -> asyncio.Lock:
         """Return a process-local striped lock that suppresses duplicate rebuilds."""
@@ -1179,14 +1437,7 @@ class MemoryManager:
     # ── 内部辅助 ──────────────────────────────────────────────────────────────
 
     def _read_short_term_messages(self, user_id: str, conv_id: str) -> List[Message]:
-        hot_max = getattr(
-            self,
-            "_hot_memory_max_messages",
-            self.HOT_MEMORY_MAX_MESSAGES,
-        )
-        return self._parse_message_payloads(self.session_store.messages(
-            user_id, conv_id, "hot", end=hot_max - 1,
-        ))
+        return self._parse_message_payloads(self.session_store.messages(user_id, conv_id, "hot"))
 
     def _read_all_hot_messages(self, user_id: str, conv_id: str) -> List[Message]:
         return self._parse_message_payloads(
@@ -1203,9 +1454,15 @@ class MemoryManager:
         self,
         user_id: str,
         conv_id: str,
+        snapshot: Optional[dict] = None,
     ) -> Tuple[Optional[ShortTermSummaryV2], str]:
         """Read v2 first; retain the legacy text only as a migration fallback."""
-        raw_v2, legacy_raw = self.session_store.summary(user_id, conv_id)
+        if snapshot is None:
+            raw_v2, legacy_raw = self.session_store.summary(user_id, conv_id)
+        elif snapshot["summary_expires_at"] > self._session_now():
+            raw_v2, legacy_raw = snapshot["summary_v2"], snapshot["summary_legacy"]
+        else:
+            raw_v2, legacy_raw = "", ""
         raw_v2 = self._safe_text(raw_v2).strip()
         if raw_v2:
             try:
@@ -1220,6 +1477,36 @@ class MemoryManager:
                 )
         legacy = self._safe_text(legacy_raw).strip()
         return None, legacy
+
+    def _session_now(self) -> float:
+        if isinstance(self.session_store, RedisSessionStore):
+            return self.session_store._now()
+        return time.time()
+
+    def _short_term_source(self, user_id: str, conv_id: str, *, bounded: bool = False):
+        """Read the source stamp, summary and window from one storage snapshot."""
+        snapshot = self.session_store.short_term_snapshot(user_id, conv_id)
+        if snapshot is None:
+            empty_stamp = (0, 0, "") if isinstance(self.session_store, RedisSessionStore) else (0, 0)
+            return empty_stamp, [], None, ""
+        stamp = (int(snapshot["revision"]), int(snapshot["generation"]))
+        if "epoch" in snapshot:
+            stamp += (snapshot["epoch"],)
+        raws = json.loads(snapshot["hot_json"]) if snapshot["hot_expires_at"] > self._session_now() else []
+        summary_model, summary = self._read_short_term_summary(user_id, conv_id, snapshot=snapshot)
+        return stamp, self._parse_message_payloads(raws), summary_model, summary
+
+    def _read_protected_items(self, user_id: str, conv_id: str, *, query: str = "") -> List[Dict[str, Any]]:
+        snapshot = self.session_store.short_term_snapshot(user_id, conv_id)
+        raw = (snapshot.get("protected_json", "{}") if snapshot and
+               snapshot.get("history_expires_at", 0) > self._session_now() else "{}")
+        if raw == "{}" and snapshot and snapshot.get("history_expires_at", 0) > self._session_now():
+            raw = fold_protected("{}", json.loads(snapshot["history_json"]))
+        if query:
+            raw = fold_protected(raw, [json.dumps({"role": "user", "content": query,
+                "metadata": {}, "timestamp": "current"}, ensure_ascii=False)])
+        state = json.loads(raw or "{}")
+        return list(state.get("items", [])) + list(state.get("retractions", []))
 
     async def get_full_history(
         self,
@@ -1264,11 +1551,13 @@ class MemoryManager:
         *,
         summary: str = "",
         reserve_summary_output: bool = False,
+        max_turns: Optional[int] = None,
+        protected_items: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Message]:
-        """Keep every newest complete turn that still fits the view budget.
+        """Keep newest complete turns within the budget and optional turn cap.
 
-        覆盖范围由 Token 预算（默认 6000）决定而非固定轮数：摘要未覆盖的轮次
-        只要还在预算内就保留，消除“滑出固定窗口、摘要又未覆盖”的中间缺口。
+        压缩时最多保留配置的最近轮次（默认 5）；普通读取不传轮数上限，
+        因而新增但尚未摘要的对话不会仅因超过五轮而从上下文中消失。
         """
         if not messages:
             return []
@@ -1291,8 +1580,10 @@ class MemoryManager:
             self.SHORT_TERM_TOKEN_LIMIT,
         )
         for turn in reversed(turns):
+            if max_turns is not None and len(selected) >= max_turns:
+                break
             proposed = turn + [message for item in selected for message in item]
-            token_count = self._count_short_term_tokens(proposed, summary)
+            token_count = self._count_short_term_tokens(proposed, summary, protected_items=protected_items)
             if reserve_summary_output:
                 token_count += self._future_summary_token_reserve(summary)
             if selected and token_count > token_limit:
@@ -1338,16 +1629,11 @@ class MemoryManager:
         except (TypeError, ValueError):
             return 0
 
-    def _count_short_term_tokens(
-        self,
-        messages: List[Message],
-        summary: str = "",
-    ) -> int:
-        """Count the exact short-term view injected into the Agent context."""
-        rendered = ShortTermMemoryContext(
-            recent_messages=list(messages),
-            summary=self._safe_text(summary),
-        ).to_text()
+    def _count_short_term_tokens(self, messages: List[Message], summary: str = "", *,
+                                 protected_items=None, recalled_messages=None) -> int:
+        """Count all working constraints, summary, recent and recalled raw turns."""
+        rendered = ShortTermMemoryContext(list(messages), self._safe_text(summary),
+                                         list(protected_items or []), list(recalled_messages or [])).to_text()
         return self._count_text_tokens(rendered)
 
     def _count_text_tokens(self, text: str) -> int:
@@ -1361,19 +1647,9 @@ class MemoryManager:
         return len(token_ids)
 
     def _future_summary_token_reserve(self, current_summary: str) -> int:
-        """Reserve only the possible growth beyond the current summary section."""
-        current_section = (
-            f"[短期会话摘要]\n{self._safe_text(current_summary)}"
-            if current_summary
-            else ""
-        )
-        current_tokens = self._count_text_tokens(current_section)
-        heading_tokens = self._count_text_tokens("[短期会话摘要]\n")
-        maximum_section_tokens = heading_tokens + getattr(
-            self,
-            "_summary_output_token_limit",
-            self.SUMMARY_OUTPUT_TOKEN_LIMIT,
-        )
+        """Reserve summary context growth, excluding Tool JSON output overhead."""
+        current_tokens = self._count_short_term_tokens([], current_summary)
+        maximum_section_tokens = getattr(self, "_summary_token_limit", self.SUMMARY_TOKEN_LIMIT)
         return max(0, maximum_section_tokens - current_tokens)
 
     def _current_injected_facts(self, profile: Dict[str, Any]) -> List[str]:
@@ -1389,65 +1665,75 @@ class MemoryManager:
         return injected[: len(MEMORY_FIELDS)]
 
     async def _search_current_profile_facts(
-        self,
-        user_id: str,
-        query: str,
-        *,
-        rows: List[Dict[str, Any]],
-        current_event_ids: set[str],
+        self, user_id: str, query: str, *, rows: List[Dict[str, Any]],
+        current_event_ids: set, pending: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[str]:
-        """Semantically recall only the current active event for each fact key."""
         query_text = self._safe_text(query).strip()
-        if not query_text or not current_event_ids:
+        if not query_text:
+            return []
+        pending = pending or {}
+        active_ids = current_event_ids & set(resolve_profile(rows).current_event_ids)
+        eligible = [row for row in rows if str(row.get("id")) in active_ids
+                    and row.get("metadata", {}).get("user_id") == user_id
+                    and row["metadata"].get("memory_key") in MEMORY_FIELDS
+                    and row["metadata"]["memory_key"] not in self.GLOBAL_MEMORY_KEYS
+                    and row["metadata"]["memory_key"] not in pending]
+        pending_rows = [{"id": "pending:" + key,
+                         "document": self._profile_document(key, record["value"]),
+                         "metadata": {"memory_key": key, "value": record["value"]}}
+                        for key, record in pending.items()
+                        if key not in self.GLOBAL_MEMORY_KEYS
+                        and record.get("operation") != "retract" and record.get("value")]
+        if not eligible and not pending_rows:
             return []
         try:
-            query_embedding = await self._profile_embedding_provider.embed(
-                query_text,
-                is_query=True,
-            )
-            results = self._profile.query(
-                query_embeddings=[query_embedding],
-                n_results=min(self.FACT_QUERY_CANDIDATES, max(1, len(rows))),
-                where={"user_id": self._safe_text(user_id)},
-                include=["metadatas", "distances"],
-            )
-            ids_rows = results.get("ids") or []
-            ids = ids_rows[0] if ids_rows else []
-            metadata_rows = results.get("metadatas") or []
-            metadatas = metadata_rows[0] if metadata_rows else []
-            distance_rows = results.get("distances") or []
-            distances = distance_rows[0] if distance_rows else []
-            selected: List[str] = []
-            selected_keys: set[str] = set()
-            for index, event_id in enumerate(ids):
-                if str(event_id) not in current_event_ids or index >= len(distances):
-                    continue
-                metadata = metadatas[index] if index < len(metadatas) else {}
-                if not isinstance(metadata, dict) or not is_versioned_fact({
-                    "metadata": metadata,
-                }):
+            profile_store = getattr(self, "_profile_store", None)
+            if isinstance(profile_store, ChromaProfileStore):
+                candidates = await asyncio.to_thread(
+                    profile_store.recall_candidates, user_id, query_text, eligible,
+                    pending_rows=pending_rows, n_results=self.FACT_QUERY_CANDIDATES)
+            else:
+                # Explicit SQLite offline backend uses the same BGE/cosine
+                # policy over the already-filtered current documents.
+                provider = self._profile_embedding_provider
+                query_vector = (await asyncio.to_thread(
+                    provider.embed_many_sync, [query_text], is_query=True))[0]
+                documents = eligible + pending_rows
+                vectors = await asyncio.to_thread(provider.embed_many_sync,
+                    [row["document"] for row in documents], is_query=False)
+                candidates = [{"id": row["id"], "distance": 1-cosine(query_vector, vector)}
+                              for row, vector in zip(documents, vectors)]
+            authoritative = {row["id"]: row for row in eligible + pending_rows}
+            still_active = set(resolve_profile(rows).current_event_ids)
+            ranked = []
+            for candidate in candidates:
+                event_id = str(candidate.get("id") or "")
+                row = authoritative.get(event_id)
+                if row is None or (not event_id.startswith("pending:") and event_id not in still_active):
                     continue
                 try:
-                    distance = float(distances[index])
-                except (TypeError, ValueError):
+                    distance = float(candidate["distance"])
+                except (KeyError, TypeError, ValueError):
                     continue
-                if distance > self.FACT_MAX_DISTANCE:
+                if not math.isfinite(distance) or distance < -1e-6 or distance > self.FACT_MAX_DISTANCE:
                     continue
-                value = self._safe_text(metadata.get("value", "")).strip()
-                if not value:
+                metadata = row["metadata"]
+                ranked.append((max(0.0, distance), metadata["memory_key"], metadata["value"]))
+            selected, keys = [], set()
+            for _, key, value in sorted(ranked):
+                if key in keys:
                     continue
-                memory_key = self._safe_text(metadata.get("memory_key", "")).strip()
-                if memory_key in self.GLOBAL_MEMORY_KEYS or memory_key in selected_keys:
-                    continue
-                selected.append(f"{memory_key}={value}")
-                selected_keys.add(memory_key)
-            return selected[:self.FACT_RECALL_MAX]
+                selected.append(f"{key}={value}")
+                keys.add(key)
+                if len(selected) >= self.FACT_RECALL_MAX:
+                    break
+            return selected
         except Exception as ex:
-            logger.warning("当前长期事实检索失败: %s", ex)
+            logger.warning("当前长期事实语义检索失败: %s", ex)
             return []
 
     def _read_pending_profile(self, user_id: str) -> Dict[str, Dict[str, Any]]:
-        """Read validated user-level overrides that have not reached Chroma yet."""
+        """Read validated user-level overrides that have not reached the fact store yet."""
         payloads = self.session_store.pending_profile(user_id)
         pending: Dict[str, Dict[str, Any]] = {}
         for payload in payloads:
@@ -1490,7 +1776,7 @@ class MemoryManager:
         user_id: str,
         pending: Dict[str, Dict[str, Any]],
     ) -> bool:
-        """Verify Chroma's current projection before exposing it without Pending."""
+        """Verify the published current projection before exposing it without Pending."""
         if not pending:
             return True
         rows = self._get_profile_rows(user_id)
@@ -1525,8 +1811,9 @@ class MemoryManager:
         current_profile: Dict[str, Any],
         recalled_facts: List[str],
         pending: Dict[str, Dict[str, Any]],
+        recalled_pending_keys: Optional[set] = None,
     ) -> LongTermMemoryContext:
-        """Make staged mutations authoritative until their Chroma write succeeds."""
+        """Make staged mutations authoritative until their fact publication succeeds."""
         if not pending:
             return LongTermMemoryContext(
                 current_profile=current_profile,
@@ -1574,6 +1861,7 @@ class MemoryManager:
             f"{memory_key}={record.get('value')}"
             for memory_key, record in pending_non_global.items()
             if record.get("operation") != "retract" and record.get("value")
+            and (recalled_pending_keys is None or memory_key in recalled_pending_keys)
         ]
         return LongTermMemoryContext(
             current_profile=profile,
@@ -1638,8 +1926,19 @@ class MemoryManager:
         source_message: Message,
         candidates: List[MemoryFactCandidate],
     ) -> None:
-        """Apply idempotent, server-validated fact events to ChromaDB."""
-        rows = self._get_profile_rows(user_id)
+        """Publish the validated events through the configured fact store."""
+        getattr(self, "_profile_store", self._session_store).mutate_profile_events(
+            user_id,
+            lambda rows: self._build_profile_events(
+                rows, user_id=user_id, conv_id=conv_id,
+                source_message=source_message, candidates=candidates,
+            ),
+        )
+
+    def _build_profile_events(
+        self, rows: List[Dict[str, Any]], *, user_id: str, conv_id: str,
+        source_message: Message, candidates: List[MemoryFactCandidate],
+    ) -> List[Dict[str, Any]]:
         source_effective_at = self._as_utc(source_message.timestamp)
         effective_at = source_effective_at.isoformat()
         source_turn_id = hashlib.sha256(
@@ -1654,8 +1953,9 @@ class MemoryManager:
                 == candidate.memory_key
             ]
             memory_id = hashlib.sha256(
-                f"{user_id}|{conv_id}|{source_turn_id}|{candidate.memory_key}"
-                .encode("utf-8")
+                json.dumps([user_id, conv_id, source_turn_id, candidate.memory_key,
+                            candidate.operation, candidate.value], ensure_ascii=False,
+                           separators=(",", ":")).encode("utf-8")
             ).hexdigest()[:32]
 
             if candidate.operation == "retract":
@@ -1667,11 +1967,7 @@ class MemoryManager:
                     if str(row.get("id") or "") != memory_id
                     and fact_effective_time(row) <= source_effective_at
                 ]
-                delete_ids = [
-                    str(row.get("id") or "") for row in delete_rows if row.get("id")
-                ]
-                if delete_ids:
-                    self._profile.delete(ids=delete_ids)
+                if delete_rows:
                     rows = [row for row in rows if row not in delete_rows]
                     key_rows = [row for row in key_rows if row not in delete_rows]
                 if any(str(row.get("id") or "") == memory_id for row in key_rows):
@@ -1693,12 +1989,6 @@ class MemoryManager:
                     "",
                     retracted=True,
                 )
-                self._profile.add(
-                    ids=[memory_id],
-                    documents=[document],
-                    metadatas=[metadata],
-                    embeddings=[self._embed_profile_document(document)],
-                )
                 rows.append({"id": memory_id, "document": document, "metadata": metadata})
                 continue
 
@@ -1707,25 +1997,32 @@ class MemoryManager:
             retract_times = [
                 fact_effective_time(row)
                 for row in key_rows
-                if str(row.get("metadata", {}).get("operation") or "") == "retract"
+                if str(row.get("metadata", {}).get("operation") or "") in {"retract", "expire"}
             ]
             if retract_times and max(retract_times) >= source_effective_at:
                 continue
-            if any(str(row.get("id") or "") == memory_id for row in rows):
+            if any(str(row.get("id") or "") == memory_id or (
+                    row.get("metadata", {}).get("source_turn_id") == source_turn_id
+                    and row.get("metadata", {}).get("memory_key") == candidate.memory_key)
+                   for row in rows):
                 continue
 
-            current_facts = resolve_profile(key_rows).profile.get("facts", {})
+            resolved = resolve_profile(key_rows)
+            current_facts = resolved.profile.get("facts", {})
             current_value = (
                 str(current_facts.get(candidate.memory_key) or "").strip()
                 if isinstance(current_facts, dict)
                 else ""
             )
             if current_value.casefold() == candidate.value.casefold():
+                # Repeated values are a no-op in both engines and projections.
                 continue
             if current_value and candidate.operation != "supersede":
                 continue
 
-            operation = candidate.operation if current_value else "set"
+            # Event content must not change when the same source job is retried
+            # against a different snapshot, including concurrent Chroma writers.
+            operation = candidate.operation
             metadata = {
                 "schema_version": FACT_SCHEMA_VERSION,
                 "user_id": user_id,
@@ -1733,6 +2030,7 @@ class MemoryManager:
                 "value": candidate.value,
                 "operation": operation,
                 "effective_at": effective_at,
+                "last_confirmed_at": effective_at,
                 "expires_at": (
                     source_effective_at
                     + timedelta(days=ttl_days_for(candidate.memory_key))
@@ -1744,94 +2042,13 @@ class MemoryManager:
                 candidate.memory_key,
                 candidate.value,
             )
-            self._profile.add(
-                ids=[memory_id],
-                documents=[document],
-                metadatas=[metadata],
-                embeddings=[self._embed_profile_document(document)],
-            )
             new_row = {"id": memory_id, "document": document, "metadata": metadata}
             rows.append(new_row)
 
+        return rows
+
     def _get_profile_rows(self, user_id: str) -> List[Dict[str, Any]]:
-        collections = [self._profile]
-        legacy = getattr(self, "_legacy_profile", None)
-        if legacy is not None:
-            collections.append(legacy)
-
-        rows_by_id: Dict[str, Dict[str, Any]] = {}
-        for collection in collections:
-            results = collection.get(
-                where={"user_id": self._safe_text(user_id)},
-                include=["documents", "metadatas"],
-            )
-            ids = list(results.get("ids") or [])
-            documents = list(results.get("documents") or [])
-            metadatas = list(results.get("metadatas") or [])
-            for index, fact_id in enumerate(ids):
-                normalized_id = str(fact_id)
-                if normalized_id in rows_by_id:
-                    continue
-                rows_by_id[normalized_id] = {
-                    "id": normalized_id,
-                    "document": documents[index] if index < len(documents) else "",
-                    "metadata": metadatas[index] if index < len(metadatas) else {},
-                }
-        return list(rows_by_id.values())
-
-    def _migrate_legacy_profile_events(self) -> None:
-        """Copy readable fact events into the BGE collection without deleting history."""
-        legacy = getattr(self, "_legacy_profile", None)
-        if legacy is None:
-            return
-        legacy_results = legacy.get(include=["documents", "metadatas"])
-        existing_results = self._profile.get(include=["metadatas"])
-        existing_ids = {str(item) for item in existing_results.get("ids") or []}
-
-        ids: List[str] = []
-        documents: List[str] = []
-        metadatas: List[Dict[str, Any]] = []
-        legacy_ids = list(legacy_results.get("ids") or [])
-        legacy_metadata = list(legacy_results.get("metadatas") or [])
-        for index, memory_id in enumerate(legacy_ids):
-            normalized_id = str(memory_id)
-            metadata = (
-                legacy_metadata[index]
-                if index < len(legacy_metadata) and isinstance(legacy_metadata[index], dict)
-                else {}
-            )
-            if normalized_id in existing_ids or not is_versioned_fact({"metadata": metadata}):
-                continue
-            memory_key = self._safe_text(metadata.get("memory_key", "")).strip()
-            value = self._safe_text(metadata.get("value", "")).strip()
-            operation = self._safe_text(metadata.get("operation", "set")).strip()
-            ids.append(normalized_id)
-            documents.append(self._profile_document(
-                memory_key,
-                value,
-                retracted=operation == "retract",
-            ))
-            metadatas.append(metadata)
-
-        if not ids:
-            return
-        embeddings = self._profile_embedding_provider.embed_many_sync(
-            documents,
-            is_query=False,
-        )
-        self._profile.add(
-            ids=ids,
-            documents=documents,
-            metadatas=metadatas,
-            embeddings=embeddings,
-        )
-        logger.info("旧长期事实已迁移到中文 BGE 集合: %d 条", len(ids))
-
-    def _embed_profile_document(self, document: str) -> List[float]:
-        return self._profile_embedding_provider.embed_sync(
-            document,
-            is_query=False,
-        )
+        return getattr(self, "_profile_store", self._session_store).list_profile_events(self._safe_text(user_id))
 
     @classmethod
     def _profile_document(
@@ -1859,7 +2076,7 @@ class MemoryManager:
 
     @staticmethod
     def _safe_text(value: Any) -> str:
-        """转成 ChromaDB 可接受的普通 UTF-8 字符串。"""
+        """转成普通 UTF-8 字符串。"""
         if value is None:
             return ""
         if not isinstance(value, str):
@@ -1904,7 +2121,7 @@ class MemoryManager:
 
     @classmethod
     def _safe_metadata_value(cls, value: Any) -> Any:
-        """递归清洗 metadata，避免 SQLite/ChromaDB 后续读写遇到非法 UTF-8。"""
+        """递归清洗 metadata，避免 SQLite 后续读写遇到非法 UTF-8。"""
         if isinstance(value, str):
             return cls._safe_text(value)
         if isinstance(value, dict):

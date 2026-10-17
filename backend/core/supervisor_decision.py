@@ -189,6 +189,7 @@ class SupervisorRewriteContract(BaseModel):
     ambiguity_candidates: Dict[EntityKey, List[str]]
     clarification_question: str
     reason_code: str
+    protected_updates: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class SupervisorIntentContract(BaseModel):
@@ -264,6 +265,7 @@ class SupervisorRewrite:
     ambiguity_candidates: Dict[str, List[str]] = field(default_factory=dict)
     clarification_question: str = ""
     reason_code: str = ""
+    protected_updates: tuple[Dict[str, Any], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -275,6 +277,7 @@ class SupervisorRewrite:
             "ambiguity_candidates": {k: list(v) for k, v in self.ambiguity_candidates.items()},
             "clarification_question": self.clarification_question,
             "reason_code": self.reason_code,
+            **({"protected_updates": [dict(item) for item in self.protected_updates]} if self.protected_updates else {}),
         }
 
 
@@ -398,6 +401,7 @@ class SupervisorDecisionValidator:
             "status", "effective_query", "references", "extracted_entities",
             "inherited_entities", "ambiguity_candidates", "clarification_question",
             "reason_code",
+            "protected_updates",
         }
         if set(raw) - allowed:
             raise ValueError("rewrite contains unknown fields")
@@ -412,6 +416,8 @@ class SupervisorDecisionValidator:
         inherited = cls._entities(raw.get("inherited_entities", {}), evidence_text)
         ambiguity = cls._ambiguity(raw.get("ambiguity_candidates", {}))
         clarification = cls._clean(raw.get("clarification_question"))[:1000]
+        from memory.protected_context import validate_updates
+        protected_updates = validate_updates(raw.get("protected_updates", []), original_query)
 
         if status == RewriteStatus.NOT_NEEDED:
             if effective_query != original_query or references or inherited or ambiguity:
@@ -454,6 +460,7 @@ class SupervisorDecisionValidator:
             ambiguity_candidates=ambiguity,
             clarification_question=clarification,
             reason_code=cls._clean(raw.get("reason_code"))[:200],
+            protected_updates=tuple(protected_updates),
         )
 
     @classmethod
@@ -534,6 +541,9 @@ class SupervisorDecisionValidator:
     @classmethod
     def extract_explicit_entities(cls, text: str) -> Dict[str, List[str]]:
         values = {
+            "workspace_id": list(dict.fromkeys(re.findall(
+                r"(?:\bworkspace(?:_id)?|工作区(?:ID|编号)?|项目(?:ID|编号)?)\s*[:：=]?\s*([A-Za-z0-9][A-Za-z0-9_.-]{0,63})(?![A-Za-z0-9_.-])",
+                text, re.I))),
             "account_email": list(dict.fromkeys(_EMAIL_RE.findall(text))),
             "order_id": list(dict.fromkeys(_ORDER_RE.findall(text))),
             "amount": list(dict.fromkeys(_AMOUNT_RE.findall(text))),

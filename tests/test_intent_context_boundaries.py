@@ -24,7 +24,7 @@ STATE = {"entities": {"order_id": ["ABC123"]}}
 
 
 def context(client=None, budget=2400):
-    value = SimpleNamespace(model="test", client=client, history_char_budget=budget,
+    value = SimpleNamespace(model="test", client=client, history_char_budget=budget, history_token_budget=budget,
                             clean_text=SupervisorContext.clean_text)
     value.select_history = SupervisorContext.select_history.__get__(value)
     return value

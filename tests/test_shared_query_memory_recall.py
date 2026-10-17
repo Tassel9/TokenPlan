@@ -164,7 +164,7 @@ class SharedQueryMemoryRecallTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], self.intent_calls)
 
     async def test_control_messages_keep_model_short_circuit(self):
-        for query in ("你好", "请转人工", "请配置 sk-abc123def456ghijkl789"):
+        for query in ("你好", "停止查询", "请转人工", "请配置 sk-abc123def456ghijkl789"):
             with self.subTest(query=query):
                 await self.handle(query)
         self.assertEqual([], self.context_calls)
@@ -175,3 +175,19 @@ class SharedQueryMemoryRecallTests(unittest.IsolatedAsyncioTestCase):
         await self.orchestrator.run(Request(QUERY, "u", "c", case_state=self.state.to_intent_context()))
         self.assertEqual(1, len(self.context_calls))
         self.assertEqual(EFFECTIVE, self.intent_calls[0]["effective_query"])
+
+
+class Mem0SharedQueryTests(SharedQueryMemoryRecallTests):
+    """本地 mem0_flow 分支同样复用 Query，并继续传递会话与工作区隔离参数。"""
+
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
+        self.memory._long_term_memory_engine = "mem0_flow"
+        self.memory.prepare_memory_mutation = AsyncMock(return_value=((), ""))
+        self.state.entities["workspace_id"] = ["project-a"]
+
+    async def test_mem0_recall_does_not_generate_a_second_context_query(self):
+        await self.handle()
+        self.assertEqual({"query": EFFECTIVE, "queries": [EFFECTIVE], "conv_id": "c",
+                          "workspace_id": "project-a"}, self.memory.get_long_term_memory.call_args.kwargs)
+        self.memory.prepare_memory_mutation.assert_awaited_once_with("u", "c", QUERY, workspace_id="project-a")

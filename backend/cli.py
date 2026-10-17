@@ -26,7 +26,7 @@ from core.doctor import (
 
 async def run_once(message: str, *, user_id: str, conv_id: str) -> dict:
     # Imported lazily so `python backend/cli.py doctor` still runs when the heavy
-    # runtime dependencies (ChromaDB / aio_pika / anthropic) are absent.
+    # runtime dependencies (ChromaDB / anthropic) are absent.
     from application.chat_service import ChatCommand
     from app_services import build_app_services
 
@@ -63,11 +63,13 @@ async def run_once(message: str, *, user_id: str, conv_id: str) -> dict:
 
 
 def split_command(argv: Sequence[str]) -> Tuple[str, List[str]]:
-    """Route the first token: ``doctor`` runs the self-check, anything else is chat."""
+    """Route self-check, explicit memory migration, or one-shot chat."""
 
     args = list(argv)
     if args and args[0] in {"doctor", "--doctor"}:
         return "doctor", args[1:]
+    if args and args[0] == "migrate-memory":
+        return "migrate-memory", args[1:]
     return "chat", args
 
 
@@ -95,6 +97,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     command, rest = split_command(sys.argv[1:] if argv is None else list(argv))
     if command == "doctor":
         return _doctor_main(rest)
+    if command == "migrate-memory":
+        from memory.migrate_chroma import main as migrate_main
+        load_dotenv()
+        return migrate_main(rest)
 
     parser = argparse.ArgumentParser(description="TokenPlan one-shot chat")
     parser.add_argument("message")

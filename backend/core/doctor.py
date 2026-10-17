@@ -2,7 +2,7 @@
 
 `python backend/cli.py doctor` runs these checks **without** constructing the service
 graph: it only reads environment variables and probes TCP endpoints, so it is
-safe to run before ChromaDB / RabbitMQ are up.
+safe to run before Redis / ChromaDB are up.
 
 Verdicts:
   * ``blocked``  - at least one hard requirement fails; startup will raise.
@@ -35,10 +35,8 @@ PLACEHOLDER_KEY = "your_deepseek_api_key_here"
 # Code defaults live in app_services.py / knowledge_base.py; repeated here so a
 # missing variable is still probed instead of silently skipped.
 DEFAULT_SESSION_DB_PATH = "./data/session/conversations.sqlite3"
-DEFAULT_RABBITMQ_URL = "amqp://urbanops:urbanops123@rabbitmq:5672/"
 DEFAULT_CHROMA_HOST = "chromadb"
 DEFAULT_CHROMA_PORT = 8000
-DEFAULT_LOCAL_RABBITMQ_HINT = "amqp://urbanops:urbanops123@localhost:5672/"
 DEFAULT_LOCAL_SKILL_CATALOG = "backend/skills/catalog"
 
 Probe = Callable[[str, int, float], Tuple[bool, str]]
@@ -158,60 +156,48 @@ def run_checks(
     model = _env(env, "DEEPSEEK_MODEL", DEEPSEEK_DEFAULT_MODEL)
     checks.append(Check("deepseek_endpoint", OK, f"model={model} base_url={base_url}"))
 
-    session_path = Path(_env(env, "SESSION_DB_PATH", DEFAULT_SESSION_DB_PATH))
-    ancestor = session_path.parent
-    while not ancestor.exists() and ancestor != ancestor.parent:
-        ancestor = ancestor.parent
-    writable = (
-        session_path.is_file() and os.access(session_path, os.R_OK | os.W_OK)
-        if session_path.exists() else
-        ancestor.is_dir() and os.access(ancestor, os.W_OK)
-    )
-    checks.append(Check(
-        "sqlite_session", OK if writable else FAIL,
-        f"SQLite 会话文件: {session_path}",
-        "将 SESSION_DB_PATH 设置到可写目录" if not writable else "",
-    ))
+    memory_backend = _env(env, "MEMORY_BACKEND", "redis")
+    if memory_backend == "redis":
+        host = _env(env, "REDIS_HOST", "redis")
+        port = int(_env(env, "REDIS_PORT", "6379"))
+        reachable, message = probe(host, port, timeout_s)
+        checks.append(Check("redis", OK if reachable else FAIL,
+                            f"Redis（短期记忆与提交状态）: {message}",
+                            "" if reachable else "启动 Redis；容器外设置 REDIS_HOST=localhost"))
+    elif memory_backend == "sqlite":
+        session_path = Path(_env(env, "SESSION_DB_PATH", DEFAULT_SESSION_DB_PATH))
+        ancestor = session_path.parent
+        while not ancestor.exists() and ancestor != ancestor.parent:
+            ancestor = ancestor.parent
+        writable = (session_path.is_file() and os.access(session_path, os.R_OK | os.W_OK)
+                    if session_path.exists() else ancestor.is_dir() and os.access(ancestor, os.W_OK))
+        checks.append(Check("sqlite_session", OK if writable else FAIL,
+                            f"SQLite 离线兼容文件: {session_path}",
+                            "将 SESSION_DB_PATH 设置到可写目录" if not writable else ""))
+    else:
+        checks.append(Check("memory_backend", FAIL, "MEMORY_BACKEND 只支持 redis 或 sqlite"))
 
     chroma_host = _env(env, "CHROMA_HOST", DEFAULT_CHROMA_HOST)
     chroma_port = int(_env(env, "CHROMA_PORT", str(DEFAULT_CHROMA_PORT)) or DEFAULT_CHROMA_PORT)
-    embedded_fallback = _env_bool(env, "MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK", False)
     chroma_reachable, chroma_message = probe(chroma_host, chroma_port, timeout_s)
     if chroma_reachable:
-        checks.append(Check("chromadb", OK, f"ChromaDB: {chroma_message}"))
+        checks.append(Check("chromadb", OK, f"ChromaDB（长期事实与知识库 RAG）: {chroma_message}"))
     else:
         checks.append(Check(
             "chromadb",
-            WARN if embedded_fallback else FAIL,
-            f"ChromaDB: {chroma_message}"
-            + ("（已允许内嵌回退，降级可用）" if embedded_fallback else ""),
-            "先 docker compose up -d chromadb；容器外运行时设 CHROMA_HOST=localhost、CHROMA_PORT=8001",
+            FAIL if memory_backend == "redis" else WARN,
+            f"ChromaDB（长期事实与知识库 RAG）: {chroma_message}（长期事实不可切换到另一份本地库）",
+            "检查 CHROMA_PERSIST_DIRECTORY 可写；或 docker compose up -d chromadb，"
+            "容器外运行时设 CHROMA_HOST=localhost、CHROMA_PORT=8001",
         ))
 
-    queue_enabled = _env_bool(env, "LONG_TERM_MEMORY_QUEUE_ENABLED", True)
-    checks.append(_dependency_check(
-        key="rabbitmq",
-        label="RabbitMQ（长期记忆更新队列）",
-        env=env,
-        url_var="RABBITMQ_URL",
-        default_url=DEFAULT_RABBITMQ_URL,
-        default_port=5672,
-        probe=probe,
-        timeout_s=timeout_s,
-        local_hint=DEFAULT_LOCAL_RABBITMQ_HINT,
-        fatal_when=queue_enabled,
-        block_hint=(
-            "docker compose up -d rabbitmq，或设置 LONG_TERM_MEMORY_QUEUE_ENABLED=false "
-            "关闭长期记忆写入（在线问答不受影响）"
-        ),
+    updates_enabled = _env_bool(env, "LONG_TERM_MEMORY_ASYNC_ENABLED", True)
+    checks.append(Check(
+        "long_term_memory_async",
+        OK if updates_enabled else WARN,
+        "长期记忆由进程内后台协程更新" if updates_enabled else "长期记忆异步写入已关闭",
+        "" if updates_enabled else "设置 LONG_TERM_MEMORY_ASYNC_ENABLED=true 恢复长期记忆写入",
     ))
-    if not queue_enabled:
-        checks.append(Check(
-            "long_term_memory_queue",
-            WARN,
-            "长期记忆队列已关闭（LONG_TERM_MEMORY_QUEUE_ENABLED=false）",
-            "需要跨会话长期事实时再打开，并确保 RabbitMQ 可用",
-        ))
 
     catalog = _env(env, "SKILL_CATALOG_PATH") or str(
         Path(__file__).resolve().parent.parent / "skills" / "catalog"

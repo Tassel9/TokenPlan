@@ -14,7 +14,7 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | 层 | 变量 | 不设置时会怎样 |
 |---|---|---|
 | ① 必填 | `DEEPSEEK_API_KEY` | 启动即抛 `RuntimeError: 未设置 DEEPSEEK_API_KEY` |
-| ② 本地运行（容器外） | `SESSION_DB_PATH`、`RABBITMQ_URL`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | SQLite 使用本地文件；RabbitMQ、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
+| ② 本地运行（容器外） | `REDIS_HOST`、`REDIS_PORT`、`CHROMA_HOST`、`CHROMA_PORT`、`CHROMA_PERSIST_DIRECTORY` | Redis 保存短期会话，ChromaDB 保存长期事实；Redis、ChromaDB 的代码默认值是容器内主机名，宿主机运行时需覆盖 |
 | ③ 可选 | 其余全部 | 使用下表默认值，功能不变 |
 
 > 用 `docker compose` 起应用时，compose 会用 `environment:` 覆盖 ② 里的地址（容器内固定值），所以同一份 `.env` 两种跑法都能用。
@@ -44,23 +44,34 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `RETRIEVAL_MAX_CONCURRENCY` | `16` |
 | `TOOL_MAX_CONCURRENCY` | `32` |
 
-## 5. 短期记忆与会话归档（SQLite）
+## 5. 短期记忆与会话归档（Redis）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 短期会话窗口、增量摘要、有界原始归档、CaseState、轮次与并发提交记录 |
+| `MEMORY_BACKEND` | `redis` | 默认 Redis + ChromaDB；`sqlite` 为显式离线兼容 |
+| `REDIS_HOST` | `redis` | 容器内地址；宿主机运行设 localhost |
+| `REDIS_PORT` | `6379` | Redis 端口 |
+| `REDIS_DB` | `0` | Redis 数据库编号 |
+| `REDIS_PASSWORD` | 空 | 与服务端认证配置一致 |
+| `SESSION_DB_PATH` | `./data/session/conversations.sqlite3` | 显式 SQLite 离线后端与旧数据迁移源文件 |
 | `SESSION_HISTORY_MAX_MESSAGES` | `100` | 每会话保留的原始归档消息上限 |
+| `SESSION_HISTORY_TTL_SECONDS` | `604800` | 原始归档与约束变更的逻辑保留期，默认 7 天；普通读取不续期 |
 | `SESSION_HISTORY_PAGE_SIZE` | `50` | 历史读取默认条数 |
-| `SESSION_HOT_MEMORY_MAX_MESSAGES` | `40` | 摘要持续失败时的近期对话硬上限 |
-| `SHORT_TERM_TOKEN_LIMIT` | `6000` | 短期记忆按最终渲染文本计的 Token 预算 |
-| `SHORT_TERM_RECENT_TURNS` | `5` | 兼容保留：视图按 Token 预算保留未摘要轮次后，该值不再作为硬性轮数上限 |
-| `SHORT_TERM_SUMMARY_MAX_TOKENS` | `2048` | 单次增量摘要的输出上限（实测合法摘要约 900~1600 token，过小会截断 Tool Call） |
+| `SESSION_HOT_MEMORY_MAX_MESSAGES` | `20` | 摘要持续失败时的近期消息兜底上限；按完整轮次保留，条数包含用户消息和回答 |
+| `SHORT_TERM_TOKEN_LIMIT` | `6000` | 约束原文、摘要、近期完整轮次及同会话召回按最终渲染文本计的 Token 预算 |
+| `SHORT_TERM_RECENT_TURNS` | `5` | 超限压缩后保留的最近完整对话轮数；后续对话继续追加，普通读取不按五轮截断 |
+| `SHORT_TERM_SUMMARY_TOKEN_LIMIT` | `1000` | 注入上下文的摘要子预算，含摘要标题，用同一模型 tokenizer 计数；必须小于总预算 |
+| `SHORT_TERM_SUMMARY_MAX_TOKENS` | `2048` | 单次摘要生成的输出上限，包含 Tool JSON 与来源字段，不用于窗口预留 |
 
-运行时从 SQLite 读取当前窗口与摘要，默认保留 24 小时。窗口按最终上下文的 Token 预算保留完整轮次，移出的消息与旧摘要一起生成增量摘要。新摘要和近期窗口在同一事务中更新；发布前校验会话轮次及有效租约，拒绝迟到的旧轮次摘要。
+运行时从 Redis 同一快照读取当前窗口与摘要，默认保留 24 小时。窗口按最终上下文的 Token 预算保留完整轮次，移出的消息与旧摘要一起生成增量摘要。新摘要和近期窗口通过 Lua CAS 一起更新；发布前校验会话轮次及有效租约，拒绝迟到的旧轮次摘要。
 
-每轮在 SQLite 中一次提交用户消息、助手消息和可选 CaseState，再按预算更新短期视图。数据库启用 WAL 和写事务，按 `user_id + conv_id` 隔离会话；归档与 CaseState 默认保留 7 天。窗口过期或缺失后，可从仍有效的有界归档重建；普通读取不会延长 TTL，重建视图会重新设置短期 TTL。进程重启后继续使用同一个 `SESSION_DB_PATH` 即可读取已有窗口、摘要和归档，无需迁移原有 SQLite 数据。SQLite 使用 Python 标准库，不需要独立缓存服务。
+摘要与近期对话统一用模型 tokenizer 计数：超过 6000 Token 才触发压缩，压缩后默认保留最近 5 轮完整对话，较早轮次与旧摘要合并重写；之后新对话继续追加，直到再次超限，不因出现第六轮而压缩或截断。摘要最多 1000 Token，计入总预算。生成时按摘要子预算预留空间，而非预留完整 JSON 输出额度；最近五轮过长时按完整轮次减少保留数量，最新单轮仍完整保留。最终摘要必须比所覆盖的旧内容更短。超限会要求更短摘要并重试，失败保留原始记录。旧库中的超限摘要会重新压缩，修复失败时当前请求使用有界原始归档，避免注入超限摘要。详见[摘要 Token 预算](short-term-summary-token-budget-20261004.md)。
 
-同一文件保存近期未解决咨询索引，默认随 CaseState 保留 7 天。明确跨会话指向时检索同一用户最近 20 条有效记录，澄清最多展示 5 条，待选列表保存在当前会话中。唯一匹配后恢复咨询对象与用户原话，变化的业务状态需重新查询；普通读取不延长索引 TTL。详见[跨会话承接说明](cross-session-consultations-20261004.md)。
+约束原文与撤回记录独立于摘要保存，由本轮提交折叠更新；常见限制使用规则，其他条件复用上下文整理模型提出逐字引用并校验。作用域默认当前任务，明确整个会话有效才提升作用域。当前变更优先于旧摘要。下游按 Token 选择完整问答，不再按角色优先级或字符数裁剪。用户明确回看历史时，在同一 `(user_id, conv_id)` 的有效归档中按关键词选取最多两轮完整原话，预算不足则不追加。保护区本身或最新一轮超出预算时仍保留原文，因此 6000 是正常选择预算，并非整个模型请求的硬上限。详见[短期记忆保真边界](short-term-fidelity-20261005.md)。
+
+每轮通过 Redis Lua 一次提交消息、CaseState、咨询索引、长期更新 Outbox 与显式偏好 Pending；摘要发布校验源轮次、派生视图版本、行实例和有效租约。归档与 CaseState 默认保留 7 天，普通读取不续期。窗口缺失时从仍有效的有界归档恢复。Redis 持久化与迁移、最终一致和异常停机边界见[说明](redis-chroma-memory-20261004.md)。
+
+会话后端保存近期未解决咨询索引，默认随 CaseState 保留 7 天。明确跨会话指向时检索同一用户最近 20 条有效记录，澄清最多展示 5 条，待选列表保存在当前会话中。唯一匹配后恢复咨询对象与用户原话，变化的业务状态需重新查询；普通读取不延长索引 TTL。详见[跨会话承接说明](cross-session-consultations-20261004.md)。
 
 ## 6. 对话入口容量保护
 
@@ -73,37 +84,53 @@ python backend/cli.py doctor --json   # 机器可读（verdict: ok / degraded / 
 | `CHAT_TURN_LEASE_SECONDS` | `30` | 租约时长 |
 | `CHAT_TURN_RENEW_SECONDS` | `10` | 续租间隔 |
 
-## 7. 长期记忆写入队列（RabbitMQ）
+## 7. 长期记忆异步写入
+
+会话提交后唤醒进程内后台协程；模型抽取、候选判断和事实写入不在请求路径中等待。用户消息按用户和会话分别累计，默认每 10 轮进行一次批量抽取；`mem0_flow` 候选通过来源校验后，逐条召回相关旧记忆，只做 `ADD/SKIP` 判断。同一作用域内重复已有记忆项直接跳过，不生成确认或关系记录；新事情、新原因或条件独立保存，不同作用域分别保存。普通抽取不改变已有记忆项的单值，明确更正走修改流程。存在比较对象时通常增加一次判断模型调用，超预算分组；精确重复、已知投影值变更或没有比较对象时无需语义调用。规则能明确识别的偏好变更和撤回直接处理，完整原话仍参与批次。Redis Outbox 与会话原子提交，成功发布后清理；少轮 `mem0_flow` 会话默认空闲 120 秒处理，关闭在十秒预算内尝试剩余批次。legacy 少轮会话继续累计，不强制关闭抽取。Redis 来源和完成的判断可供重启重试复用，SQLite 待处理来源和判断缓存仅在进程内；多进程首次竞争可能重复调用模型。
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `RABBITMQ_URL` | `amqp://tokenplan:tokenplan123@rabbitmq:5672/` | 容器内地址 |
-| `LONG_TERM_MEMORY_QUEUE_ENABLED` | `true` | 置 `false` 只关闭长期记忆写入（在线问答不受影响），也是"不想跑 MQ"的降级开关 |
-| `LONG_TERM_MEMORY_WORKER_ENABLED` | `true` | API 与 Worker 暂同进程；拆独立 Worker 后 API 侧置 `false` |
-| `LONG_TERM_MEMORY_WORKER_PREFETCH` | `1` | 预取数 |
-| `LONG_TERM_MEMORY_MAX_ATTEMPTS` | `3` | 最大投递尝试次数 |
-| `LONG_TERM_MEMORY_RETRY_BACKOFF_S` | `0.5` | 重试退避基数 |
-| `LONG_TERM_MEMORY_PENDING_TTL_SECONDS` | `86400` | Pending 画像覆盖的安全兜底期限 |
+| `LONG_TERM_MEMORY_ASYNC_ENABLED` | `true` | 置 `false` 关闭长期记忆写入 |
+| `LONG_TERM_MEMORY_ENGINE` | `mem0_flow` | 应用默认按主题抽取与召回；`legacy` 回到五字段引擎。直接构造 MemoryManager 的兼容默认值仍为 legacy |
+| `LONG_TERM_MEMORY_EXTRACTION_INTERVAL_TURNS` | `10` | 每用户、每会话的批量抽取轮数，最小为 1；有比较对象时另做批量语义比较 |
+| `LONG_TERM_MEMORY_IDLE_FLUSH_SECONDS` | `120` | 新引擎少轮会话空闲后提前处理；legacy 不启用。空闲时间从最后任务入队算起 |
+| `LONG_TERM_MEMORY_EXTRACTION_TOKEN_LIMIT` | `12000` | 新引擎抽取及每次比较的输入上限；保留完整轮次/比较分组，单条仍超限保留失败来源 |
+| `LONG_TERM_MEMORY_CONTEXT_TOKEN_BUDGET` | `800` | 新引擎生成的长期上下文总 Token 上限；不截断单条记忆的归属信息 |
+| `LONG_TERM_MEMORY_RECALL_MAX` | `5` | 新引擎最多注入的主题正文数量 |
+| `LONG_TERM_MEMORY_FACT_TTL_DAYS` | `180` | 通用用户事实保留天数 |
+| `LONG_TERM_MEMORY_PREFERENCE_TTL_DAYS` | `365` | 通用偏好保留天数 |
+| `LONG_TERM_MEMORY_PLAN_TTL_DAYS` | `30` | 无原文明写截止日期的用户计划保留天数 |
+| `LONG_TERM_MEMORY_ADVICE_TTL_DAYS` | `30` | 独立归属的历史助手建议保留天数 |
+| `LONG_TERM_MEMORY_DECISION_TTL_DAYS` | `180` | 项目决策保留天数 |
+| `LONG_TERM_MEMORY_CLEANUP_INTERVAL_S` | `300` | 后台物理清理过期事实的间隔，启动时也执行；与抽取轮数独立 |
+| `LONG_TERM_MEMORY_MAX_ATTEMPTS` | `3` | 后台任务最大处理尝试次数 |
+| `LONG_TERM_MEMORY_RETRY_BACKOFF_S` | `0.5` | 重试退避基数，指数增长 |
+| `LONG_TERM_MEMORY_SHUTDOWN_TIMEOUT_S` | `10` | 关闭时等待当前批次的上限，超时取消；Redis 待处理记录保留供下次启动恢复 |
+| `LONG_TERM_MEMORY_PENDING_TTL_SECONDS` | `86400` | 无未完成记录时的 Pending 期限；未完成或失败任务继续保留覆盖 |
 
-## 8. 长期事实（ChromaDB）与 Embedding
+旧 `RABBITMQ_URL`、`LONG_TERM_MEMORY_QUEUE_ENABLED`、`LONG_TERM_MEMORY_WORKER_ENABLED`、`LONG_TERM_MEMORY_WORKER_PREFETCH` 已不再读取。历史关闭写入配置请改为 `LONG_TERM_MEMORY_ASYNC_ENABLED=false`。
+
+重复表达和普通读取均不续期，新引擎及旧五字段投影都不再生成确认事件。已存在的历史确认仍可读取，兼容其原有效期；本次不执行现有用户数据迁移。后台清理到期旧值并保留不含原值的失效边界，覆盖到期前的迟到来源；到期后用户重新表达可新增。Chroma 物理删除失败时，已发布标记仍隐藏过期值，待清理 ID 保留供后续重试。
+
+新流程把完整用户/助手轮次作为输入，普通操作追加按主题正文；压缩仅触发处理，不以摘要作来源。候选校验后缓存，Chroma/CAS 写入重试不重新抽取。默认十轮、空闲、压缩及“记住”共享任务完成状态。生命周期、内部管理方法、只读迁移和实际离线验证见[新流程说明](long-term-memory-mem0-runtime.md)。旧五个投影字段仍沿用固定 TTL，不受上述通用类型 TTL 配置影响。
+
+## 8. 长期事实与知识库存储（ChromaDB）
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
 | `CHROMA_HOST` / `CHROMA_PORT` | `chromadb` / `8000` | 容器内地址；本地用 `localhost` / `8001` |
 | `CHROMA_PERSIST_DIRECTORY` | `/app/data/chroma` | 容器内路径；本地用 `./data/chroma` |
-| `MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK` | `false` | 置 `true` 允许内嵌 ChromaDB 降级（生产默认连接失败即停止启动） |
 | `RAG_CHROMA_COLLECTION_NAME` | `tokenplan_knowledge_base_v2` | 知识库集合名 |
 | `RAG_LEXICAL_INDEX_PATH` | 跟随 `CHROMA_PERSIST_DIRECTORY` 下的 `tokenplan_lexical_v2.sqlite3` | 复用旧 FTS5 索引时显式指定 |
-| `LONG_TERM_MEMORY_EMBEDDING_MODEL` | `BAAI/bge-base-zh-v1.5` | BGE 模型 |
-| `LONG_TERM_MEMORY_EMBEDDING_REVISION` | 固定 revision | 与知识库索引保持一致 |
-| `LONG_TERM_MEMORY_EMBEDDING_DEVICE` | 跟随意图通道的 `INTENT_EMBEDDING_DEVICE` | `cpu` / `cuda` |
-| `LONG_TERM_MEMORY_CONTEXT_EXTRACTION_ENABLED` | `true` | 抽取时附带同会话最近用户发言用于消解指代；置 `false` 回到仅看当前消息的旧行为 |
-| `LONG_TERM_MEMORY_CONTEXT_TURNS` | `3` | 附带的最大用户发言条数 |
-| `LONG_TERM_MEMORY_CONTEXT_MAX_CHARS` | `1200` | 附带上下文的字符预算 |
-| `LONG_TERM_MEMORY_FACT_INJECTION` | `full` | `full`=读取时注入全部当前有效非全局事实（闭集 ≤3 条，与查询无关）；`recall`=仅距离门控 top-3 语义召回 |
+| `LONG_TERM_MEMORY_CONTEXT_EXTRACTION_ENABLED` | `true` | legacy 引擎抽取时附带同会话最近用户发言；新引擎附带有限原始消息和相关旧记忆 |
+| `LONG_TERM_MEMORY_CONTEXT_TURNS` | `3` | legacy 附带的最大用户发言条数 |
+| `LONG_TERM_MEMORY_CONTEXT_MAX_CHARS` | `1200` | legacy 附带上下文的字符预算 |
+| `LONG_TERM_MEMORY_FACT_INJECTION` | `recall` | 表达偏好固定注入，其他当前有效事实按当前问题语义召回（余弦距离 ≤0.58，最多三条）；`full` 为显式全量注入兼容模式 |
 
-抽取上下文只用于消解“它 / 这个 / 刚才说的”类指代：跨轮证据只允许变更（`supersede`）或撤回（`retract`），且变更 / 撤回措辞必须出现在当前消息；助手措辞永远不能作为事实证据。
-默认 `full` 注入模式下非全局事实条数受限（`style.*` 走全局注入），对 Token 成本影响可忽略；`recall` 模式保留给按键数敏感或事实类型扩展后的场景。
+legacy 抽取上下文只用于消解“它 / 这个 / 刚才说的”类指代：跨轮证据只允许变更（`supersede`）或撤回（`retract`），且变更 / 撤回措辞必须出现在当前消息；助手措辞不能作为用户事实证据。新引擎可保存带独立归属的助手建议，每条新增内容仍须有新原始消息证据。
+
+新引擎使用 `user_memories_v1` 和独立 memory-manifest，旧 `user_facts_v3` 保留为兼容投影。当前问题与有依据的补充 Query（最多三条）召回语义候选，关键词仅辅助排序；距离阈值沿用 ≤0.58，数量与总 Token 预算由上表控制。读取过滤作用域、有效期、Pending 与删除边界。当前账户状态仍由业务查询获取。
+长期事实默认使用 `recall`，先归并同用户已发布事实，再仅在当前有效的非全局事实中调用 ChromaDB 向量查询；使用 `user_facts_v3` 集合与默认 BGE 文档向量，Redis 维护可见事件 ID、版本与 Pending。空问题不召回非全局事实，检索失败不降级为全量注入。`MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK` 不会把长期事实切到另一份本地库。SQLite 导入使用[显式迁移命令](redis-chroma-memory-20261004.md)。
 
 ## 9. Skills
 
@@ -185,11 +212,9 @@ Agentic 工具内部另有请求级预算，默认执行一次混合检索，证
 
 | 变量 | compose 默认值 |
 |---|---|
-| `RABBITMQ_USER` / `RABBITMQ_PASSWORD` | `tokenplan` / `tokenplan123` |
 | `IMAGE_NAME` / `VERSION` / `REGISTRY` | 见 `build-image.sh`、`run-image.sh` |
 | `CONFIG_DIR` / `DATA_DIR` / `LOGS_DIR` | 见 `run-image.sh` |
 
-> 如果改了 `RABBITMQ_*`，请同步修改 `RABBITMQ_URL`。
 
 ## 14. 遗留变量（可删）
 
@@ -205,7 +230,7 @@ Agentic 工具内部另有请求级预算，默认执行一次混合检索，证
 
 ```bash
 cp .env.example .env          # 填 DEEPSEEK_API_KEY 即可
-docker compose up -d chromadb rabbitmq
+docker compose up -d redis chromadb
 python backend/cli.py doctor          # 应输出 ok / degraded
 python backend/cli.py "我的账单为什么多了 20 元"
 ```
@@ -217,16 +242,17 @@ cp .env.example .env          # 只填 DEEPSEEK_API_KEY
 docker compose up -d
 ```
 
-**C. 不跑 RabbitMQ（关闭长期记忆写入）**
+**C. 关闭长期记忆写入**
 
 ```bash
 # .env 追加
-LONG_TERM_MEMORY_QUEUE_ENABLED=false
+LONG_TERM_MEMORY_ASYNC_ENABLED=false
 ```
 
-**D. 不跑 ChromaDB（仅本地调试）**
+**D. 知识库使用本地 ChromaDB（仅本地调试）**
 
 ```bash
-# .env 追加
-MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK=true
+# .env 设置；知识库在远端不可用时尝试本地持久化目录
+CHROMA_HOST=localhost
+CHROMA_PERSIST_DIRECTORY=./data/chroma
 ```

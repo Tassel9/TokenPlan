@@ -2,28 +2,55 @@
 from __future__ import annotations
 
 import asyncio
-import sqlite3
 import logging
+import sqlite3
 import time
 import uuid
 from dataclasses import dataclass, replace
-from response.input_secrets import SECRET, redact_secrets
 from datetime import datetime
 from typing import Any, Dict
 
-from agents.intent_orchestrator import IntentOrchestratorResult, Request as OrchestrationRequest
-from core.supervisor_decision import RewriteStatus
-from memory.conversation_state import merge_case_state, update_discussion_state
+from agents.intent_orchestrator import IntentOrchestratorResult
+from agents.intent_orchestrator import Request as OrchestrationRequest
+from core.supervisor_decision import RewriteStatus, SupervisorDecisionValidator
+from mcp.retrieval_contracts import FAQ_SEARCH, HYBRID_SEARCH, evidence_events
 from memory.consultation_recall import ConsultationRecall, recall_consultation
+from memory.conversation_state import (
+    merge_case_state,
+    update_discussion_state,
+    update_pending_questions,
+)
+from memory.protected_context import NEW_TASK
+from memory.redis_session_store import RedisSessionStore
 from memory.sqlite_session_store import SQLiteSessionStore
 from monitor.execution_trace import utc_now_iso
-from mcp.retrieval_contracts import FAQ_SEARCH, HYBRID_SEARCH, evidence_events
+from redis.exceptions import RedisError
+from response.input_secrets import SECRET, redact_secrets
 from runtime.conversation_turn_gate import (
     ConversationGateUnavailableError,
     ConversationLeaseLostError,
+    reset_current_conversation_turn,
+    set_current_conversation_turn,
 )
 
 logger = logging.getLogger(__name__)
+
+
+def memory_workspace(message: str, state: Any, prepared: Any = None) -> str:
+    """Use current, source-validated identifiers before inherited session state."""
+    explicit = SupervisorDecisionValidator.extract_explicit_entities(message)
+    rewrite = getattr(prepared, "rewrite", None)
+    if explicit.get("workspace_id"):
+        values = explicit["workspace_id"]
+    elif prepared is not None and getattr(prepared, "status", "") == "ok":
+        values = getattr(rewrite, "extracted_entities", {}).get("workspace_id", [])
+        if not values:
+            values = getattr(rewrite, "inherited_entities", {}).get("workspace_id", [])
+        if not values and not NEW_TASK.search(message.strip()):
+            values = state.entities.get("workspace_id", [])
+    else:
+        values = [] if NEW_TASK.search(message.strip()) else state.entities.get("workspace_id", [])
+    return values[0] if len(values) == 1 else ""
 
 
 @dataclass(frozen=True)
@@ -61,11 +88,13 @@ class ChatService:
         orchestrator: Any,
         traces: Any,
         profile_updates: Any = None,
+        conversation_turn_gate: Any = None,
     ) -> None:
         self.memory = memory
         self.orchestrator = orchestrator
         self.traces = traces
         self.profile_updates = profile_updates
+        self.conversation_turn_gate = conversation_turn_gate
 
     @classmethod
     def from_services(cls, services: Any) -> "ChatService":
@@ -76,9 +105,21 @@ class ChatService:
             orchestrator=services.orchestrator,
             traces=services.traces,
             profile_updates=getattr(services, "profile_updates", None),
+            conversation_turn_gate=getattr(services, "conversation_turn_gate", None),
         )
 
     async def handle(self, command: ChatCommand) -> ChatOutcome:
+        if command.turn_lease is not None or self.conversation_turn_gate is None:
+            return await self._handle(command)
+        lease = await self.conversation_turn_gate.acquire(command.user_id, command.conv_id)
+        context_token = set_current_conversation_turn(lease)
+        try:
+            return await self._handle(replace(command, turn_lease=lease))
+        finally:
+            reset_current_conversation_turn(context_token)
+            await lease.release()
+
+    async def _handle(self, command: ChatCommand) -> ChatOutcome:
         """Execute one complete conversation turn without transport concerns."""
 
         exposed_secret = bool(SECRET.search(command.message))
@@ -98,22 +139,31 @@ class ChatService:
             logger.warning("Trace request start failed: %s", ex)
             trace_recorder = None
 
+        memory_targets, memory_question, workspace_id = (), "", ""
+        prepared = None
+        short_kwargs = {"turn_lease": command.turn_lease}
+        if hasattr(self.memory, "_read_protected_items"):
+            short_kwargs["query"] = command.message
         try:
             # 先取补全所需的短期上下文；长期记忆等统一 Query 校验后再召回。
             short_term, case_state = await asyncio.gather(
-                self.memory.get_short_term_memory(
-                    command.user_id,
-                    command.conv_id,
-                    turn_lease=command.turn_lease,
-                ),
+                self.memory.get_short_term_memory(command.user_id, command.conv_id, **short_kwargs),
                 self.memory.get_case_state(command.user_id, command.conv_id),
             )
             recall = ConsultationRecall(case_state)
             store = getattr(self.memory, "session_store", None)
-            if isinstance(store, SQLiteSessionStore) and not exposed_secret:
+            if isinstance(store, (SQLiteSessionStore, RedisSessionStore)) and not exposed_secret:
                 recall = recall_consultation(store, command.user_id, command.conv_id,
                                              command.message, case_state)
                 case_state = recall.state
+            if getattr(self.memory, "_long_term_memory_engine", "") == "mem0_flow":
+                workspace_id = memory_workspace(command.message, case_state)
+                # 记忆修改仍以用户原话确定目标，不能把补全内容写成新的用户事实。
+                memory_targets, memory_question = await self.memory.prepare_memory_mutation(
+                    command.user_id, command.conv_id, command.message, workspace_id=workspace_id)
+            if memory_question:
+                recall = ConsultationRecall(case_state, question=memory_question,
+                                            reason_code="memory_target_ambiguous")
         except asyncio.CancelledError:
             await self._record_failure(
                 trace_id,
@@ -138,7 +188,7 @@ class ChatService:
         history = (
             [
                 {"role": message.role.value, "content": message.content}
-                for message in short_term.recent_messages
+                for message in [*getattr(short_term, "recalled_messages", []), *short_term.recent_messages]
             ]
             if short_term.recent_messages
             else None
@@ -150,6 +200,7 @@ class ChatService:
             short_term_context=redact_secrets("\n\n".join(
                 value for value in (short_term.to_text(), recall.context) if value)),
             intent_context=redact_secrets(short_term.summary),
+            protected_context=redact_secrets(getattr(short_term, "protected_items", [])),
             case_state=redact_secrets(case_state.to_intent_context()),
             history=redact_secrets(history),
             exposed_secret=exposed_secret,
@@ -172,6 +223,8 @@ class ChatService:
             else:
                 prepare_query = getattr(self.orchestrator, "prepare_query_context", None)
                 prepared = await prepare_query(orchestration_request) if prepare_query is not None else None
+                if getattr(self.memory, "_long_term_memory_engine", "") == "mem0_flow":
+                    workspace_id = memory_workspace(command.message, case_state, prepared)
                 orchestration_request = replace(orchestration_request, prepared_query=prepared)
                 # 歧义或校验失败时不以原句猜测召回，交给同一补全结果触发澄清/失败处理。
                 if prepared is None or (
@@ -179,9 +232,28 @@ class ChatService:
                     and prepared.rewrite.status in {RewriteStatus.NOT_NEEDED, RewriteStatus.RESOLVED}
                 ):
                     recall_query = prepared.rewrite.effective_query if prepared is not None else command.message
-                    long_term = await self.memory.get_long_term_memory(command.user_id, query=recall_query)
+                    recall_kwargs = {"query": recall_query}
+                    if getattr(self.memory, "_long_term_memory_engine", "") == "mem0_flow":
+                        # 使用与识别完全一致的 Query，不再另拼历史或生成第二份指代补全。
+                        recall_kwargs.update(conv_id=command.conv_id, workspace_id=workspace_id,
+                                             queries=[recall_query])
+                    long_term = await self.memory.get_long_term_memory(command.user_id, **recall_kwargs)
+                    # Preserve attribution/time labels and retrieve independently
+                    # for each focused task; never broadcast compound-request memory.
+                    async def recall_task_memory(task_query: str) -> str:
+                        if task_query == recall_query:
+                            return redact_secrets(long_term.to_text())
+                        task_kwargs = dict(recall_kwargs, query=task_query)
+                        if "queries" in task_kwargs:
+                            task_kwargs["queries"] = [task_query]
+                            identifiers = SupervisorDecisionValidator.extract_explicit_entities(task_query).get("workspace_id", [])
+                            if identifiers:
+                                task_kwargs["workspace_id"] = identifiers[0] if len(identifiers) == 1 else ""
+                        value = await self.memory.get_long_term_memory(command.user_id, **task_kwargs)
+                        return redact_secrets(value.to_text())
                     orchestration_request = replace(
                         orchestration_request, long_term_context=redact_secrets(long_term.to_text()),
+                        long_term_recall=recall_task_memory,
                     )
                 result = await self.orchestrator.run(orchestration_request)
             if recall.changed:
@@ -247,6 +319,7 @@ class ChatService:
                 verified_updates=getattr(result, "verified_case_updates", []),
                 status=result.status,
                 reason_code=result.reason_code,
+                turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0),
             )
         discussion = update_discussion_state(next_case_state or case_state, command.message,
                                               result.supervisor_analysis or {})
@@ -258,6 +331,12 @@ class ChatService:
                     value for value in discussion.discussion_messages if value != original
                 ][-3:]]
             next_case_state = discussion
+        next_case_state = update_pending_questions(next_case_state or case_state, result,
+            turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0))
+        # Bind the durable source to this turn's resulting task, not the task
+        # that happened to be active before understanding the current message.
+        if getattr(self.memory, "_long_term_memory_engine", "") == "mem0_flow":
+            workspace_id = memory_workspace(command.message, next_case_state, prepared)
         memory_persisted = await persist_chat_memory(
             self.memory,
             user_id=command.user_id,
@@ -266,12 +345,19 @@ class ChatService:
             assistant_content=result.response,
             user_metadata={
                 "request_id": request_id,
+                "case_update_mode": result.case_update_mode,
+                "protected_updates": (result.supervisor_analysis.get("rewrite") or {}).get("protected_updates", []),
                 "supervisor_analysis": result.supervisor_analysis,
                 "request_control": getattr(result, "request_control", {}),
                 "intents": intent_values(result),
+                "profile_update_enabled": self.profile_updates is not None and not recall.question and not exposed_secret,
+                "profile_effective_at": trace_started_at,
+                "memory_target_ids": list(memory_targets),
+                "memory_workspace_id": workspace_id,
             },
             assistant_metadata={
                 "request_id": request_id,
+                "memory_workspace_id": workspace_id,
                 "status": result.status,
                 "tool_events": result.tool_events,
                 "evidence_ids": result.evidence_ids,
@@ -287,7 +373,7 @@ class ChatService:
             case_state=next_case_state,
             turn_lease=command.turn_lease,
         )
-        if not recall.question:
+        if memory_persisted and not recall.question and not exposed_secret:
             await enqueue_profile_update(
                 self,
                 user_id=command.user_id,
@@ -295,6 +381,9 @@ class ChatService:
                 user_message=command.message,
                 effective_at=datetime.fromisoformat(trace_started_at),
                 turn_seq=int(getattr(command.turn_lease, "turn_seq", 0) or 0),
+                assistant_message=result.response,
+                workspace_id=workspace_id,
+                target_ids=memory_targets,
             )
         return ChatOutcome(
             conv_id=command.conv_id,
@@ -355,17 +444,25 @@ async def enqueue_profile_update(
     user_message: str,
     effective_at: datetime,
     turn_seq: int = 0,
+    assistant_message: str = "",
+    workspace_id: str = "",
+    target_ids: tuple = (),
 ) -> bool:
-    """Publish a durable profile-update job when the queue is enabled."""
+    """Wake the background updater after the conversation turn is committed."""
 
-    queue = getattr(services, "profile_updates", None)
-    if queue is not None:
-        return await queue.enqueue(
+    updater = getattr(services, "profile_updates", None)
+    if updater is not None:
+        source_fields = {}
+        if getattr(getattr(services, "memory", None), "_long_term_memory_engine", "") == "mem0_flow":
+            source_fields = dict(assistant_message=assistant_message, workspace_id=workspace_id,
+                                 target_ids=target_ids)
+        return await updater.enqueue(
             user_id=user_id,
             conv_id=conv_id,
             user_message=user_message,
             effective_at=effective_at,
             turn_seq=turn_seq,
+            **source_fields,
         )
     return False
 
@@ -436,7 +533,7 @@ async def persist_chat_memory(
                     assistant_content,
                     metadata=assistant_metadata,
                 )
-    except sqlite3.Error as ex:  # pragma: no cover - live storage failure boundary
+    except (sqlite3.Error, RedisError) as ex:  # pragma: no cover - live storage failure boundary
         if owned_commit:
             raise ConversationGateUnavailableError(
                 "conversation turn commit failed"
@@ -450,7 +547,7 @@ async def persist_chat_memory(
     if case_state is not None:
         try:
             await memory.save_case_state(user_id, conv_id, state=case_state)
-        except sqlite3.Error as ex:  # pragma: no cover - live storage failure boundary
+        except (sqlite3.Error, RedisError) as ex:  # pragma: no cover - live storage failure boundary
             persisted = False
             logger.error(
                 "CaseState persistence failed; returning generated response: %s",

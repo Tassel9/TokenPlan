@@ -40,7 +40,6 @@ BASE_ENV = {
     "SESSION_DB_PATH": "./data/session/conversations.sqlite3",
     "CHROMA_HOST": "localhost",
     "CHROMA_PORT": "8001",
-    "RABBITMQ_URL": "amqp://tokenplan:tokenplan123@localhost:5672/",
 }
 
 
@@ -52,7 +51,7 @@ class DoctorCheckTests(unittest.TestCase):
             calls.append((host, port))
             return port != 6379, f"{host}:{port}"
 
-        checks = doctor.run_checks(BASE_ENV, probe=probe, timeout_s=0.01)
+        checks = doctor.run_checks(dict(BASE_ENV, MEMORY_BACKEND="sqlite"), probe=probe, timeout_s=0.01)
         check = next(c for c in checks if c.key == "sqlite_session")
         self.assertEqual(doctor.OK, check.status)
         self.assertFalse(any(port == 6379 for _, port in calls))
@@ -75,43 +74,48 @@ class DoctorCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             parent_file = Path(tmp) / "file"
             parent_file.write_text("occupied", encoding="utf-8")
-            env = dict(BASE_ENV, SESSION_DB_PATH=str(parent_file / "sessions.sqlite3"))
+            env = dict(BASE_ENV, MEMORY_BACKEND="sqlite", SESSION_DB_PATH=str(parent_file / "sessions.sqlite3"))
             checks = doctor.run_checks(env, probe=_stub_probe(), timeout_s=0.01)
         storage = next(c for c in checks if c.key == "sqlite_session")
         self.assertEqual(storage.status, doctor.FAIL)
         self.assertIn("SESSION_DB_PATH", storage.hint)
         self.assertEqual(doctor.verdict(checks), "blocked")
 
-    def test_chroma_down_is_fatal_without_embedded_fallback(self):
+    def test_chroma_down_blocks_default_long_term_memory(self):
         checks = doctor.run_checks(
             BASE_ENV, probe=_stub_probe(("localhost", 8001)), timeout_s=0.01
         )
         chroma_check = next(c for c in checks if c.key == "chromadb")
         self.assertEqual(chroma_check.status, doctor.FAIL)
 
-    def test_chroma_down_degrades_when_embedded_fallback_enabled(self):
+    def test_obsolete_memory_chroma_flag_cannot_switch_fact_database(self):
         env = dict(BASE_ENV, MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK="true")
         checks = doctor.run_checks(env, probe=_stub_probe(("localhost", 8001)), timeout_s=0.01)
         chroma_check = next(c for c in checks if c.key == "chromadb")
-        self.assertEqual(chroma_check.status, doctor.WARN)
-        self.assertIn("降级可用", chroma_check.detail)
+        self.assertEqual(chroma_check.status, doctor.FAIL)
+        self.assertIn("知识库", chroma_check.detail)
+        self.assertIn("不可切换", chroma_check.detail)
 
-    def test_rabbitmq_down_is_fatal_while_queue_enabled(self):
-        checks = doctor.run_checks(
-            BASE_ENV, probe=_stub_probe(("localhost", 5672)), timeout_s=0.01
-        )
-        mq_check = next(c for c in checks if c.key == "rabbitmq")
-        self.assertEqual(mq_check.status, doctor.FAIL)
-        self.assertEqual(doctor.verdict(checks), "blocked")
+    def test_async_memory_needs_no_broker_probe(self):
+        calls = []
 
-    def test_rabbitmq_down_is_degradable_when_queue_disabled(self):
-        env = dict(BASE_ENV, LONG_TERM_MEMORY_QUEUE_ENABLED="false")
-        checks = doctor.run_checks(env, probe=_stub_probe(("localhost", 5672)), timeout_s=0.01)
-        mq_check = next(c for c in checks if c.key == "rabbitmq")
-        self.assertEqual(mq_check.status, doctor.WARN)
-        self.assertEqual(doctor.summarize(checks)["fail"], 0)
-        self.assertEqual(doctor.verdict(checks), "degraded")
-        self.assertTrue(any(c.key == "long_term_memory_queue" for c in checks))
+        def probe(host, port, timeout_s):
+            calls.append((host, port))
+            return True, f"{host}:{port}"
+
+        checks = doctor.run_checks(BASE_ENV, probe=probe, timeout_s=0.01)
+        self.assertFalse(any(port == 5672 for _, port in calls))
+        self.assertFalse(any(c.key == "rabbitmq" for c in checks))
+        check = next(c for c in checks if c.key == "long_term_memory_async")
+        self.assertEqual(doctor.OK, check.status)
+
+    def test_async_memory_can_be_explicitly_disabled(self):
+        env = dict(BASE_ENV, LONG_TERM_MEMORY_ASYNC_ENABLED="false")
+        checks = doctor.run_checks(env, probe=_stub_probe(), timeout_s=0.01)
+        check = next(c for c in checks if c.key == "long_term_memory_async")
+        self.assertEqual(doctor.WARN, check.status)
+        self.assertIn("LONG_TERM_MEMORY_ASYNC_ENABLED", check.hint)
+        self.assertEqual(0, doctor.summarize(checks)["fail"])
 
     def test_trace_fingerprint_key_costs_a_warning_only(self):
         checks = doctor.run_checks(
@@ -164,6 +168,8 @@ class CliDispatchTests(unittest.TestCase):
     def test_split_command_routes_doctor(self):
         self.assertEqual(cli.split_command(["doctor", "--json"]), ("doctor", ["--json"]))
         self.assertEqual(cli.split_command(["--doctor"]), ("doctor", []))
+        self.assertEqual(cli.split_command(["migrate-memory", "--dry-run"]),
+                         ("migrate-memory", ["--dry-run"]))
         self.assertEqual(cli.split_command(["你好"]), ("chat", ["你好"]))
         self.assertEqual(cli.split_command([]), ("chat", []))
 

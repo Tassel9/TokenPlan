@@ -15,7 +15,8 @@ class SummaryItem(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    text: str = Field(min_length=1, max_length=500)
+    # Overall rendered-summary length is checked with the model tokenizer.
+    text: str = Field(min_length=1)
     source_turn_seqs: List[int] = Field(min_length=1, max_length=8)
 
     @field_validator("text")

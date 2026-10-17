@@ -1,31 +1,27 @@
 # UrbanOps 市政运维智能体 — Docker Compose 服务编排
-# 分层记忆：SQLite（短期窗口/摘要/归档/会话提交）+ ChromaDB（长期事实）
+# 记忆：Redis（短期窗口/摘要/归档/会话提交）；ChromaDB（长期事实与知识库 RAG）
 
 services:
 
-  # ── RabbitMQ（长期记忆更新任务）──────────────────────────────────────────────
-  rabbitmq:
-    image: rabbitmq:4.3.5-management-alpine
-    container_name: urbanops-rabbitmq
-    ports:
-      - "5672:5672"
-      - "15672:15672"
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec", "--maxmemory-policy", "noeviction", "--requirepass", "${REDIS_PASSWORD:-}"]
     environment:
-      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER:-tokenplan}
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD:-tokenplan123}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    ports:
+      - "6379:6379"
     volumes:
-      - rabbitmq-data:/var/lib/rabbitmq
+      - redis-data:/data
     restart: unless-stopped
     networks:
       - urbanops-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$${REDIS_PASSWORD}\" redis-cli ping"]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 20s
 
-  # ── ChromaDB 向量数据库（长期用户事实）────────────────────────────────────────
+  # ── ChromaDB 向量数据库（知识库 RAG）────────────────────────────────────────
   chromadb:
     image: chromadb/chroma:0.5.23
     container_name: urbanops-chromadb
@@ -84,9 +80,11 @@ services:
       - .env
     environment:
       # 容器内固定值，覆盖 .env 中的本地路径
+      - MEMORY_BACKEND=redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - SESSION_DB_PATH=/app/data/session/conversations.sqlite3
       - LOCAL_BACKEND_DB_PATH=/app/data/local/urbanops_local.sqlite3
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER:-tokenplan}:${RABBITMQ_PASSWORD:-tokenplan123}@rabbitmq:5672/
       - CHROMA_HOST=chromadb
       - CHROMA_PORT=8000
       - CHROMA_PERSIST_DIRECTORY=/app/data/chroma
@@ -99,7 +97,7 @@ services:
       - ./data/eval:/app/data/eval
       - ./logs:/app/logs
     depends_on:
-      rabbitmq:
+      redis:
         condition: service_healthy
       chromadb:
         condition: service_healthy
@@ -142,7 +140,7 @@ networks:
 
 # ── 数据卷 ──────────────────────────────────────────────────────────────────
 volumes:
-  rabbitmq-data:
+  redis-data:
   chromadb-data:
   prometheus-data:
   nginx-logs:

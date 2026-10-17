@@ -1,4 +1,4 @@
-"""SQLite short-term windows, summaries, conversation history and fenced turn results."""
+"""SQLite conversation state and durable user-fact events."""
 from __future__ import annotations
 
 import json
@@ -10,9 +10,10 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Iterator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from memory.consultation_index import project_consultation
+from memory.protected_context import fold_protected
 
 
 class SQLiteSessionStore:
@@ -73,6 +74,16 @@ class SQLiteSessionStore:
                 expires_at REAL NOT NULL,
                 PRIMARY KEY (user_id, memory_key)
             );
+            CREATE TABLE IF NOT EXISTS user_fact_events (
+                user_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                memory_key TEXT NOT NULL,
+                document TEXT NOT NULL,
+                metadata_json TEXT NOT NULL,
+                PRIMARY KEY (user_id, event_id)
+            );
+            CREATE INDEX IF NOT EXISTS idx_user_fact_events_key
+                ON user_fact_events(user_id, memory_key);
             CREATE TABLE IF NOT EXISTS rate_limits (
                 user_key TEXT PRIMARY KEY,
                 tokens REAL NOT NULL,
@@ -111,6 +122,8 @@ class SQLiteSessionStore:
                 ON recent_consultations(user_id, updated_at DESC);
         """)
         columns = {row[1] for row in self._connection.execute("PRAGMA table_info(conversations)")}
+        if "protected_json" not in columns:
+            self._connection.execute("ALTER TABLE conversations ADD COLUMN protected_json TEXT NOT NULL DEFAULT '{}'")
         if "view_revision" not in columns:
             self._connection.execute(
                 "ALTER TABLE conversations ADD COLUMN view_revision INTEGER NOT NULL DEFAULT 0"
@@ -170,6 +183,72 @@ class SQLiteSessionStore:
             "INSERT OR IGNORE INTO conversations(user_id, conv_id) VALUES (?, ?)",
             (user_id, conv_id),
         )
+
+    @staticmethod
+    def _profile_rows(db: sqlite3.Connection, user_id: str) -> List[Dict[str, Any]]:
+        return [
+            {"id": row[0], "document": row[1], "metadata": json.loads(row[2])}
+            for row in db.execute(
+                "SELECT event_id, document, metadata_json FROM user_fact_events "
+                "WHERE user_id=? ORDER BY rowid", (user_id,),
+            ).fetchall()
+        ]
+
+    def list_profile_events(self, user_id: str) -> List[Dict[str, Any]]:
+        with self._lock:
+            return self._profile_rows(self._connection, user_id)
+
+    def count_profile_events(self) -> int:
+        """Total stored events for maintenance and offline benchmark reporting."""
+        with self._lock:
+            return int(self._connection.execute("SELECT count(*) FROM user_fact_events").fetchone()[0])
+
+    def mutate_profile_events(
+        self,
+        user_id: str,
+        mutation: Callable[[List[Dict[str, Any]]], List[Dict[str, Any]]],
+    ) -> None:
+        """Resolve and persist one user's event changes in one write transaction.
+
+        The callback must be synchronous and perform no network work. Existing
+        events are immutable; retraction may remove them and append a tombstone.
+        Events are independent of session cleanup. Retention cleanup may replace
+        expired versions with a value-free boundary so older values cannot return.
+        """
+        with self._write() as db:
+            before = {row["id"]: row for row in self._profile_rows(db, user_id)}
+            after = {}
+            for row in mutation(self._profile_rows(db, user_id)):
+                event_id = row["id"]
+                metadata = row["metadata"]
+                if not isinstance(event_id, str) or not event_id:
+                    raise ValueError("Fact event requires a non-empty string id")
+                if metadata.get("user_id") != user_id:
+                    raise ValueError("Fact event user_id does not match transaction scope")
+                if event_id in after:
+                    raise ValueError("Duplicate fact event id")
+                if event_id in before and row != before[event_id]:
+                    raise ValueError("Existing fact events are immutable")
+                after[event_id] = row
+            db.executemany(
+                "DELETE FROM user_fact_events WHERE user_id=? AND event_id=?",
+                [(user_id, event_id) for event_id in before.keys() - after.keys()],
+            )
+            db.executemany(
+                "INSERT INTO user_fact_events(user_id, event_id, memory_key, document, "
+                "metadata_json) VALUES (?, ?, ?, ?, ?)",
+                [
+                    (user_id, event_id, str(row["metadata"].get("memory_key") or ""),
+                     row["document"], json.dumps(row["metadata"], ensure_ascii=False))
+                    for event_id, row in after.items() if event_id not in before
+                ],
+            )
+
+    def iter_profile_users(self):
+        with self._lock:
+            return [row[0] for row in self._connection.execute(
+                "SELECT DISTINCT user_id FROM user_fact_events ORDER BY user_id"
+            ).fetchall()]
 
     def _row(self, user_id: str, conv_id: str) -> Optional[sqlite3.Row]:
         with self._lock:
@@ -268,27 +347,31 @@ class SQLiteSessionStore:
                 return False
             row = db.execute(
                 "SELECT revision, hot_json, hot_expires_at, history_json, "
-                "history_expires_at, summary_v2, summary_legacy FROM conversations "
+                "history_expires_at, summary_v2, summary_legacy, protected_json FROM conversations "
                 "WHERE user_id=? AND conv_id=?", (user_id, conv_id),
             ).fetchone()
-            revision, hot_raw, hot_exp, history_raw, history_exp, summary, legacy = row
+            revision, hot_raw, hot_exp, history_raw, history_exp, summary, legacy, protected_raw = row
             if int(revision) >= int(turn_seq):
                 return False
             hot = json.loads(hot_raw) if float(hot_exp) > now else []
             history = json.loads(history_raw) if float(history_exp) > now else []
+            if protected_raw == "{}" and history:
+                protected_raw = fold_protected("{}", history)
             hot.extend((user_payload, assistant_payload))
             history.extend((user_payload, assistant_payload))
             history = history[-history_max:]
+            protected = fold_protected(protected_raw if float(history_exp) > now else "{}",
+                                       [user_payload, assistant_payload])
             db.execute(
                 "UPDATE conversations SET revision=?, view_revision=view_revision+1, hot_json=?, hot_expires_at=?, "
-                "history_json=?, history_expires_at=?, "
+                "history_json=?, history_expires_at=?, protected_json=?, "
                 "summary_expires_at=CASE WHEN summary_v2!='' OR summary_legacy!='' "
                 "THEN ? ELSE summary_expires_at END, "
                 "case_json=CASE WHEN ?!='' THEN ? ELSE case_json END, "
                 "case_expires_at=CASE WHEN ?!='' THEN ? ELSE case_expires_at END "
                 "WHERE user_id=? AND conv_id=?",
                 (turn_seq, json.dumps(hot, ensure_ascii=False), now + short_ttl,
-                 json.dumps(history, ensure_ascii=False), now + history_ttl,
+                 json.dumps(history, ensure_ascii=False), now + history_ttl, protected,
                  now + short_ttl, case_json, case_json, case_json,
                  now + case_ttl, user_id, conv_id),
             )
@@ -304,22 +387,25 @@ class SQLiteSessionStore:
             self._ensure(db, user_id, conv_id)
             row = db.execute(
                 "SELECT revision, turn_seq, hot_json, hot_expires_at, history_json, "
-                "history_expires_at FROM conversations WHERE user_id=? AND conv_id=?",
+                "history_expires_at, protected_json FROM conversations WHERE user_id=? AND conv_id=?",
                 (user_id, conv_id),
             ).fetchone()
-            revision, seq, hot_raw, hot_exp, history_raw, history_exp = row
+            revision, seq, hot_raw, hot_exp, history_raw, history_exp, protected_raw = row
             hot = json.loads(hot_raw) if float(hot_exp) > now else []
             history = json.loads(history_raw) if float(history_exp) > now else []
+            if protected_raw == "{}" and history:
+                protected_raw = fold_protected("{}", history)
             hot.extend(payloads)
             history.extend(payloads)
+            protected = fold_protected(protected_raw if float(history_exp) > now else "{}", payloads)
             db.execute(
                 "UPDATE conversations SET revision=?, view_revision=view_revision+1, hot_json=?, hot_expires_at=?, "
-                "history_json=?, history_expires_at=?, "
+                "history_json=?, history_expires_at=?, protected_json=?, "
                 "summary_expires_at=CASE WHEN summary_v2!='' OR summary_legacy!='' "
                 "THEN ? ELSE summary_expires_at END WHERE user_id=? AND conv_id=?",
                 (max(int(revision), int(seq)) + 1, json.dumps(hot, ensure_ascii=False),
                  now + short_ttl, json.dumps(history[-history_max:], ensure_ascii=False),
-                 now + history_ttl, now + short_ttl, user_id, conv_id),
+                  now + history_ttl, protected, now + short_ttl, user_id, conv_id),
             )
 
     def messages(self, user_id: str, conv_id: str, kind: str, *,
@@ -360,23 +446,26 @@ class SQLiteSessionStore:
         with self._lock:
             row = self._connection.execute(
                 "SELECT revision, view_revision, hot_json, hot_expires_at, "
-                "summary_v2, summary_legacy, summary_expires_at "
+                "summary_v2, summary_legacy, summary_expires_at, protected_json, history_expires_at, history_json "
                 "FROM conversations WHERE user_id=? AND conv_id=?", (user_id, conv_id),
             ).fetchone()
         if row is None:
             return None
         return dict(zip(("revision", "generation", "hot_json", "hot_expires_at",
-                         "summary_v2", "summary_legacy", "summary_expires_at"), tuple(row)))
+                         "summary_v2", "summary_legacy", "summary_expires_at", "protected_json", "history_expires_at", "history_json"), tuple(row)))
 
     def publish(self, user_id: str, conv_id: str, *, expected_revision: int,
                 token: str, summary: str, payloads: List[str], ttl: int) -> bool:
         with self._write() as db:
             row = db.execute(
-                "SELECT revision, turn_seq, gate_token, lease_expires_at "
+                "SELECT revision, turn_seq, gate_token, lease_expires_at, view_revision "
                 "FROM conversations WHERE user_id=? AND conv_id=?",
                 (user_id, conv_id),
             ).fetchone()
-            if row is None or int(row[0]) != int(expected_revision):
+            if row is None:
+                return False
+            expected = (int(row[0]), int(row[4])) if isinstance(expected_revision, tuple) else int(row[0])
+            if expected != expected_revision:
                 return False
             if token and not self._owned(db, user_id, conv_id, token, int(row[1])):
                 return False

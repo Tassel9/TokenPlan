@@ -10,6 +10,8 @@ from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+from core.agent_context import AgentContextSnapshot
+from core.task_planning import PlanningTask
 from memory.procedural_memory import ProceduralMemory
 from core.simple_faq_policy import POLICY_VERSION as SIMPLE_FAQ_POLICY_VERSION, simple_faq_intent
 from mcp.retrieval_contracts import FAQ_SEARCH
@@ -103,6 +105,11 @@ class AgentInput:
     prior_result: Dict[str, Any] = field(default_factory=dict)
     trace_recorder: Any = None
     faq_prefetch_allowed: bool = True
+    public_read_only: bool = False
+    planning_task: Optional[PlanningTask] = None
+    attempt_no: int = 1
+    resolved_inputs: Dict[str, str] = field(default_factory=dict)
+    context_snapshot: Optional[AgentContextSnapshot] = None
 
 
 @dataclass
@@ -648,6 +655,14 @@ class SupportAgent(DomainAgent):
 
 def _execution_context(req: AgentInput) -> str:
     """Serialize named memory inputs only at the model-call boundary."""
+    if req.context_snapshot is not None:
+        return ("[本任务的只读上下文快照]\n"
+                "参数仅适用于其request_item_ids；用户提供的参数不等于已核验业务事实。"
+                "前置结果是已验收的Agent输出，不代表用户已选择套餐或授权操作。"
+                "未能明确绑定的参数不得猜测或从其他问题借用，需要时追问。\n"
+                "memory_context仅为历史背景，当前请求优先；其中助手建议不代表用户选择、授权或已完成的业务操作。"
+                "protected_context每条仅对key指定的条件生效，quote中其他条件的有效性以各自记录为准。"
+                + json.dumps(req.context_snapshot.to_payload(), ensure_ascii=False))
     parts: List[str] = []
     case_state = getattr(req, "case_state", {}) or {}
     short_term_context = str(getattr(req, "short_term_context", "") or "")

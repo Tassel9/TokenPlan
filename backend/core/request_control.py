@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Dict
+from typing import Any, Dict, Mapping
 
 
 class RequestControlAction(str, Enum):
@@ -30,7 +30,7 @@ class RequestControlDecision:
 class RequestControlPolicy:
     """Handle interaction controls without expanding the intent label space."""
 
-    POLICY_VERSION = "request-control-v1"
+    POLICY_VERSION = "request-control-v2-interaction-continuity"
 
     _PURE_GREETING = re.compile(
         r"^\s*(?:你好|您好|早上好|下午好|晚上好|嗨|hello|hi|hey)"
@@ -44,10 +44,23 @@ class RequestControlPolicy:
         r"不要(?:机器人|自动)(?:继续)?回复|正式升级(?:给|到)?(?:你们)?负责人)",
         re.I,
     )
+    _PURE_THANKS = re.compile(r"^\s*(?:谢谢(?:你|您)?|多谢|感谢(?:你|您)?|thanks|thank you)[！!。,.，\s]*$", re.I)
     _NEGATED_HANDOFF = re.compile(
-        r"(?:不用|不需要|无需|不必|别|先别|暂时别|不要)(?:再)?(?:给我)?"
-        r"(?:转|找|联系)(?:人工|真人|主管|负责人|专员)",
+        r"(?:先|暂时)?(?:不用|不需要|无需|不必|别|不要)(?:再)?(?:给我)?"
+        r"(?:转|找|联系)?(?:人工(?:客服|专员)?|真人(?:客服)?|主管|负责人|专员)",
         re.I,
+    )
+    _STOP_QUERY = re.compile(
+        r"(?:先|暂时)?(?:不用|不需要|无需|别|不要)(?:再|继续)?(?:帮我|给我)?"
+        r"(?:查(?:询)?|检索|搜(?:索)?|排查)(?:下去|了)?|停止(?:查询|检索|搜索|排查)",
+        re.I,
+    )
+    _INTERACTION_ONLY = re.compile(
+        r"(?:谢谢(?:你|您)?|多谢|感谢|好的?|行|明白了?|知道了?|了解了?|"
+        r"(?:让我|我)(?:先|再)?自己(?:先|再)?(?:试试|试一下|试一试|试一次|尝试(?:一次|一下)?|处理|看看)|"
+        r"(?:我(?:先|再)?|先|再)?(?:试试|试一下|试一试|试一次|尝试(?:一次|一下)?)|"
+        r"先这样|就这样|算了|先|暂时|这次|目前|不过|但是|但|也|并且|就|了|吧|啦|"
+        r"[，,。.!！?？；;、\s])*", re.I,
     )
     _CONDITIONAL_HANDOFF = (
         re.compile(
@@ -65,14 +78,34 @@ class RequestControlPolicy:
     )
 
     @classmethod
-    def evaluate(cls, query: str) -> RequestControlDecision:
+    def evaluate(cls, query: str, case_state: Mapping[str, Any] | None = None) -> RequestControlDecision:
         text = str(query or "").strip()
+        state = case_state or {}
+        pending = (state.get("pending_slots") or state.get("unresolved_question")
+                   or str(state.get("stage") or "").upper() in
+                   {"COLLECTING_INFO", "WAITING_USER", "AWAITING_CONFIRMATION"})
+        if cls._PURE_THANKS.fullmatch(text) and not pending:
+            return RequestControlDecision(RequestControlAction.RESPOND, "pure_thanks")
         if cls._PURE_GREETING.fullmatch(text):
             return RequestControlDecision(
                 RequestControlAction.RESPOND,
                 "pure_greeting",
             )
-        if cls._NEGATED_HANDOFF.search(text):
+        negated = bool(cls._NEGATED_HANDOFF.search(text))
+        remaining = cls._NEGATED_HANDOFF.sub("", text)
+        stopped = bool(cls._STOP_QUERY.search(remaining))
+        interaction = cls._STOP_QUERY.sub("", remaining)
+        # A positive handoff in another clause still applies. In particular,
+        # declining a robot does not mean declining a human.
+        if cls._HANDOFF_MARKER.search(remaining) and not any(
+            pattern.search(remaining) for pattern in cls._CONDITIONAL_HANDOFF
+        ):
+            return RequestControlDecision(RequestControlAction.HANDOFF, "explicit_handoff")
+        if stopped and cls._INTERACTION_ONLY.fullmatch(interaction):
+            return RequestControlDecision(RequestControlAction.RESPOND, "stop_requested")
+        if negated and cls._INTERACTION_ONLY.fullmatch(interaction):
+            return RequestControlDecision(RequestControlAction.RESPOND, "handoff_declined")
+        if negated:
             return RequestControlDecision(
                 RequestControlAction.CONTINUE,
                 "handoff_explicitly_negated",

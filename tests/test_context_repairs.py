@@ -27,9 +27,9 @@ class ContextRepairTests(unittest.TestCase):
                    {"role": "user", "content": "日志我已经留了"},
                    {"role": "assistant", "content": "请补充具体对象"}]
         selected = context(budget=80).select_history(history)
-        self.assertIn(history[0], selected)
-        self.assertIn(history[2], selected)
-        self.assertLessEqual(sum(len(x['role']) + len(x['content']) for x in selected), 80)
+        # An over-budget older turn is withheld as a whole: no partial user
+        # sentence and no orphaned assistant answer enters the source catalog.
+        self.assertEqual(history[2:], selected)
 
     def test_source_selection_recovers_exact_user_words(self):
         query = "这种情况能帮我修好吗？"

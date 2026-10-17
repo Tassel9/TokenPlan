@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import asdict, dataclass, field
+from memory.protected_context import NEW_TASK, CONTINUE_TASK
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional
 
@@ -28,12 +30,15 @@ class CustomerServiceCase:
     last_intents: List[str] = field(default_factory=list)
     last_action: str = ""
     unresolved_question: str = ""
+    pending_questions: List[Dict[str, Any]] = field(default_factory=list)
+    entity_sources: Dict[str, int] = field(default_factory=dict)
     # User statements only; these are discussion context, not verified business status.
     discussion_messages: List[str] = field(default_factory=list)
     # Recall selection belongs to this conversation; it never imports old leases or business status.
     pending_consultation_ids: List[str] = field(default_factory=list)
     consultation_source_conv_id: str = ""
     consultation_source_revision: int = 0
+    consultation_source_epoch: str = ""
     consecutive_unmatched_turns: int = 0
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -56,6 +61,7 @@ class CustomerServiceCase:
         for name in (
             "case_id", "stage", "last_action", "unresolved_question", "updated_at",
             "consultation_source_conv_id",
+            "consultation_source_epoch",
         ):
             value = data.get(name)
             if isinstance(value, str):
@@ -64,6 +70,12 @@ class CustomerServiceCase:
         state.last_intents = _unique_strings(data.get("last_intents"))
         state.submitted_materials = _unique_strings(data.get("submitted_materials"))
         state.pending_slots = _unique_strings(data.get("pending_slots"))
+        questions = data.get("pending_questions") or []
+        sources = data.get("entity_sources") or {}
+        state.pending_questions = [dict(item) for item in (questions if isinstance(questions, list) else [])
+                                   if isinstance(item, Mapping) and isinstance(item.get("text"), str) and item["text"].strip()]
+        state.entity_sources = {str(key): int(value) for key, value in (sources if isinstance(sources, dict) else {}).items()
+                                if isinstance(value, int) and value >= 0}
         state.discussion_messages = _unique_strings(data.get("discussion_messages"))[-4:]
         state.pending_consultation_ids = _unique_strings(data.get("pending_consultation_ids"))[:5]
         try:
@@ -83,7 +95,7 @@ class CustomerServiceCase:
 
     @property
     def is_active(self) -> bool:
-        return bool(self.last_intents or self.entities or self.pending_slots)
+        return bool(self.last_intents or self.entities or self.pending_slots or self.pending_questions)
 
     def to_intent_context(self) -> Dict[str, Any]:
         """Return only facts that may help intent recognition and routing."""
@@ -96,6 +108,8 @@ class CustomerServiceCase:
             "last_intents": self.last_intents,
             "last_action": self.last_action,
             "unresolved_question": self.unresolved_question,
+            "pending_questions": self.pending_questions,
+            "entity_sources": self.entity_sources,
             "discussion_messages": self.discussion_messages,
             "consultation_source_conv_id": self.consultation_source_conv_id,
             "consecutive_unmatched_turns": self.consecutive_unmatched_turns,
@@ -109,6 +123,7 @@ def decide_case_update(
     intents: Optional[List[str]] = None,
     explicit_entities: Optional[Dict[str, List[str]]] = None,
     request_control_action: str = "",
+    message: str = "",
 ) -> CaseUpdateMode:
     """Choose whether this turn preserves, continues, or replaces the active task."""
     action = str(request_control_action or "").strip().lower()
@@ -116,6 +131,9 @@ def decide_case_update(
         return "preserve"
     if action == "handoff":
         return "continue" if state.is_active else "preserve"
+
+    if NEW_TASK.search(message.strip()):
+        return "replace"
 
     rewrite = str(rewrite_status or "").strip().lower()
     if rewrite in {"ambiguous", "failed"}:
@@ -128,17 +146,16 @@ def decide_case_update(
         return "preserve"
     if not state.is_active:
         return "replace"
-    if rewrite == "resolved":
-        return "continue"
-    if state.stage in {"resolved", "escalated"}:
-        return "replace"
-
     incoming = _normalize_entities(explicit_entities)
     for key in _PRIMARY_ENTITY_KEYS:
         previous_values = set(state.entities.get(key, []))
         current_values = set(incoming.get(key, []))
         if previous_values and current_values and previous_values.isdisjoint(current_values):
             return "replace"
+    if rewrite == "resolved" or CONTINUE_TASK.search(message.strip()):
+        return "continue"
+    if state.stage in {"resolved", "escalated"}:
+        return "replace"
     if current_intents.intersection(state.last_intents):
         return "continue"
     return "replace"
@@ -155,6 +172,7 @@ def merge_case_state(
     verified_updates: Optional[Iterable[CaseUpdatePayload]] = None,
     status: str = "",
     reason_code: str = "",
+    turn_seq: int = 0,
 ) -> CustomerServiceCase:
     """Apply one turn using explicit field rules instead of a generic deep merge."""
     if mode == "preserve":
@@ -185,6 +203,7 @@ def merge_case_state(
             current.entities[key] = values
     for key, values in _normalize_entities(explicit_entities).items():
         current.entities[key] = values
+        current.entity_sources[key] = max(0, int(turn_seq))
 
     confirmed_stages: List[str] = []
     confirmed_materials: List[str] = []
@@ -206,7 +225,7 @@ def merge_case_state(
         current.pending_slots = _pending_slots(current, normalized_intents)
         if current.pending_slots:
             current.unresolved_question = "请补充" + "、".join(current.pending_slots)
-        else:
+        elif str(status).upper() == "COMPLETED" and not current.pending_questions:
             current.unresolved_question = ""
 
     normalized_status = str(status or "").upper()
@@ -244,6 +263,62 @@ def _detect_action(text: str) -> str:
         if any(pattern in lowered for pattern in patterns):
             return action
     return ""
+
+
+def update_pending_questions(state: CustomerServiceCase, result: Any, *, turn_seq: int = 0) -> CustomerServiceCase:
+    """Record guarded execution questions with task ownership, never as user facts."""
+    updated = CustomerServiceCase.from_dict(state.to_dict(), user_id="state", conv_id=state.case_id)
+    control_reason = (getattr(result, "request_control", {}) or {}).get("reason_code", "")
+    if control_reason in {"handoff_declined", "handoff_explicitly_negated", "stop_requested"}:
+        # An interaction decision is not a new diagnostic question or evidence
+        # that the fault was repaired. Remove only the declined handoff prompt.
+        handoff_question = re.compile(
+            r"^\s*(?:是否|要不要|需不需要|需要我|需要|请确认是否).{0,8}"
+            r"人工(?:客服)?(?:协助|帮忙)?(?:核验|办理|处理|继续处理)?(?:或办理)?[?？。！!\s]*$")
+        updated.pending_questions = [item for item in updated.pending_questions
+                                     if not handoff_question.search(str(item.get("text") or ""))]
+        if handoff_question.search(updated.unresolved_question):
+            updated.unresolved_question = "；".join(str(item.get("text") or "")
+                for item in updated.pending_questions) or "原问题尚未确认解决"
+        # Pure controls preserve the whole task; mixed messages continue below
+        # to collect the current business question's actual execution outcome.
+        if control_reason in {"handoff_declined", "stop_requested"}:
+            if updated.stage.upper() == "AWAITING_CONFIRMATION":
+                updated.stage = "ready"
+            return updated
+    previous_questions = list(updated.pending_questions)
+    previous_unresolved = updated.unresolved_question
+    executions = getattr(result, "intent_executions", []) or []
+    settled = {row.get("task_id") or row.get("intent_id") for row in executions
+               if row.get("status") in {"COMPLETED", "WAITING_USER"}}
+    questions = [item for item in updated.pending_questions if item.get("task_id") not in settled]
+    for row in executions:
+        if row.get("status") != "WAITING_USER":
+            continue
+        text = row.get("clarification_question") or "；".join(row.get("open_items") or [])
+        if text:
+            questions.append(dict(text=text, task_id=row.get("task_id") or row.get("intent_id", ""),
+                                  intent=row.get("intent", ""), source_turn_seq=turn_seq, source="assistant_execution"))
+    status = str(getattr(result, "status", "")).upper()
+    if status == "WAITING_USER" and not questions and getattr(result, "response", ""):
+        questions.append(dict(text=result.response, task_id="", intent="", source_turn_seq=turn_seq,
+                              source="assistant_response"))
+    if status == "COMPLETED" and control_reason == "handoff_explicitly_negated" and not any(
+        update.stage == "resolved" for update in (getattr(result, "verified_case_updates", []) or [])
+    ):
+        questions = previous_questions
+    elif status == "COMPLETED":
+        questions = []
+    updated.pending_questions = questions
+    if questions:
+        updated.unresolved_question = "；".join(item["text"] for item in questions)
+        if updated.stage not in {"processing", "resolved", "escalated"}:
+            updated.stage = "collecting_info"
+    elif control_reason == "handoff_explicitly_negated" and previous_unresolved:
+        updated.unresolved_question = previous_unresolved
+    elif not updated.pending_slots:
+        updated.unresolved_question = ""
+    return updated
 
 
 def update_discussion_state(state: CustomerServiceCase, message: str,

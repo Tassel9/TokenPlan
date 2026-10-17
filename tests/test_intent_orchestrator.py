@@ -282,12 +282,15 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
             "rag_knowledge": CapturingAgent("rag_knowledge"),
             "business_data_query": CapturingAgent("business_data_query"),
         }
+        async def recall_for_task(query):
+            return "memory-development" if "401" in query else "memory-billing"
         result = await build_orchestrator(decide, agents).run(Request(
             query,
             "u1",
             "c1",
             short_term_context="完整历史不应下发",
             long_term_context="完整画像不应下发",
+            long_term_recall=recall_for_task,
             case_state={"order_id": "ORDER-OTHER"},
         ))
 
@@ -297,6 +300,17 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("仅排查插件401", technical.message)
         self.assertNotIn("ORDER-9", technical.message)
         self.assertEqual({"error_code": ["401"]}, technical.entities)
+        snapshot = technical.context_snapshot.to_payload()
+        self.assertEqual("memory-development", snapshot["memory_context"]["long_term"])
+        self.assertNotIn("memory-billing", str(snapshot))
+        self.assertNotIn("ORDER-9", str(snapshot))
+        self.assertEqual("memory-billing", billing.context_snapshot.memory_context["long_term"])
+        self.assertEqual("historical_background", snapshot["memory_context"]["authority"])
+        self.assertFalse(snapshot["memory_context"]["is_user_confirmation"])
+        with self.assertRaises(TypeError):
+            technical.context_snapshot.memory_context["long_term"] = "changed"
+        snapshot["memory_context"]["long_term"] = "detached-copy"
+        self.assertEqual("memory-development", technical.context_snapshot.memory_context["long_term"])
         self.assertEqual("agent_memory_policy", technical.agent_memory_context["authority"])
         self.assertEqual([], technical.agent_memory_context["own_memory"])
         self.assertEqual([], technical.agent_memory_context["related_memory"])
@@ -315,6 +329,17 @@ class IntentOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("完整历史不应下发", str(billing.agent_memory_context))
         self.assertNotIn("完整画像不应下发", str(billing.agent_memory_context))
+
+        # A caller without per-task recall must not broadcast a preloaded
+        # compound-request profile to unrelated specialists.
+        received.clear()
+        await build_orchestrator(decide, agents).run(Request(
+            query, "u1", "c1", long_term_context="compound-private-background",
+        ))
+        self.assertEqual(2, len(received))
+        for request in received:
+            self.assertEqual({}, dict(request.context_snapshot.memory_context))
+            self.assertNotIn("compound-private-background", str(request.context_snapshot.to_payload()))
 
 
     async def test_ambiguous_request_waits_without_agent_execution(self):

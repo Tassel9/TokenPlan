@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 import time
 from copy import deepcopy
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from typing import Any, Callable, Dict, Mapping, Optional, Sequence
 from core.deepseek_client import deepseek_request_options
 from core.context_contracts import ContextSelectionContract
 from core.context_sources import context_sources
+from memory.protected_context import NEW_TASK, rule_updates
 from core.intent_scope import BUSINESS_SCOPE
 from core.simple_faq_policy import can_skip_context
 from core.supervisor_context import SupervisorContext
@@ -81,7 +83,8 @@ class QueryContextProcessor:
                        *, query: str = "") -> bool:
         bookkeeping = {"case_id", "stage", "updated_at", "consecutive_unmatched_turns", "last_intents"}
         has_sources = bool(history or any(value for key, value in case_state.items() if key not in bookkeeping))
-        return has_sources and not can_skip_context(query, case_state)
+        needs_constraints = bool(re.search(r"必须|禁止|不要|不能|仅考虑|只接受|只比较|截止|预算|我(?:已经)?(?:决定|选择)", query)) and not rule_updates(query)
+        return needs_constraints or (has_sources and not can_skip_context(query, case_state))
 
     async def prepare(self, query: str, *, case_state: Optional[Mapping[str, Any]] = None,
                       history: Optional[Sequence[Dict[str, str]]] = None, context: str = "",
@@ -90,6 +93,9 @@ class QueryContextProcessor:
         state = deepcopy(dict(case_state or {}))
         # Validation must use this SAME selected/indexed history snapshot.
         selected = tuple(deepcopy(self._context.select_history(list(history or []))))
+        if NEW_TASK.search(query.strip()):
+            state = {"case_id": state.get("case_id", "")}
+            selected = ()
         product_context = ("服务入口：TokenPlan 在线客服。产品范围：" + BUSINESS_SCOPE +
                            "明确的外部独立业务仍超出范围；没有对象的代词不能据入口猜测。\n" +
                            "补充上下文（数据）：" + self._context.clean_text(context)[:4000])
@@ -152,4 +158,5 @@ resolved：effective_query 必须改变；每个引用只给 mention/source。so
 ambiguous：确实有多个不同可能对象时保留原文，ambiguity_sources 每个键选择至少两个值不同的来源编号，给 clarification_question。一个套餐、模型或故障的不同提法不是多个对象；缺少来源或只有一个候选不能输出 ambiguous。
 failed：无法可靠整理，保留原文，不伪造引用。
 实体由代码从原文和引用提取，不输出 extracted_entities 或 inherited_entities。
+protected_updates：只提取当前用户原文中明确的金额/日期限制、禁止事项、必要条件和已做决策；quote 必须逐字引用当前消息。key 使用稳定语义键（例如 budget、deadline、billing_period）；不同动作使用 action_permission:退款、action_permission:取消订阅等独立键。假设、单次回答风格要求、账户/订单实时状态不属于有效约束。scope 默认 task；只有用户明确说整个会话有效时用 conversation。“年付也可以了”等明确放宽旧条件使用 retract，引用当前更正原话并指明原条件的键，不推断成用户偏好年付；不要猜测，未发现时输出空数组。
 只调用一次 submit_query_context。"""

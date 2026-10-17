@@ -24,16 +24,16 @@ from mcp.knowledge_search_service import KnowledgeSearchService
 from mcp.tool_registry import ToolRegistry
 from mcp.retrieval_tools import ReadonlyQuery, RetrievalToolSuite
 from memory.conversation_memory import MemoryManager
-from memory.profile_update_queue import RabbitMQProfileUpdateQueue
+from memory.profile_updates import AsyncProfileUpdater
 from monitor.execution_trace import (
     ExecutionTraceService,
     NoopTraceStore,
     SQLiteTraceStore,
 )
 from runtime.agent_health import AgentHealthConfig, AgentHealthTracker
-from runtime.request_rate_limit import SQLiteRequestRateLimiter
+from runtime.request_rate_limit import SessionRequestRateLimiter
 from runtime.resource_limits import ResourceConcurrencyLimits
-from runtime.sqlite_conversation_turn_gate import SQLiteConversationTurnGate
+from runtime.session_conversation_turn_gate import SessionConversationTurnGate
 from skills.registry import SkillRegistry
 from skills.runtime_tools import register_skill_resource_tool
 
@@ -55,20 +55,12 @@ class AppServices:
     traces: ExecutionTraceService
     chat_service: ChatService
     resource_limits: Optional[ResourceConcurrencyLimits] = None
-    profile_updates: Optional[RabbitMQProfileUpdateQueue] = None
-    request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None
-    conversation_turn_gate: Optional[SQLiteConversationTurnGate] = None
+    profile_updates: Optional[AsyncProfileUpdater] = None
+    request_rate_limiter: Optional[SessionRequestRateLimiter] = None
+    conversation_turn_gate: Optional[SessionConversationTurnGate] = None
     retrieval_tools: Optional[RetrievalToolSuite] = None
 
     async def start(self) -> None:
-        preload_memory_embedding = getattr(
-            self.memory,
-            "preload_profile_embedding",
-            None,
-        )
-        if preload_memory_embedding is not None:
-            await asyncio.to_thread(preload_memory_embedding)
-            logger.info("长期记忆中文 BGE Embedding 预热完成")
         if self.profile_updates is not None:
             await self.profile_updates.start()
         if self.knowledge_search.reranker_config.preload:
@@ -111,9 +103,9 @@ def build_app_services(
     skills: Optional[SkillRegistry] = None,
     agent_health: Optional[AgentHealthTracker] = None,
     traces: Optional[ExecutionTraceService] = None,
-    profile_updates: Optional[RabbitMQProfileUpdateQueue] = None,
-    request_rate_limiter: Optional[SQLiteRequestRateLimiter] = None,
-    conversation_turn_gate: Optional[SQLiteConversationTurnGate] = None,
+    profile_updates: Optional[AsyncProfileUpdater] = None,
+    request_rate_limiter: Optional[SessionRequestRateLimiter] = None,
+    conversation_turn_gate: Optional[SessionConversationTurnGate] = None,
     readonly_business_query: Optional[ReadonlyQuery] = None,
 ) -> AppServices:
     """Construct API/CLI dependencies without hidden handler introspection."""
@@ -123,29 +115,6 @@ def build_app_services(
     chroma_port = int(os.getenv("CHROMA_PORT", "8000"))
     chroma_path = os.getenv("CHROMA_PERSIST_DIRECTORY", "/app/data/chroma")
     supervisor_options = _supervisor_semantic_options()
-    profile_embedding_model = os.getenv(
-        "LONG_TERM_MEMORY_EMBEDDING_MODEL",
-        BGE_DEFAULT_MODEL,
-    ).strip()
-    profile_embedding_revision = os.getenv(
-        "LONG_TERM_MEMORY_EMBEDDING_REVISION",
-        BGE_DEFAULT_REVISION,
-    ).strip()
-    profile_embedding_device = (
-        os.getenv("LONG_TERM_MEMORY_EMBEDDING_DEVICE")
-        or supervisor_options["embedding_device"]
-    )
-    shared_bge_provider: Optional[BGEEmbeddingProvider] = None
-    if (
-        supervisor_options["embedding_model"] == profile_embedding_model
-        and supervisor_options["embedding_device"] == profile_embedding_device
-    ):
-        shared_bge_provider = BGEEmbeddingProvider(
-            model_name=profile_embedding_model,
-            device=profile_embedding_device,
-            revision=profile_embedding_revision,
-            cache_size=supervisor_options["embedding_cache_size"],
-        )
     resource_limits = ResourceConcurrencyLimits.create(
         llm_max_concurrency=_env_int("LLM_MAX_CONCURRENCY", 8),
         retrieval_max_concurrency=_env_int("RETRIEVAL_MAX_CONCURRENCY", 16),
@@ -153,26 +122,17 @@ def build_app_services(
     )
 
     resolved_memory = memory or MemoryManager(
-        chroma_host=chroma_host,
-        chroma_port=chroma_port,
-        chroma_path=chroma_path,
         api_key=cfg["api_key"],
         base_url=cfg.get("base_url"),
         model=cfg["model"],
-        profile_embedding_model=profile_embedding_model,
-        profile_embedding_revision=profile_embedding_revision,
-        profile_embedding_device=profile_embedding_device,
-        profile_embedding_provider=shared_bge_provider,
-        allow_embedded_chroma_fallback=_env_bool(
-            "MEMORY_ALLOW_EMBEDDED_CHROMA_FALLBACK",
-            False,
-        ),
         resource_limits=resource_limits,
         history_max_messages=_env_int("SESSION_HISTORY_MAX_MESSAGES", 100),
         history_page_size=_env_int("SESSION_HISTORY_PAGE_SIZE", 50),
-        hot_memory_max_messages=_env_int("SESSION_HOT_MEMORY_MAX_MESSAGES", 40),
+        history_ttl_seconds=_env_int("SESSION_HISTORY_TTL_SECONDS", 7 * 86400),
+        hot_memory_max_messages=_env_int("SESSION_HOT_MEMORY_MAX_MESSAGES", 20),
         short_term_token_limit=_env_int("SHORT_TERM_TOKEN_LIMIT", 6000),
         recent_turns=_env_int("SHORT_TERM_RECENT_TURNS", 5),
+        summary_token_limit=_env_int("SHORT_TERM_SUMMARY_TOKEN_LIMIT", 1000),
         summary_output_token_limit=_env_int(
             "SHORT_TERM_SUMMARY_MAX_TOKENS",
             2048,
@@ -192,8 +152,26 @@ def build_app_services(
         ),
         fact_injection_mode=os.getenv(
             "LONG_TERM_MEMORY_FACT_INJECTION",
-            "full",
+            "recall",
         ).strip(),
+        long_term_memory_engine=os.getenv("LONG_TERM_MEMORY_ENGINE", "mem0_flow").strip(),
+        memory_context_token_budget=_env_int("LONG_TERM_MEMORY_CONTEXT_TOKEN_BUDGET", 800),
+        memory_recall_max=_env_int("LONG_TERM_MEMORY_RECALL_MAX", 5),
+        memory_extraction_token_limit=_env_int("LONG_TERM_MEMORY_EXTRACTION_TOKEN_LIMIT", 12000),
+        memory_retention_days={
+            "user_fact": _env_int("LONG_TERM_MEMORY_FACT_TTL_DAYS", 180),
+            "user_preference": _env_int("LONG_TERM_MEMORY_PREFERENCE_TTL_DAYS", 365),
+            "user_plan": _env_int("LONG_TERM_MEMORY_PLAN_TTL_DAYS", 30),
+            "assistant_advice": _env_int("LONG_TERM_MEMORY_ADVICE_TTL_DAYS", 30),
+            "project_decision": _env_int("LONG_TERM_MEMORY_DECISION_TTL_DAYS", 180),
+        },
+        memory_backend=os.getenv("MEMORY_BACKEND", "redis"),
+        redis_host=os.getenv("REDIS_HOST", "redis"),
+        redis_port=_env_int("REDIS_PORT", 6379),
+        redis_db=_env_int("REDIS_DB", 0),
+        redis_password=os.getenv("REDIS_PASSWORD") or None,
+        chroma_host=chroma_host,
+        chroma_port=chroma_port,
         session_db_path=os.getenv(
             "SESSION_DB_PATH", "./data/session/conversations.sqlite3",
         ),
@@ -201,7 +179,7 @@ def build_app_services(
     session_store = getattr(resolved_memory, "session_store", None)
     resolved_request_rate_limiter = request_rate_limiter
     if resolved_request_rate_limiter is None and session_store is not None:
-        resolved_request_rate_limiter = SQLiteRequestRateLimiter(
+        resolved_request_rate_limiter = SessionRequestRateLimiter(
             session_store,
             requests=_env_int("CHAT_RATE_LIMIT_REQUESTS", 30),
             window_seconds=_env_int("CHAT_RATE_LIMIT_WINDOW_SECONDS", 60),
@@ -213,35 +191,42 @@ def build_app_services(
         and session_store is not None
         and _env_bool("CHAT_TURN_GATE_ENABLED", True)
     ):
-        resolved_conversation_turn_gate = SQLiteConversationTurnGate(
+        resolved_conversation_turn_gate = SessionConversationTurnGate(
             session_store,
             lease_seconds=_env_int("CHAT_TURN_LEASE_SECONDS", 30),
             renew_interval_seconds=_env_int("CHAT_TURN_RENEW_SECONDS", 10),
         )
-    queue_enabled = _env_bool("LONG_TERM_MEMORY_QUEUE_ENABLED", True)
+    updates_enabled = _env_bool("LONG_TERM_MEMORY_ASYNC_ENABLED", True)
     if profile_updates is not None:
         resolved_profile_updates = profile_updates
     elif (
-        queue_enabled
+        updates_enabled
         and hasattr(resolved_memory, "process_profile_update")
     ):
-        resolved_profile_updates = RabbitMQProfileUpdateQueue(
-            url=os.getenv(
-                "RABBITMQ_URL",
-                "amqp://tokenplan:tokenplan123@rabbitmq:5672/",
-            ),
+        resolved_profile_updates = AsyncProfileUpdater(
             handler=resolved_memory.process_profile_update,
+            batch_handler=resolved_memory.process_profile_update_batch,
+            explicit_handler=resolved_memory.process_explicit_profile_update,
+            cleanup_handler=resolved_memory.cleanup_expired_profile_facts,
+            extraction_interval_turns=_env_int("LONG_TERM_MEMORY_EXTRACTION_INTERVAL_TURNS", 10),
+            cleanup_interval_s=_env_float("LONG_TERM_MEMORY_CLEANUP_INTERVAL_S", 300.0),
+            outbox_store=session_store if hasattr(session_store, "iter_profile_outbox") else None,
             stage_handler=resolved_memory.stage_profile_update,
-            cleanup_handler=resolved_memory.clear_staged_profile_update,
-            worker_enabled=_env_bool("LONG_TERM_MEMORY_WORKER_ENABLED", True),
-            prefetch_count=_env_int("LONG_TERM_MEMORY_WORKER_PREFETCH", 1),
             max_attempts=_env_int("LONG_TERM_MEMORY_MAX_ATTEMPTS", 3),
             retry_backoff_s=_env_float("LONG_TERM_MEMORY_RETRY_BACKOFF_S", 0.5),
+            shutdown_timeout_s=_env_float("LONG_TERM_MEMORY_SHUTDOWN_TIMEOUT_S", 10.0),
+            idle_flush_seconds=_env_float("LONG_TERM_MEMORY_IDLE_FLUSH_SECONDS", 120.0)
+                if getattr(resolved_memory, "_long_term_memory_engine", "") == "mem0_flow" else 0.0,
+            batch_token_limit=_env_int("LONG_TERM_MEMORY_EXTRACTION_TOKEN_LIMIT", 12000),
+            token_counter=getattr(resolved_memory, "_count_text_tokens", None)
+                if getattr(resolved_memory, "_long_term_memory_engine", "") == "mem0_flow" else None,
+            explicit_predicate=resolved_memory._memory_flow.explicit_request
+                if getattr(resolved_memory, "_long_term_memory_engine", "") == "mem0_flow" else None,
         )
     else:
         resolved_profile_updates = None
-        if not queue_enabled:
-            logger.warning("长期记忆队列已关闭；当前进程不会执行长期记忆写入")
+        if not updates_enabled:
+            logger.warning("长期记忆异步写入已关闭")
     resolved_kb = knowledge_base or KnowledgeBase(
         chroma_host=chroma_host,
         chroma_port=chroma_port,
@@ -297,7 +282,7 @@ def build_app_services(
         ))
     else:
         resolved_traces = ExecutionTraceService(NoopTraceStore())
-    supervisor_embedding_provider = shared_bge_provider or BGEEmbeddingProvider(
+    supervisor_embedding_provider = BGEEmbeddingProvider(
         model_name=supervisor_options["embedding_model"],
         device=supervisor_options["embedding_device"],
         revision=supervisor_options["embedding_revision"],
@@ -345,6 +330,7 @@ def build_app_services(
         orchestrator=orchestrator,
         traces=resolved_traces,
         profile_updates=resolved_profile_updates,
+        conversation_turn_gate=resolved_conversation_turn_gate,
     )
     return AppServices(
         config=cfg,

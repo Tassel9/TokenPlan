@@ -1,9 +1,10 @@
-"""SQLite-backed per-user request rate limiting for the chat boundary."""
+"""Session-store per-user request rate limiting for the chat boundary."""
 from __future__ import annotations
 
 import hashlib
 import logging
 import sqlite3
+from redis.exceptions import RedisError
 from dataclasses import dataclass
 
 from memory.sqlite_session_store import SQLiteSessionStore
@@ -19,8 +20,8 @@ class RateLimitDecision:
     degraded: bool = False
 
 
-class SQLiteRequestRateLimiter:
-    """Per-user token bucket updated in one SQLite write transaction."""
+class SessionRequestRateLimiter:
+    """Per-user token bucket updated atomically in the configured store."""
 
     def __init__(self, store: SQLiteSessionStore, *, requests: int = 30,
                  window_seconds: int = 60, enabled: bool = True) -> None:
@@ -40,8 +41,12 @@ class SQLiteRequestRateLimiter:
                 digest[:24], rate=self.requests / self.window_seconds,
                 capacity=self.requests,
             )
-        except sqlite3.Error as ex:
+        except (sqlite3.Error, RedisError) as ex:
             logger.warning("聊天限流检查失败，按降级策略放行: %s", type(ex).__name__)
             return RateLimitDecision(True, 0, 0, degraded=True)
         return RateLimitDecision(allowed, max(0, remaining),
                                  max(1, retry_after) if not allowed else 0)
+
+
+# Compatibility for offline SQLite fixtures.
+SQLiteRequestRateLimiter = SessionRequestRateLimiter

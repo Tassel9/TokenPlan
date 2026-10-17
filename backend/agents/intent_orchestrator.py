@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Mapping, Optional
 
 from anthropic import AsyncAnthropic
 
+from agents.agent_context_builder import AgentContextBuilder
 from agents.agent_registry import AgentRegistration, AgentRegistry, AgentRegistryError
 from agents.intent_router import (
     AgentMessageRoute,
@@ -51,6 +52,8 @@ from core.supervisor_decision import (
 )
 from core.supervisor_few_shot_retriever import SupervisorFewShotRetriever
 from core.request_control import RequestControlAction, RequestControlPolicy
+from core.task_planning import request_items
+from memory.protected_context import working_protected_context
 from memory.conversation_state import CustomerServiceCase, decide_case_update
 from memory.agent_memory import AgentMemoryStore
 from monitor.execution_trace import TraceEventType
@@ -96,6 +99,8 @@ class Request:
     conv_id: str
     short_term_context: str = ""
     long_term_context: str = ""
+    long_term_recall: Any = None
+    protected_context: List[Dict[str, Any]] = field(default_factory=list)
     intent_context: str = ""
     case_state: Dict[str, Any] = field(default_factory=dict)
     history: Optional[List[Dict[str, str]]] = None
@@ -462,7 +467,7 @@ class IntentOrchestrator:
         # 问候、转人工和密钥拦截沿用原来的短路边界，不额外调用补全模型。
         if req.exposed_secret or SECRET.search(req.message) or self._intent_pipeline is None:
             return None
-        if RequestControlPolicy.evaluate(req.message).action in {
+        if RequestControlPolicy.evaluate(req.message, req.case_state).action in {
             RequestControlAction.RESPOND, RequestControlAction.HANDOFF,
         }:
             return None
@@ -523,6 +528,7 @@ class IntentOrchestrator:
             status: str,
             reason_code: str,
             escalated: bool = False,
+            response_action: str = "",
         ) -> IntentOrchestratorResult:
             return IntentOrchestratorResult(
                 request_id=req.request_id,
@@ -532,6 +538,7 @@ class IntentOrchestrator:
                 intents=(routing.intents if routing else []),
                 supervisor_analysis=(analysis.to_dict() if analysis else {}),
                 escalated=escalated,
+                response_action=response_action,
                 latency_ms=(time.monotonic() - started) * 1000,
                 agent_types=[],
                 status=status,
@@ -554,21 +561,27 @@ class IntentOrchestrator:
         if exposed_secret:
             return terminal(response=SAFE_RESPONSE, status=AgentRunStatus.WAITING_USER.value,
                             reason_code="exposed_api_key")
-        control = RequestControlPolicy.evaluate(req.message)
+        control = RequestControlPolicy.evaluate(req.message, req.case_state)
         request_control = control.to_dict()
         if control.action in {
             RequestControlAction.RESPOND,
             RequestControlAction.HANDOFF,
         }:
             is_handoff = control.action == RequestControlAction.HANDOFF
+            preserves_unresolved = control.reason_code in {"handoff_declined", "stop_requested"}
+            still_unresolved = preserves_unresolved and bool(case_state.is_active or req.history)
+            terminal_status = (AgentRunStatus.HANDOFF.value if is_handoff else
+                               AgentRunStatus.WAITING_USER.value if still_unresolved else
+                               AgentRunStatus.COMPLETED.value)
             case_update_mode = decide_case_update(
                 case_state,
+                message=req.message,
                 request_control_action=control.action.value,
             )
             await self._emit_trace(
                 req,
                 TraceEventType.INTENTS_ROUTED,
-                status="HANDOFF" if is_handoff else "COMPLETED",
+                status=terminal_status,
                 reason_code=control.reason_code,
                 metadata={"request_control": dict(request_control)},
             )
@@ -576,13 +589,15 @@ class IntentOrchestrator:
                 response=(
                     "已记录您的人工服务请求，请提供问题摘要、发生时间和已尝试步骤，方便人工客服接手。"
                     if is_handoff
+                    else "好的，停止本轮查询。原问题仍未确认解决；需要继续时可以告诉我。"
+                    if control.reason_code == "stop_requested"
+                    else "好的，先不转人工，你可以自己尝试。原问题仍未确认解决；需要继续时告诉我新的现象。"
+                    if control.reason_code == "handoff_declined"
+                    else "不客气，有其他问题可以继续告诉我。" if control.reason_code == "pure_thanks"
                     else "你好，我是 TokenPlan 助手。你可以直接告诉我套餐、账号、账单或技术问题。"
                 ),
-                status=(
-                    AgentRunStatus.HANDOFF.value
-                    if is_handoff
-                    else AgentRunStatus.COMPLETED.value
-                ),
+                status=terminal_status,
+                response_action=ResponseAction.RESPOND.value if preserves_unresolved else "",
                 reason_code=control.reason_code,
                 escalated=is_handoff,
             )
@@ -787,34 +802,28 @@ class IntentOrchestrator:
                         reason_code=admission.reason_code,
                         open_items=[invocation.focus],
                     )
-                context_view = agent_memory.context_for(
-                    invocation,
-                    request_id=req.request_id,
-                    case_id=case_state.case_id,
-                )
-                agent_input = AgentInput(
-                    request_id=f"{req.request_id}-{invocation.intent_id}",
-                    # The recognizer and Supervisor own the full conversation.
-                    # Specialists receive only their source-grounded delegation.
-                    message=invocation.query,
-                    execution_query=invocation.query,
-                    user_id=req.user_id,
-                    conv_id=req.conv_id,
-                    intent_id=invocation.intent_id,
-                    intent=invocation.intent,
-                    focus=invocation.focus,
-                    faq_prefetch_allowed=(
-                        len(locked_analysis.intents) == 1
-                        and (recognition is None or recognition.route != ORCHESTRATE_ROUTE)
-                    ),
-                    entities={
-                        key: list(values)
-                        for key, values in context_view.entities.items()
-                    },
-                    agent_memory_context=context_view.to_runtime_payload(),
-                    approval_id=req.approval_id,
-                    idempotency_key=req.idempotency_key,
+                task_memory = ""
+                if req.long_term_recall is not None:
+                    task_memory = await req.long_term_recall(invocation.query)
+                elif len(request_items(locked_analysis.intents, req.message)) == 1:
+                    task_memory = req.long_term_context
+                agent_input = AgentContextBuilder().build(
+                    invocation=invocation,
+                    message=next(item for item in messages if item.message_id == invocation.intent_id),
+                    analysis=locked_analysis, original_query=req.message,
+                    request_id=req.request_id, user_id=req.user_id, conv_id=req.conv_id,
+                    case_id=case_state.case_id, memory=agent_memory,
+                    completed=request_results.results, case_state=req.case_state or {},
+                    history=req.history or (),
+                    faq_prefetch_allowed=(len(locked_analysis.intents) == 1
+                        and (recognition is None or recognition.route != ORCHESTRATE_ROUTE)),
+                    public_read_only=isinstance(registration.instance, (SubscriptionAgent, BillingAgent, SupportAgent)),
+                    approval_id=req.approval_id, idempotency_key=req.idempotency_key,
                     trace_recorder=req.trace_recorder,
+                    protected_context=working_protected_context(req.protected_context, req.message,
+                        turn_seq=req.turn_seq, updates=locked_analysis.rewrite.protected_updates,
+                        reset=case_update_mode == "replace"),
+                    long_term_context=task_memory,
                 )
                 invocation_started = time.monotonic()
                 try:

@@ -138,6 +138,7 @@ def recall_consultation(store: Any, user_id: str, conv_id: str, query: str,
     state.pending_consultation_ids = []
     state.consultation_source_conv_id = selected["conv_id"]
     state.consultation_source_revision = selected["revision"]
+    state.consultation_source_epoch = str(selected.get("epoch") or "")
     state.entities = source.entities
     state.last_intents = source.last_intents
     state.pending_slots = source.pending_slots

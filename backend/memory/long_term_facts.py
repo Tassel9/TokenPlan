@@ -2,12 +2,13 @@
 
 The LLM only proposes candidates. This module validates literal user evidence
 (the current message, or recent same-conversation user messages for referent
-resolution), the supported key set and operation semantics before ChromaDB is
+resolution), the supported key set and operation semantics before SQLite is
 mutated.
 """
 from __future__ import annotations
 
 import re
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple
@@ -85,8 +86,27 @@ _LEGACY_OPERATIONS = _ALLOWED_OPERATIONS | {"confirm"}
 _MEMORY_KEY = re.compile(r"^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$")
 _UPDATE_MARKERS = (
     "改成", "换成", "以后", "从现在开始", "今后", "不再", "不要再", "而是",
+    "改用", "改为", "我现在只用", "我目前只用", "我现在只考虑", "我目前只考虑",
     "from now on", "going forward", "change to", "switch to", "no longer", "instead",
 )
+
+
+def affirmative_setting_source(memory_key: str, value: str, text: str) -> bool:
+    """A value mention alone is not a positive first-person setting.
+
+    Ambiguous clauses stay on the semantic extraction path; in particular a
+    rejected value must never become a positive categorical Pending override.
+    """
+    aliases = MEMORY_VALUE_ALIASES.get(memory_key, {}).get(value, (value.casefold(),))
+    for clause in re.split(r"[，,。；;\n]", _normalize_evidence(text)):
+        if not any(alias in clause for alias in aliases):
+            continue
+        if re.search(r"如果|假如|假设|假定|要是|倘若|同事|朋友|同学|客户|别人|他人|他说|她说|[？?]|是否|能否|可不可以|\b(?:if|suppose|colleague|friend)\b", clause, re.IGNORECASE):
+            continue
+        if re.search(r"不要|不想|不接受|不考虑|不用|不再|不能|不允许|禁止|不喜欢|不需要|未使用|没有使用|并非|不是|\b(?:not|never|no longer|don't|do not)\b", clause, re.IGNORECASE):
+            continue
+        return True
+    return False
 _RETRACT_MARKERS = (
     "忘记", "删除记忆", "删掉记忆", "清除记忆", "不用记", "不要记", "别再记住",
     "forget", "delete this memory", "do not remember", "don't remember",
@@ -244,6 +264,11 @@ def parse_fact_candidates(
             )
             if not value:
                 continue
+            enclosing = user_text if evidence_in_current else context_user_text
+            clauses = [clause for clause in re.split(r"[。；;\n]", enclosing)
+                       if source_text in clause]
+            if not affirmative_setting_source(memory_key, value, clauses[0] if clauses else source_text):
+                continue
 
         if memory_key in accepted_by_key:
             duplicate_keys.add(memory_key)
@@ -340,7 +365,7 @@ def detect_pending_memory_mutations(user_text: str) -> List[MemoryFactCandidate]
     This fast path is intentionally narrower than the LLM extractor. It only
     stages an override for an explicit update/retract cue and a single
     unambiguous allowed value or target key. The worker remains authoritative
-    for admitting the durable ChromaDB fact.
+    for admitting the durable SQLite fact.
     """
     source_text = _safe_scalar_text(user_text, limit=500)
     normalized = _normalize_evidence(source_text)
@@ -374,6 +399,8 @@ def detect_pending_memory_mutations(user_text: str) -> List[MemoryFactCandidate]
         matches: Dict[str, List[str]] = {}
         for canonical, aliases in aliases_by_value.items():
             matched = [alias for alias in aliases if alias in normalized]
+            if matched and not affirmative_setting_source(memory_key, canonical, source_text):
+                matched = []
             if matched:
                 matches[canonical] = matched
         if len(matches) > 1 and memory_key == "environment.ide":
@@ -441,11 +468,14 @@ def resolve_profile(
             operation = _event_operation(row)
             metadata = _metadata(row)
             value = str(metadata.get("value") or "").strip()
-            terminal_row = row
-
             if operation == "skip":
                 continue
-            if operation == "retract":
+            if operation == "confirm" and metadata.get("confirmed_event_id"):
+                if current_row is not None and metadata["confirmed_event_id"] == current_row.get("id"):
+                    terminal_row = row
+                continue
+            terminal_row = row
+            if operation in {"retract", "expire"}:
                 current_value = ""
                 current_row = None
                 conflict_values.clear()
@@ -516,6 +546,52 @@ def ttl_days_for(memory_key: str) -> int:
     return MEMORY_FIELDS[str(memory_key)]
 
 
+def purge_expired_fact_events(
+    rows: Sequence[Mapping[str, Any]], *, now: Optional[datetime] = None,
+) -> List[Dict[str, Any]]:
+    """Erase expired values while retaining a value-free ordering boundary.
+
+    A confirmation can extend the lifetime of an older value event, so current
+    value IDs must survive even when their original expires_at has elapsed.
+    """
+    current_time = _as_utc(now or datetime.now(timezone.utc))
+    result = list(rows)
+    keys = {str(_metadata(row).get("memory_key") or "")
+            for row in rows if _is_versioned_fact(row)}
+    for key in keys:
+        events = [row for row in rows if _is_versioned_fact(row)
+                  and _metadata(row).get("memory_key") == key]
+        effective = sorted([row for row in events if _fact_time(row) <= current_time
+                            and _event_operation(row) != "skip"], key=_event_sort_key)
+        if not effective:
+            continue
+        terminal = effective[-1]
+        expiry = _parse_time(_metadata(terminal).get("expires_at"))
+        if expiry is not None and expiry <= current_time:
+            # Repeats no longer create confirmation events. Cover all sources
+            # observed before expiry, including delayed repeats after creation.
+            cutoff = expiry
+            result = [row for row in result if row not in events or _fact_time(row) > cutoff]
+            original = _metadata(terminal)
+            marker_id = hashlib.sha256((str(terminal["id"]) + "|expired").encode()).hexdigest()[:32]
+            metadata = {"schema_version": FACT_SCHEMA_VERSION,
+                        "user_id": original["user_id"], "memory_key": key,
+                        "value": "", "operation": "expire",
+                        "effective_at": cutoff.isoformat(), "expires_at": ""}
+            for field in ("source_conv_id", "source_turn_id", "last_confirmed_at"):
+                if field in original:
+                    metadata[field] = original[field]
+            result.append({"id": marker_id, "document": f"{key}=[已过期]", "metadata": metadata})
+        else:
+            retained = set(resolve_profile(events, now=current_time).current_event_ids)
+            obsolete = [row for row in events if str(row.get("id")) not in retained
+                        and _fact_time(row) <= current_time and _metadata(row).get("value")
+                        and (deadline := _parse_time(_metadata(row).get("expires_at"))) is not None
+                        and deadline <= current_time]
+            result = [row for row in result if row not in obsolete]
+    return result
+
+
 def has_update_cue(source_text: str) -> bool:
     normalized = _normalize_evidence(source_text)
     return any(marker in normalized for marker in _UPDATE_MARKERS)
@@ -552,7 +628,7 @@ def _event_operation(row: Mapping[str, Any]) -> str:
     schema_version = str(metadata.get("schema_version") or "")
     if schema_version in {FACT_SCHEMA_VERSION, PREVIOUS_FACT_SCHEMA_VERSION}:
         operation = str(metadata.get("operation") or "set")
-        return operation if operation in _LEGACY_OPERATIONS else "skip"
+        return operation if operation in _LEGACY_OPERATIONS | {"expire"} else "skip"
 
     status = str(metadata.get("status") or "active")
     if status == "superseded":

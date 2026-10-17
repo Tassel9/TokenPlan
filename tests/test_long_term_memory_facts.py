@@ -22,86 +22,6 @@ from memory.long_term_facts import (
 )
 
 
-class _FakeCollection:
-    def __init__(self):
-        self.rows = {}
-        self.query_distances = {}
-
-    def add(self, *, ids, documents, metadatas, embeddings=None):
-        vectors = embeddings or [None] * len(ids)
-        for memory_id, document, metadata, embedding in zip(
-            ids,
-            documents,
-            metadatas,
-            vectors,
-        ):
-            if memory_id in self.rows:
-                raise ValueError("duplicate id")
-            self.rows[memory_id] = {
-                "document": document,
-                "metadata": dict(metadata),
-                "embedding": embedding,
-            }
-
-    def delete(self, *, ids):
-        for memory_id in ids:
-            self.rows.pop(memory_id, None)
-
-    def get(self, *, where=None, include=None, limit=None):
-        selected = []
-        for memory_id, row in self.rows.items():
-            metadata = row["metadata"]
-            if where and any(metadata.get(key) != value for key, value in where.items()):
-                continue
-            selected.append((memory_id, row))
-        if limit is not None:
-            selected = selected[:limit]
-        return {
-            "ids": [item[0] for item in selected],
-            "documents": [item[1]["document"] for item in selected],
-            "metadatas": [item[1]["metadata"] for item in selected],
-        }
-
-    def query(
-        self,
-        *,
-        n_results,
-        where=None,
-        include=None,
-        query_texts=None,
-        query_embeddings=None,
-    ):
-        selected = []
-        for memory_id, row in reversed(list(self.rows.items())):
-            metadata = row["metadata"]
-            if where and any(metadata.get(key) != value for key, value in where.items()):
-                continue
-            selected.append((memory_id, row))
-        selected = selected[:n_results]
-        return {
-            "ids": [[item[0] for item in selected]],
-            "metadatas": [[item[1]["metadata"] for item in selected]],
-            "distances": [[self.query_distances.get(item[0], 0.2) for item in selected]],
-        }
-
-
-class _FakeEmbeddingProvider:
-    def __init__(self):
-        self.calls = []
-
-    async def embed(self, text, *, is_query):
-        self.calls.append((text, is_query))
-        return [0.1, 0.2]
-
-    def embed_sync(self, text, *, is_query):
-        self.calls.append((text, is_query))
-        return [0.1, 0.2]
-
-    def embed_many_sync(self, texts, *, is_query):
-        self.calls.extend((text, is_query) for text in texts)
-        return [[0.1, 0.2] for _ in texts]
-
-
 def _row(
     memory_id,
     *,
@@ -489,11 +409,13 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.manager = MemoryManager.__new__(MemoryManager)
         self.manager._session_store = SQLiteSessionStore(":memory:")
+        self.manager._fact_injection_mode = "full"  # Explicit offline full-injection contract.
         self.manager._pending_profile_ttl_seconds = self.manager.PROFILE_PENDING_TTL
-        self.manager._profile = _FakeCollection()
-        self.manager._legacy_profile = None
-        self.manager._profile_embedding_provider = _FakeEmbeddingProvider()
         self.manager._profile_locks = [asyncio.Lock() for _ in range(64)]
+
+    @property
+    def profile_rows(self):
+        return {row["id"]: row for row in self.manager._get_profile_rows("user-1")}
 
     def tearDown(self):
         self.manager.session_store.close()
@@ -606,10 +528,10 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
             }, ensure_ascii=False))
         )
         self.manager._apply_profile_candidates = Mock(
-            side_effect=RuntimeError("chroma unavailable")
+            side_effect=RuntimeError("sqlite unavailable")
         )
 
-        with self.assertRaisesRegex(RuntimeError, "chroma unavailable"):
+        with self.assertRaisesRegex(RuntimeError, "sqlite unavailable"):
             await self.manager.process_profile_update(
                 "user-1",
                 "conv-2",
@@ -804,9 +726,9 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
             "style.response_length",
             self.manager._read_pending_profile("user-1"),
         )
-        self.assertEqual({}, self.manager._profile.rows)
+        self.assertEqual({}, self.profile_rows)
 
-    async def test_supersede_appends_but_plain_conflict_and_duplicate_skip(self):
+    async def test_supersede_appends_plain_conflict_and_repeat_skip(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
         self._apply("月付", "set", first)
         self._apply("年付", "set", first + timedelta(hours=1))
@@ -815,21 +737,23 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
 
         profile = await self.manager._get_profile("user-1")
         self.assertEqual("年付", profile["facts"]["preference.billing_cycle"])
-        self.assertEqual(2, len(self.manager._profile.rows))
+        self.assertEqual(2, len(self.profile_rows))
+        self.assertEqual(2, sum(bool(row["metadata"]["value"]) for row in self.profile_rows.values()))
+        self.assertFalse(any(row["metadata"]["operation"] == "confirm" for row in self.profile_rows.values()))
 
     async def test_same_turn_retry_is_idempotent(self):
         when = datetime.now(timezone.utc) - timedelta(days=1)
         self._apply("年付", "set", when, content="我更喜欢年付")
-        first_id = next(iter(self.manager._profile.rows))
+        first_id = next(iter(self.profile_rows))
         self._apply("年付", "set", when, content="我更喜欢年付")
 
-        self.assertEqual([first_id], list(self.manager._profile.rows))
-        metadata = self.manager._profile.rows[first_id]["metadata"]
+        self.assertEqual([first_id], list(self.profile_rows))
+        metadata = self.profile_rows[first_id]["metadata"]
         self.assertEqual(FACT_SCHEMA_VERSION, metadata["schema_version"])
         self.assertEqual(
             {
                 "schema_version", "user_id", "memory_key", "value", "operation",
-                "effective_at", "expires_at", "source_conv_id", "source_turn_id",
+                "effective_at", "expires_at", "source_conv_id", "source_turn_id", "last_confirmed_at",
             },
             set(metadata),
         )
@@ -840,8 +764,8 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self._apply("", "retract", first + timedelta(days=1), content="请忘记账单周期")
 
         self.assertEqual({}, await self.manager._get_profile("user-1"))
-        self.assertEqual(1, len(self.manager._profile.rows))
-        marker = next(iter(self.manager._profile.rows.values()))["metadata"]
+        self.assertEqual(1, len(self.profile_rows))
+        marker = next(iter(self.profile_rows.values()))["metadata"]
         self.assertEqual("retract", marker["operation"])
         self.assertEqual("", marker["value"])
 
@@ -852,7 +776,7 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self._apply("年付", "supersede", first + timedelta(days=1))
 
         self.assertEqual({}, await self.manager._get_profile("user-1"))
-        self.assertEqual(1, len(self.manager._profile.rows))
+        self.assertEqual(1, len(self.profile_rows))
 
     async def test_newer_set_after_retract_becomes_current(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
@@ -863,34 +787,16 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         profile = await self.manager._get_profile("user-1")
         self.assertEqual("年付", profile["facts"]["preference.billing_cycle"])
 
-    async def test_recall_uses_only_current_non_global_facts_and_distance_gate(self):
+    async def test_queries_read_only_current_facts_without_semantic_filtering(self):
         first = datetime.now(timezone.utc) - timedelta(days=3)
         self._apply("月付", "set", first)
         self._apply("年付", "supersede", first + timedelta(days=1))
-        self._apply("Windows", "set", first + timedelta(days=1), key="environment.os")
-        self._apply("VS Code", "set", first + timedelta(days=1), key="environment.ide")
-        rows = self.manager._get_profile_rows("user-1")
-        resolved = resolve_profile(rows)
-        current_by_key = {
-            row["metadata"]["memory_key"]: row["id"]
-            for row in rows
-            if row["id"] in resolved.current_event_ids
-        }
-        self.manager._profile.query_distances[current_by_key["environment.ide"]] = 1.1
-        self.manager._profile.query_distances[
-            current_by_key["preference.billing_cycle"]
-        ] = 1.1
-
-        recalled = await self.manager._search_current_profile_facts(
-            "user-1",
-            "我使用什么开发环境",
-            rows=rows,
-            current_event_ids=set(resolved.current_event_ids),
-        )
-
-        self.assertEqual(["environment.os=Windows"], recalled)
-        self.assertFalse(any("月付" in item for item in recalled))
-        self.assertIn(("我使用什么开发环境", True), self.manager._profile_embedding_provider.calls)
+        self._apply("Windows", "set", first, key="environment.os")
+        for query in ("", "退款多久到账", "我使用什么开发环境"):
+            context = await self.manager.get_long_term_memory("user-1", query=query)
+            self.assertEqual(["environment.os=Windows", "preference.billing_cycle=年付"],
+                             context.recalled_facts)
+        self.assertEqual([], (await self.manager.get_long_term_memory("other-user")).recalled_facts)
 
     async def test_full_injection_mode_includes_all_current_non_global_facts(self):
         first = datetime.now(timezone.utc) - timedelta(days=2)
@@ -909,32 +815,27 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
             context.recalled_facts,
         )
 
-    async def test_recall_mode_keeps_distance_gated_semantic_recall(self):
+    async def test_latest_expired_value_does_not_restore_previous_version(self):
+        first = datetime.now(timezone.utc) - timedelta(days=400)
+        self._apply("月付", "set", first)
+        self._apply("年付", "supersede", first + timedelta(days=1))
+        context = await self.manager.get_long_term_memory("user-1", query="账单周期")
+        self.assertEqual([], context.recalled_facts)
+        self.assertEqual(2, len(self.profile_rows))
+
+    async def test_retract_failure_rolls_back_deleted_value(self):
+        import sqlite3
         first = datetime.now(timezone.utc) - timedelta(days=2)
         self._apply("月付", "set", first)
-        self._apply("Windows", "set", first, key="environment.os")
-        rows = self.manager._get_profile_rows("user-1")
-        resolved = resolve_profile(rows)
-        current_by_key = {
-            row["metadata"]["memory_key"]: row["id"]
-            for row in rows
-            if row["id"] in resolved.current_event_ids
-        }
-        self.manager._profile.query_distances[
-            current_by_key["preference.billing_cycle"]
-        ] = 1.1
-        self.manager._fact_injection_mode = "recall"
-
-        context = await self.manager.get_long_term_memory(
-            "user-1",
-            query="我的开发环境",
-        )
-
-        self.assertEqual(["environment.os=Windows"], context.recalled_facts)
-        self.assertIn(
-            ("我的开发环境", True),
-            self.manager._profile_embedding_provider.calls,
-        )
+        self.manager.session_store._connection.execute("""
+            CREATE TRIGGER reject_fact_marker BEFORE INSERT ON user_fact_events
+            WHEN json_extract(NEW.metadata_json, '$.operation')='retract'
+            BEGIN SELECT RAISE(ABORT, 'marker failed'); END;
+        """)
+        with self.assertRaisesRegex(sqlite3.IntegrityError, "marker failed"):
+            self._apply("", "retract", first + timedelta(days=1))
+        self.assertEqual("月付", (await self.manager._get_profile("user-1"))["facts"]["preference.billing_cycle"])
+        self.assertEqual(1, len(self.profile_rows))
 
     async def test_long_term_context_separates_global_styles_from_query_facts(self):
         first = datetime.now(timezone.utc) - timedelta(days=1)
@@ -953,7 +854,7 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertEqual(["environment.os=Windows"], context.recalled_facts)
 
-    async def test_pending_override_hides_stale_chroma_values_until_materialized(self):
+    async def test_pending_override_hides_stale_sqlite_values_until_materialized(self):
         first = datetime.now(timezone.utc) - timedelta(days=1)
         self._apply("简短", "set", first, key="style.response_length")
         self._apply("Windows", "set", first, key="environment.os")
@@ -981,52 +882,18 @@ class MemoryManagerFactEventTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([], context.recalled_facts)
 
     async def test_legacy_whole_profile_still_reads_newest_timestamp(self):
-        self.manager._profile.add(
-            ids=["old", "new"],
-            documents=[
-                json.dumps({"preferences": ["月付"]}, ensure_ascii=False),
-                json.dumps({"preferences": ["年付"]}, ensure_ascii=False),
-            ],
-            metadatas=[
-                {"user_id": "user-1", "ts": "2026-01-01T00:00:00"},
-                {"user_id": "user-1", "ts": "2026-02-01T00:00:00"},
-            ],
-        )
+        self.manager.session_store.mutate_profile_events("user-1", lambda rows: rows + [
+            {"id": "old", "document": json.dumps({"preferences": ["月付"]}, ensure_ascii=False),
+             "metadata": {"user_id": "user-1", "ts": "2026-01-01T00:00:00"}},
+            {"id": "new", "document": json.dumps({"preferences": ["年付"]}, ensure_ascii=False),
+             "metadata": {"user_id": "user-1", "ts": "2026-02-01T00:00:00"}},
+        ])
 
         profile = await self.manager._get_profile("user-1")
         context = await self.manager.get_long_term_memory("user-1", query="账单偏好")
 
         self.assertEqual(["年付"], profile["preferences"])
         self.assertEqual(["年付"], context.current_profile["preferences"])
-
-    def test_legacy_fact_events_are_copied_into_bge_collection(self):
-        legacy = _FakeCollection()
-        when = datetime.now(timezone.utc) - timedelta(days=1)
-        row = _row(
-            "legacy-event",
-            value="Windows",
-            effective_at=when,
-            memory_key="environment.os",
-        )
-        legacy.add(
-            ids=[row["id"]],
-            documents=[row["document"]],
-            metadatas=[row["metadata"]],
-        )
-        self.manager._legacy_profile = legacy
-
-        self.manager._migrate_legacy_profile_events()
-
-        migrated = self.manager._profile.rows["legacy-event"]
-        self.assertEqual(
-            "操作系统（environment.os）：Windows",
-            migrated["document"],
-        )
-        self.assertEqual([0.1, 0.2], migrated["embedding"])
-        self.assertIn(
-            ("操作系统（environment.os）：Windows", False),
-            self.manager._profile_embedding_provider.calls,
-        )
 
     async def test_update_profile_uses_only_four_candidate_fields(self):
         self.manager._model = "test-model"
